@@ -9,6 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 10000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.db');
+const HOST = process.env.HOST || '0.0.0.0';
 
 // ── DB helpers ────────────────────────────────────────
 function getDb() {
@@ -230,10 +231,15 @@ app.get('/api/audit/download', (req, res) => {
 app.use(express.static(path.join(__dirname, 'dist')));
 
 app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  const indexPath = path.join(__dirname, 'dist', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).json({ status: 'API server running', db_admin: '/db-access' });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
   console.log(`Database admin: http://localhost:${PORT}/db-access`);
 });
