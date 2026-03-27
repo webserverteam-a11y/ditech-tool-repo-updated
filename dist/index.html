@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      // Config persistence — must run BEFORE React module loads
+      // Ensures PUT requests survive page unload via keepalive
+      (function() {
+        var PREFIX = '_seo_backup_';
+        var KEYS = ['users', 'admin_options', 'nav_access'];
+        var _fetch = window.fetch.bind(window);
+        window._origFetch = _fetch; // expose for sync script
+        var CONFIG_RE = /^\/api\/config\/(users|admin_options|nav_access)$/;
+
+        function bk(k) { return PREFIX + k; }
+
+        window.fetch = function(input, init) {
+          var url = typeof input === 'string' ? input : (input && input.url) || '';
+          var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+          var m = url.match(CONFIG_RE);
+
+          if (m) {
+            var cfgKey = m[1];
+
+            // On PUT → add keepalive so browser doesn't cancel on reload,
+            // and save body to localStorage as secondary backup
+            if (method === 'PUT' && init) {
+              if (init.body) {
+                try { localStorage.setItem(bk(cfgKey), init.body); } catch(e) {}
+              }
+              // Force keepalive on ALL config PUTs — this is the core fix.
+              // Without keepalive, the browser cancels in-flight fetches on
+              // page reload, so the data never reaches the DB.
+              var opts = {};
+              for (var p in init) opts[p] = init[p];
+              opts.keepalive = true;
+              return _fetch(input, opts);
+            }
+
+            // On GET → merge server response with localStorage backup
+            if (method === 'GET') {
+              var raw;
+              try { raw = localStorage.getItem(bk(cfgKey)); } catch(e) {}
+              if (raw) {
+                var backup;
+                try { backup = JSON.parse(raw); } catch(e) { backup = null; }
+                if (backup !== null && backup !== undefined) {
+                  return _fetch(input, init).then(function(response) {
+                    var clone = response.clone();
+                    return clone.json().then(function(serverData) {
+                      var merged = mergeConfig(cfgKey, serverData, backup);
+                      if (merged !== null) {
+                        return new Response(JSON.stringify(merged), {
+                          status: 200,
+                          headers: { 'Content-Type': 'application/json' }
+                        });
+                      }
+                      return response;
+                    }).catch(function() { return response; });
+                  });
+                }
+              }
+            }
+          }
+
+          return _fetch(input, init);
+        };
+
+        function mergeConfig(key, server, backup) {
+          if (key === 'users') {
+            if (!server || !Array.isArray(server) || server.length === 0) return backup;
+            if (!Array.isArray(backup)) return null;
+            var ids = {};
+            server.forEach(function(u) { if (u && u.id) ids[u.id] = true; });
+            var missing = backup.filter(function(u) { return u && u.id && !ids[u.id]; });
+            return missing.length > 0 ? server.concat(missing) : null;
+          }
+          if (key === 'nav_access') {
+            if (!server || typeof server !== 'object') return backup;
+            if (!backup || typeof backup !== 'object') return null;
+            var bKeys = Object.keys(backup).filter(function(k) { return backup[k]; });
+            var sKeys = Object.keys(server).filter(function(k) { return server[k]; });
+            if (bKeys.length > sKeys.length) return backup;
+            var merged = {};
+            var changed = false;
+            for (var k in server) merged[k] = server[k];
+            for (var k in backup) {
+              if (!(k in merged)) { merged[k] = backup[k]; changed = true; }
+            }
+            return changed ? merged : null;
+          }
+          if (key === 'admin_options') {
+            if (!server || typeof server !== 'object') return backup;
+            if (!backup || typeof backup !== 'object') return null;
+            var countItems = function(obj) {
+              var n = 0;
+              for (var k in obj) if (Array.isArray(obj[k])) n += obj[k].length;
+              return n;
+            };
+            return countItems(backup) > countItems(server) ? backup : null;
+          }
+          return null;
+        }
+
+        // On page load: re-send all backups to server as safety net
+        KEYS.forEach(function(cfgKey) {
+          try {
+            var saved = localStorage.getItem(bk(cfgKey));
+            if (saved) {
+              setTimeout(function() {
+                _fetch('/api/config/' + cfgKey, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: saved,
+                  keepalive: true
+                }).catch(function() {});
+              }, 500);
+            }
+          } catch(e) {}
+        });
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-xUiSJVv5.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CnEX9X-2.css">
+    <script>
+      // Sync localStorage-only data to/from the DB so data loads dynamically
+      // across sessions and browsers. These 4 keys are never sent to the server
+      // by the React app — we bridge that gap here.
+      (function() {
+        var _f = window._origFetch || window.fetch.bind(window);
+        var SYNC_MAP = {
+          'seo_client_config':  '/api/client-config',
+          'seo_historical_kw':  '/api/historical-keywords',
+          'seo_leave_records':  '/api/leave-records',
+          'seo_workhub_remarks': '/api/workhub-remarks'
+        };
+        var loaded = {};
+        var dirty = {};
+
+        // On page load: fetch each key from DB → populate localStorage
+        Object.entries(SYNC_MAP).forEach(function(entry) {
+          var lsKey = entry[0], apiUrl = entry[1];
+          _f(apiUrl).then(function(r) { return r.json(); }).then(function(data) {
+            if (data && ((Array.isArray(data) && data.length > 0) || (!Array.isArray(data) && Object.keys(data).length > 0))) {
+              localStorage.setItem(lsKey, JSON.stringify(data));
+              loaded[lsKey] = true;
+            }
+          }).catch(function() {});
+        });
+
+        // Watch for localStorage changes and mark keys dirty
+        var origSetItem = localStorage.setItem;
+        localStorage.setItem = function(key, value) {
+          origSetItem.call(localStorage, key, value);
+          if (SYNC_MAP[key]) dirty[key] = true;
+        };
+
+        // Flush dirty keys to DB
+        function flushToDb(useKeepalive) {
+          Object.keys(dirty).forEach(function(lsKey) {
+            var raw;
+            try { raw = localStorage.getItem(lsKey); } catch(e) { return; }
+            if (!raw) return;
+            _f(SYNC_MAP[lsKey], {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: raw,
+              keepalive: !!useKeepalive
+            }).catch(function() {});
+          });
+          dirty = {};
+        }
+
+        // Periodic sync every 30s for dirty keys
+        setInterval(function() { flushToDb(false); }, 30000);
+
+        // On page unload: flush with keepalive
+        window.addEventListener('beforeunload', function() { flushToDb(true); });
+        document.addEventListener('visibilitychange', function() {
+          if (document.visibilityState === 'hidden') flushToDb(true);
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Override logo after React mounts
+      new MutationObserver(function(mutations, obs) {
+        var img = document.querySelector('img[alt="DiTech"]');
+        if (img) {
+          img.src = '/assets/ditechlogo.svg';
+          img.style.height = '38px';
+          img.style.objectFit = 'contain';
+          img.style.objectPosition = 'left center';
+          img.style.maxWidth = '100%';
+          img.style.background = 'white';
+          img.style.borderRadius = '3px';
+          obs.disconnect();
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    </script>
+  </body>
+</html>
+
