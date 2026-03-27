@@ -263,16 +263,6 @@ app.put('/api/config/:key', async (req, res) => {
 
     // Users are stored in the dedicated users table
     if (key === 'users' && Array.isArray(body)) {
-      // Merge: keep DB users that aren't in the incoming payload
-      const [existing] = await pool.query('SELECT id, name, password, role, ownerName FROM users');
-      if (existing.length > 0) {
-        const incomingIds = new Set(body.map(u => u.id));
-        const missing = existing.filter(u => !incomingIds.has(u.id));
-        if (missing.length > 0) {
-          body = [...body, ...missing];
-          console.log(`PUT /api/config/users: merged ${missing.length} missing users back (${missing.map(u => u.name).join(', ')})`);
-        }
-      }
       console.log(`PUT /api/config/users: ${body.length} users, names: [${body.map(u => u.name).join(', ')}]`);
 
       let conn;
