@@ -241,6 +241,38 @@ app.get('/api/config/:key', async (req, res) => {
       return res.json(decryptedRows);
     }
 
+    // admin_options: owner lists are derived live from the users table
+    if (key === 'admin_options') {
+      const [cfgRows] = await pool.query('SELECT value FROM app_config WHERE `key` = ?', ['admin_options']);
+      let config = {};
+      if (cfgRows.length > 0) {
+        const val = cfgRows[0].value;
+        config = typeof val === 'string' ? JSON.parse(val) : val;
+      }
+      // Query users table grouped by role — excludes admin accounts
+      const [userRows] = await pool.query(
+        'SELECT name, role FROM users WHERE role NOT IN (?, ?) ORDER BY name',
+        ['admin', '']
+      );
+      const ROLE_TO_OWNER_KEY = {
+        seo: 'seoOwners',
+        content: 'contentOwners',
+        web: 'webOwners',
+        ads: 'adsOwners',
+        design: 'designOwners',
+        social: 'socialOwners',
+        webdev: 'webdevOwners',
+      };
+      // Reset all dynamic owner arrays to empty, then populate from DB
+      Object.values(ROLE_TO_OWNER_KEY).forEach(k => { config[k] = []; });
+      userRows.forEach(u => {
+        const ownerKey = ROLE_TO_OWNER_KEY[u.role];
+        if (ownerKey) config[ownerKey].push(u.name);
+      });
+      console.log(`GET /api/config/admin_options: owner lists injected from users table (${userRows.length} users)`);
+      return res.json(config);
+    }
+
     // All other config keys use app_config
     const [rows] = await pool.query('SELECT value FROM app_config WHERE `key` = ?', [key]);
     if (rows.length === 0) {
@@ -295,6 +327,15 @@ app.put('/api/config/:key', async (req, res) => {
         if (conn) conn.release();
       }
       return res.json({ ok: true, message: `${body.length} user(s) saved successfully` });
+    }
+
+    // admin_options: strip dynamic owner arrays before saving — they are always
+    // derived from the users table on GET, so storing them would cause stale data.
+    if (key === 'admin_options' && body && typeof body === 'object' && !Array.isArray(body)) {
+      const dynamicOwnerKeys = ['seoOwners', 'contentOwners', 'webOwners', 'adsOwners', 'designOwners', 'socialOwners', 'webdevOwners'];
+      body = Object.assign({}, body);
+      dynamicOwnerKeys.forEach(k => delete body[k]);
+      console.log(`PUT /api/config/admin_options: stripped dynamic owner arrays, saving ${Object.keys(body).length} static keys`);
     }
 
     // Merge nav_access — preserve permission keys from DB that aren't in incoming data
