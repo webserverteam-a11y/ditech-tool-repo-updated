@@ -4,7 +4,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Google AI Studio App</title>
+  <title>DiTech CDM - Tool Manager</title>
+
+<style>
+  /* Hide Upload CSV button in Task Entry */
+  button[title="Upload CSV"],
+  label[title="Upload CSV"] {
+    display: none !important;
+  }
+</style>
+  
   <script>
     // Config persistence — must run BEFORE React module loads
     // Ensures PUT requests survive page unload via keepalive
