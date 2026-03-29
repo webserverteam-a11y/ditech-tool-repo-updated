@@ -98,14 +98,11 @@
           return changed ? merged : null;
         }
         if (key === 'admin_options') {
-          if (!server || typeof server !== 'object') return backup;
-          if (!backup || typeof backup !== 'object') return null;
-          var countItems = function (obj) {
-            var n = 0;
-            for (var k in obj) if (Array.isArray(obj[k])) n += obj[k].length;
-            return n;
-          };
-          return countItems(backup) > countItems(server) ? backup : null;
+          // Owner arrays always come from the server (derived from users table).
+          // Never prefer localStorage backup for admin_options — it may contain
+          // stale owner lists. Only merge static config keys (clients, stages, etc).
+          if (!server || typeof server !== 'object') return null;
+          return null;
         }
         return null;
       }
@@ -127,6 +124,74 @@
           }
         } catch (e) { }
       });
+    })();
+  </script>
+  <script>
+    // Owner-array sanitization — must run BEFORE React module loads.
+    // The compiled React bundle has hardcoded fallback owner arrays (e.g.
+    // webOwners:["Gauri","Shubham"]) and caches admin_options in localStorage
+    // under "seo_admin_options". When the page loads, React reads localStorage
+    // BEFORE the API fetch completes, so stale/deleted users appear in dropdowns.
+    //
+    // Fix: owner arrays (*Owners) are ALWAYS derived from the users DB table via
+    // GET /api/config/admin_options. They must never persist in localStorage.
+    (function () {
+      var DYNAMIC_OWNER_KEYS = [
+        'seoOwners', 'contentOwners', 'webOwners',
+        'adsOwners', 'designOwners', 'socialOwners', 'webdevOwners'
+      ];
+      var ADMIN_OPTS_KEY = 'seo_admin_options';
+      var BACKUP_KEY = '_seo_backup_admin_options';
+
+      function stripOwners(jsonStr) {
+        if (!jsonStr) return jsonStr;
+        try {
+          var obj = JSON.parse(jsonStr);
+          if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+            var changed = false;
+            DYNAMIC_OWNER_KEYS.forEach(function (k) {
+              if (k in obj) {
+                obj[k] = [];
+                changed = true;
+              }
+            });
+            if (changed) return JSON.stringify(obj);
+          }
+        } catch (e) { }
+        return jsonStr;
+      }
+
+      // 1. On startup: immediately sanitize both localStorage keys
+      [ADMIN_OPTS_KEY, BACKUP_KEY].forEach(function (key) {
+        try {
+          var raw = localStorage.getItem(key);
+          if (raw) {
+            var cleaned = stripOwners(raw);
+            if (cleaned !== raw) localStorage.setItem(key, cleaned);
+          }
+        } catch (e) { }
+      });
+
+      // 2. Intercept localStorage.getItem — strip owners on every read
+      var _origGetItem = localStorage.getItem.bind(localStorage);
+      localStorage.getItem = function (key) {
+        var val = _origGetItem(key);
+        if (key === ADMIN_OPTS_KEY || key === BACKUP_KEY) {
+          return stripOwners(val);
+        }
+        return val;
+      };
+
+      // 3. Intercept localStorage.setItem — strip owners before every write
+      //    (Note: the sync script below already patches setItem for SYNC_MAP keys.
+      //     We wrap whatever setItem is current, so both patches compose correctly.)
+      var _origSetItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function (key, value) {
+        if (key === ADMIN_OPTS_KEY || key === BACKUP_KEY) {
+          value = stripOwners(value);
+        }
+        return _origSetItem(key, value);
+      };
     })();
   </script>
   <script type="module" crossorigin src="/assets/index-xUiSJVv5.js"></script>
