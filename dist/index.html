@@ -10,7 +10,12 @@
     // Ensures PUT requests survive page unload via keepalive
     (function () {
       var PREFIX = '_seo_backup_';
-      var KEYS = ['users', 'admin_options', 'nav_access'];
+      // NOTE: 'users' is intentionally excluded from page-load re-sync.
+      // The DB is the source of truth for users. Re-syncing localStorage on
+      // page load would overwrite DB users with stale cached data, deleting
+      // any users not present in the old cache (including newly created ones).
+      var KEYS = ['admin_options', 'nav_access'];
+      var RESYNC_KEYS = ['admin_options', 'nav_access']; // never re-sync users
       // var KEYS = [];
 
       var _fetch = window.fetch.bind(window);
@@ -73,12 +78,10 @@
 
       function mergeConfig(key, server, backup) {
         if (key === 'users') {
-          if (!server || !Array.isArray(server) || server.length === 0) return backup;
-          if (!Array.isArray(backup)) return null;
-          var ids = {};
-          server.forEach(function (u) { if (u && u.id) ids[u.id] = true; });
-          var missing = backup.filter(function (u) { return u && u.id && !ids[u.id]; });
-          return missing.length > 0 ? server.concat(missing) : null;
+          // DB is the source of truth for users. Never merge localStorage
+          // backup on top of the server response — doing so would re-introduce
+          // deleted users (e.g. Aman, Heena) back into the UI.
+          return null;
         }
         if (key === 'nav_access') {
           if (!server || typeof server !== 'object') return backup;
@@ -107,8 +110,9 @@
         return null;
       }
 
-      // On page load: re-send all backups to server as safety net
-      KEYS.forEach(function (cfgKey) {
+      // On page load: re-send backups to server as safety net
+      // Excludes 'users' — DB is authoritative for users, not localStorage
+      RESYNC_KEYS.forEach(function (cfgKey) {
         try {
           var saved = localStorage.getItem(bk(cfgKey));
           if (saved) {
