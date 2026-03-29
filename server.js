@@ -194,11 +194,70 @@ app.get('/api/db-init', async (_req, res) => {
   res.json({ ok: true, tables: results });
 });
 
+// ── Date normalization helper ─────────────────────────
+// Converts various date formats to YYYY-MM-DD.
+// Handles: DD-MM-YYYY, DD/MM/YYYY, MM-DD-YYYY, MM/DD/YYYY, YYYY/MM/DD, YYYY-MM-DD
+// Returns the original string unchanged if it cannot be parsed.
+function normalizeDate(val) {
+  if (!val || typeof val !== 'string') return val;
+  const s = val.trim();
+  if (!s) return s;
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // YYYY/MM/DD
+  let m = s.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+
+  // DD-MM-YYYY or DD/MM/YYYY  (day > 12 disambiguates from MM-DD-YYYY)
+  // MM-DD-YYYY or MM/DD/YYYY  (month > 12 is impossible, so first > 12 means day)
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    const year = m[3];
+    if (a > 12) {
+      // a must be day → DD-MM-YYYY
+      return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+    }
+    if (b > 12) {
+      // b must be day → MM-DD-YYYY
+      return `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+    }
+    // Ambiguous (both ≤ 12): assume DD-MM-YYYY (common in Indian locale)
+    return `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+  }
+
+  return s;
+}
+
+// Normalize all date fields on a task object and ensure intakeDate is never blank
+const TASK_DATE_FIELDS = ['intakeDate', 'contentAssignedDate', 'webAssignedDate'];
+function normalizeTaskDates(task) {
+  const today = new Date().toISOString().split('T')[0];
+  for (const field of TASK_DATE_FIELDS) {
+    if (task[field]) {
+      task[field] = normalizeDate(task[field]);
+    }
+  }
+  // If intakeDate is missing or blank, default to today so the task is never
+  // silently hidden by the Action Board's date filter.
+  if (!task.intakeDate || !task.intakeDate.trim()) {
+    task.intakeDate = today;
+  }
+  return task;
+}
+
 // ── API: Tasks ────────────────────────────────────────
 app.get('/api/tasks', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT data FROM tasks ORDER BY id');
-    res.json(rows.map(r => typeof r.data === 'string' ? JSON.parse(r.data) : r.data));
+    const tasks = rows.map(r => {
+      const t = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+      return normalizeTaskDates(t);
+    });
+    res.json(tasks);
   } catch (e) {
     console.error('GET /api/tasks error:', e.code, e.message);
     res.status(500).json({ error: 'Failed to load tasks' });
@@ -214,6 +273,7 @@ app.put('/api/tasks', async (req, res) => {
     await conn.beginTransaction();
     await conn.query('DELETE FROM tasks');
     for (const t of tasks) {
+      normalizeTaskDates(t);
       await conn.query('INSERT INTO tasks (id, data) VALUES (?, ?)', [t.id, JSON.stringify(t)]);
     }
     await conn.commit();

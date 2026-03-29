@@ -275,6 +275,66 @@
       }
     }).observe(document.body, { childList: true, subtree: true });
   </script>
+  <script>
+    // Action Board date-range fix: the compiled React bundle defaults both
+    // "From Date" and "To Date" to today (YYYY-MM-DD). This means any task
+    // with a future intakeDate (e.g. tomorrow, next week) is invisible.
+    //
+    // Fix: detect the Action Board's "To Date" input after React mounts and
+    // widen it to the end of the current month. This ensures tasks dated
+    // anywhere within the month are visible by default. Users can still
+    // narrow the range manually.
+    (function () {
+      var applied = false;
+      function getEndOfMonth() {
+        var d = new Date();
+        var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        return last.toISOString().split('T')[0];
+      }
+
+      function tryFixDates() {
+        if (applied) return;
+        // The Action Board has two date inputs with labels "From Date" and "To Date"
+        var labels = document.querySelectorAll('label');
+        var toLabel = null;
+        for (var i = 0; i < labels.length; i++) {
+          if (labels[i].textContent.trim() === 'To Date') {
+            toLabel = labels[i];
+            break;
+          }
+        }
+        if (!toLabel) return;
+        // The input[type="date"] is a sibling inside the same parent div
+        var container = toLabel.parentElement;
+        if (!container) return;
+        var toInput = container.querySelector('input[type="date"]');
+        if (!toInput) return;
+
+        var today = new Date().toISOString().split('T')[0];
+        var eom = getEndOfMonth();
+        // Only widen if the current value is exactly today (the default)
+        if (toInput.value === today && eom > today) {
+          // Trigger React's controlled input update via native setter + events
+          var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value'
+          ).set;
+          nativeInputValueSetter.call(toInput, eom);
+          toInput.dispatchEvent(new Event('input', { bubbles: true }));
+          toInput.dispatchEvent(new Event('change', { bubbles: true }));
+          applied = true;
+        }
+      }
+
+      // Watch for the Action Board to mount (SPA — it won't be there on initial load)
+      new MutationObserver(function () {
+        tryFixDates();
+      }).observe(document.body, { childList: true, subtree: true });
+
+      // Also try on initial page load in case Action Board is the default view
+      setTimeout(tryFixDates, 1500);
+      setTimeout(tryFixDates, 3000);
+    })();
+  </script>
 </body>
 
 </html>
