@@ -266,13 +266,14 @@
     new MutationObserver(function (mutations, obs) {
       var img = document.querySelector('img[alt="DiTech"]');
       if (img) {
-        img.src = '/assets/ditechlogo.svg';
+        img.src = 'https://www.ditechcdm.com/img/ditechcdm_logo.svg';
         img.style.height = '38px';
         img.style.objectFit = 'contain';
         img.style.objectPosition = 'left center';
         img.style.maxWidth = '100%';
         img.style.background = 'white';
         img.style.borderRadius = '3px';
+        img.style.filter = 'none';
         obs.disconnect();
       }
     }).observe(document.body, { childList: true, subtree: true });

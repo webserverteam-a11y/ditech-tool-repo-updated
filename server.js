@@ -287,6 +287,29 @@ app.put('/api/tasks', async (req, res) => {
   }
 });
 
+// ── API: Single-task atomic upsert (timer-safe) ──────
+app.put('/api/tasks/:id', async (req, res) => {
+  const task = req.body;
+  if (!task || typeof task !== 'object' || Array.isArray(task)) {
+    return res.status(400).json({ error: 'Expected task object' });
+  }
+  let conn;
+  try {
+    conn = await pool.getConnection();
+    normalizeTaskDates(task);
+    await conn.query(
+      'INSERT INTO tasks (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data)',
+      [req.params.id, JSON.stringify(task)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('PUT /api/tasks/:id error:', e.message);
+    res.status(500).json({ error: 'Failed to save task' });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
 // ── API: Config (admin_options, nav_access from app_config; users from users table) ────
 app.get('/api/config/:key', async (req, res) => {
   try {
