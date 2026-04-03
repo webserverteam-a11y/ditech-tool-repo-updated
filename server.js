@@ -7,6 +7,12 @@ import pool from './config/db.js';
 import dbMiddleware from './db-middleware.js';
 import { encrypt, decrypt, isEncrypted } from './config/crypto.js';
 
+(async () => {
+  await import('./scripts/migrate-json-to-columns.js');
+  process.exit();
+})();
+ 
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 10000;
