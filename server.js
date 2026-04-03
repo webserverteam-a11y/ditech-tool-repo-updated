@@ -16,9 +16,56 @@ const HOST = process.env.HOST || '0.0.0.0';
 async function initDb() {
   const ddl = [
     ['tasks', `CREATE TABLE IF NOT EXISTS tasks (
-      id VARCHAR(255) PRIMARY KEY, data JSON NOT NULL,
+      id VARCHAR(255) PRIMARY KEY,
+      title VARCHAR(500) DEFAULT '', client VARCHAR(255) DEFAULT '',
+      seo_owner VARCHAR(255) DEFAULT '', seo_stage VARCHAR(255) DEFAULT '',
+      seo_qc_status VARCHAR(100) DEFAULT '', focused_kw VARCHAR(500) DEFAULT '',
+      volume INT DEFAULT 0, mar_rank INT DEFAULT 0, current_rank INT DEFAULT 0,
+      est_hours DECIMAL(10,2) DEFAULT 0, est_hours_seo DECIMAL(10,2) DEFAULT 0,
+      est_hours_content DECIMAL(10,2) DEFAULT 0, est_hours_web DECIMAL(10,2) DEFAULT 0,
+      est_hours_content_rework DECIMAL(10,2) DEFAULT 0, est_hours_seo_review DECIMAL(10,2) DEFAULT 0,
+      actual_hours DECIMAL(10,2) DEFAULT 0,
+      content_assigned_date VARCHAR(50) DEFAULT '', content_owner VARCHAR(255) DEFAULT '',
+      content_status VARCHAR(100) DEFAULT '',
+      web_assigned_date VARCHAR(50) DEFAULT '', web_owner VARCHAR(255) DEFAULT '',
+      target_url TEXT, web_status VARCHAR(100) DEFAULT '',
+      current_owner VARCHAR(255) DEFAULT '', days_in_stage INT DEFAULT 0,
+      remarks TEXT, is_completed TINYINT(1) DEFAULT 0,
+      execution_state VARCHAR(100) DEFAULT 'Not Started', doc_url TEXT,
+      intake_date VARCHAR(50) DEFAULT '',
+      dept_type VARCHAR(100) DEFAULT '', task_type VARCHAR(100) DEFAULT '',
+      platform VARCHAR(100) DEFAULT '', deliverable_url TEXT,
+      due_date VARCHAR(50) DEFAULT '', assigned_to VARCHAR(255) DEFAULT '',
+      ad_budget DECIMAL(10,2) DEFAULT 0, qc_submitted_at VARCHAR(50) DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_tasks_client (client), INDEX idx_tasks_seo_owner (seo_owner),
+      INDEX idx_tasks_intake_date (intake_date), INDEX idx_tasks_is_completed (is_completed))`],
+    ['task_time_events', `CREATE TABLE IF NOT EXISTS task_time_events (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      event_type VARCHAR(50) NOT NULL DEFAULT '', timestamp VARCHAR(50) DEFAULT '',
+      department VARCHAR(100) DEFAULT '', owner VARCHAR(255) DEFAULT '',
+      INDEX idx_tte_task (task_id),
+      CONSTRAINT fk_tte_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
+    ['task_qc_reviews', `CREATE TABLE IF NOT EXISTS task_qc_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      review_id VARCHAR(255) NOT NULL DEFAULT '',
+      submitted_by VARCHAR(255) DEFAULT '', submitted_by_dept VARCHAR(100) DEFAULT '',
+      submitted_at VARCHAR(50) DEFAULT '', assigned_to VARCHAR(255) DEFAULT '',
+      est_hours DECIMAL(10,2) DEFAULT 0, note TEXT,
+      outcome VARCHAR(100) DEFAULT '', completed_at VARCHAR(50) DEFAULT '',
+      INDEX idx_tqr_task (task_id),
+      CONSTRAINT fk_tqr_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
+    ['task_rework_entries', `CREATE TABLE IF NOT EXISTS task_rework_entries (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      rework_id VARCHAR(255) NOT NULL DEFAULT '', date VARCHAR(50) DEFAULT '',
+      est_hours DECIMAL(10,2) DEFAULT 0,
+      assigned_dept VARCHAR(100) DEFAULT '', assigned_owner VARCHAR(255) DEFAULT '',
+      within_estimate TINYINT(1) DEFAULT 0, hours_already_spent DECIMAL(10,2) DEFAULT 0,
+      start_timestamp VARCHAR(50) DEFAULT '', end_timestamp VARCHAR(50) DEFAULT '',
+      duration_ms BIGINT DEFAULT 0,
+      INDEX idx_tre_task (task_id),
+      CONSTRAINT fk_tre_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
     ['app_config', `CREATE TABLE IF NOT EXISTS app_config (
       \`key\` VARCHAR(255) PRIMARY KEY, value JSON NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -117,7 +164,7 @@ app.get('/api/health', async (_req, res) => {
     result.db = testRows && testRows[0] && testRows[0].ok === 1;
     const [tables] = await pool.query('SHOW TABLES');
     const tableNames = tables.map(t => Object.values(t)[0]);
-    const expected = ['tasks','app_config','users','audit_logs','sessions','client_config','historical_keywords','leave_records','workhub_remarks'];
+    const expected = ['tasks','task_time_events','task_qc_reviews','task_rework_entries','app_config','users','audit_logs','sessions','client_config','historical_keywords','leave_records','workhub_remarks'];
     for (const name of expected) {
       result.tables[name] = tableNames.includes(name);
     }
@@ -132,9 +179,56 @@ app.get('/api/db-init', async (_req, res) => {
   const results = {};
   const tableSQL = [
     ['tasks', `CREATE TABLE IF NOT EXISTS tasks (
-      id VARCHAR(255) PRIMARY KEY, data JSON NOT NULL,
+      id VARCHAR(255) PRIMARY KEY,
+      title VARCHAR(500) DEFAULT '', client VARCHAR(255) DEFAULT '',
+      seo_owner VARCHAR(255) DEFAULT '', seo_stage VARCHAR(255) DEFAULT '',
+      seo_qc_status VARCHAR(100) DEFAULT '', focused_kw VARCHAR(500) DEFAULT '',
+      volume INT DEFAULT 0, mar_rank INT DEFAULT 0, current_rank INT DEFAULT 0,
+      est_hours DECIMAL(10,2) DEFAULT 0, est_hours_seo DECIMAL(10,2) DEFAULT 0,
+      est_hours_content DECIMAL(10,2) DEFAULT 0, est_hours_web DECIMAL(10,2) DEFAULT 0,
+      est_hours_content_rework DECIMAL(10,2) DEFAULT 0, est_hours_seo_review DECIMAL(10,2) DEFAULT 0,
+      actual_hours DECIMAL(10,2) DEFAULT 0,
+      content_assigned_date VARCHAR(50) DEFAULT '', content_owner VARCHAR(255) DEFAULT '',
+      content_status VARCHAR(100) DEFAULT '',
+      web_assigned_date VARCHAR(50) DEFAULT '', web_owner VARCHAR(255) DEFAULT '',
+      target_url TEXT, web_status VARCHAR(100) DEFAULT '',
+      current_owner VARCHAR(255) DEFAULT '', days_in_stage INT DEFAULT 0,
+      remarks TEXT, is_completed TINYINT(1) DEFAULT 0,
+      execution_state VARCHAR(100) DEFAULT 'Not Started', doc_url TEXT,
+      intake_date VARCHAR(50) DEFAULT '',
+      dept_type VARCHAR(100) DEFAULT '', task_type VARCHAR(100) DEFAULT '',
+      platform VARCHAR(100) DEFAULT '', deliverable_url TEXT,
+      due_date VARCHAR(50) DEFAULT '', assigned_to VARCHAR(255) DEFAULT '',
+      ad_budget DECIMAL(10,2) DEFAULT 0, qc_submitted_at VARCHAR(50) DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_tasks_client (client), INDEX idx_tasks_seo_owner (seo_owner),
+      INDEX idx_tasks_intake_date (intake_date), INDEX idx_tasks_is_completed (is_completed))`],
+    ['task_time_events', `CREATE TABLE IF NOT EXISTS task_time_events (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      event_type VARCHAR(50) NOT NULL DEFAULT '', timestamp VARCHAR(50) DEFAULT '',
+      department VARCHAR(100) DEFAULT '', owner VARCHAR(255) DEFAULT '',
+      INDEX idx_tte_task (task_id),
+      CONSTRAINT fk_tte_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
+    ['task_qc_reviews', `CREATE TABLE IF NOT EXISTS task_qc_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      review_id VARCHAR(255) NOT NULL DEFAULT '',
+      submitted_by VARCHAR(255) DEFAULT '', submitted_by_dept VARCHAR(100) DEFAULT '',
+      submitted_at VARCHAR(50) DEFAULT '', assigned_to VARCHAR(255) DEFAULT '',
+      est_hours DECIMAL(10,2) DEFAULT 0, note TEXT,
+      outcome VARCHAR(100) DEFAULT '', completed_at VARCHAR(50) DEFAULT '',
+      INDEX idx_tqr_task (task_id),
+      CONSTRAINT fk_tqr_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
+    ['task_rework_entries', `CREATE TABLE IF NOT EXISTS task_rework_entries (
+      id INT AUTO_INCREMENT PRIMARY KEY, task_id VARCHAR(255) NOT NULL,
+      rework_id VARCHAR(255) NOT NULL DEFAULT '', date VARCHAR(50) DEFAULT '',
+      est_hours DECIMAL(10,2) DEFAULT 0,
+      assigned_dept VARCHAR(100) DEFAULT '', assigned_owner VARCHAR(255) DEFAULT '',
+      within_estimate TINYINT(1) DEFAULT 0, hours_already_spent DECIMAL(10,2) DEFAULT 0,
+      start_timestamp VARCHAR(50) DEFAULT '', end_timestamp VARCHAR(50) DEFAULT '',
+      duration_ms BIGINT DEFAULT 0,
+      INDEX idx_tre_task (task_id),
+      CONSTRAINT fk_tre_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE)`],
     ['app_config', `CREATE TABLE IF NOT EXISTS app_config (
       \`key\` VARCHAR(255) PRIMARY KEY, value JSON NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -249,13 +343,143 @@ function normalizeTaskDates(task) {
   return task;
 }
 
+// ── Task column mapping (snake_case DB → camelCase JSON) ──
+const TASK_COLUMN_MAP = {
+  id: 'id', title: 'title', client: 'client', intake_date: 'intakeDate',
+  seo_owner: 'seoOwner', seo_stage: 'seoStage', seo_qc_status: 'seoQcStatus',
+  focused_kw: 'focusedKw', volume: 'volume', mar_rank: 'marRank',
+  current_rank: 'currentRank', est_hours: 'estHours', est_hours_seo: 'estHoursSEO',
+  est_hours_content: 'estHoursContent', est_hours_web: 'estHoursWeb',
+  actual_hours: 'actualHours', content_assigned_date: 'contentAssignedDate',
+  content_owner: 'contentOwner', content_status: 'contentStatus',
+  web_assigned_date: 'webAssignedDate', web_owner: 'webOwner',
+  target_url: 'targetUrl', web_status: 'webStatus', current_owner: 'currentOwner',
+  days_in_stage: 'daysInStage', remarks: 'remarks', is_completed: 'isCompleted',
+  execution_state: 'executionState', doc_url: 'docUrl', dept_type: 'deptType',
+  task_type: 'taskType', platform: 'platform', deliverable_url: 'deliverableUrl',
+  due_date: 'dueDate', assigned_to: 'assignedTo', ad_budget: 'adBudget',
+  est_hours_seo_review: 'estHoursSEOReview', qc_submitted_at: 'qcSubmittedAt',
+  est_hours_content_rework: 'estHoursContentRework',
+};
+const INT_COLS = new Set(['volume', 'mar_rank', 'current_rank', 'days_in_stage']);
+const DEC_COLS = new Set(['est_hours', 'est_hours_seo', 'est_hours_content', 'est_hours_web',
+  'actual_hours', 'ad_budget', 'est_hours_seo_review', 'est_hours_content_rework']);
+const DATE_COLS = new Set(['intake_date', 'content_assigned_date', 'web_assigned_date', 'due_date']);
+const TASK_COLS = Object.keys(TASK_COLUMN_MAP);
+
+function groupBy(arr, key) {
+  const m = {};
+  for (const item of arr) { const k = item[key]; if (!m[k]) m[k] = []; m[k].push(item); }
+  return m;
+}
+
+// DB row → camelCase task object (without child arrays)
+function rowToTask(row) {
+  const task = {};
+  for (const col of TASK_COLS) {
+    const key = TASK_COLUMN_MAP[col];
+    let val = row[col];
+    if (val === null || val === undefined) {
+      if (INT_COLS.has(col) || DEC_COLS.has(col)) val = 0;
+      else if (col === 'is_completed') val = false;
+      else val = '';
+    }
+    if (col === 'is_completed') val = !!val;
+    if (INT_COLS.has(col)) val = Number(val) || 0;
+    if (DEC_COLS.has(col)) val = Number(val) || 0;
+    task[key] = val;
+  }
+  task.timeEvents = [];
+  task.qcReviews = [];
+  task.reworkEntries = [];
+  return task;
+}
+
+// camelCase task object → { cols, vals } for INSERT/UPDATE
+function taskToColumns(task) {
+  const cols = []; const vals = [];
+  for (const col of TASK_COLS) {
+    const key = TASK_COLUMN_MAP[col];
+    let val = task[key];
+    if (val === undefined) val = null;
+    if (col === 'is_completed') val = val ? 1 : 0;
+    if ((INT_COLS.has(col) || DEC_COLS.has(col)) && (val === '' || val === null)) val = 0;
+    cols.push(col);
+    vals.push(val);
+  }
+  return { cols, vals };
+}
+
+// Save one task + child rows inside an existing transaction connection
+async function saveTaskToDb(conn, task) {
+  normalizeTaskDates(task);
+  const { cols, vals } = taskToColumns(task);
+  const placeholders = cols.map(() => '?').join(',');
+  const updates = cols.filter(c => c !== 'id').map(c => `${c} = VALUES(${c})`).join(', ');
+  await conn.query(
+    `INSERT INTO tasks (${cols.join(',')}) VALUES (${placeholders}) ON DUPLICATE KEY UPDATE ${updates}`,
+    vals
+  );
+  // child tables — delete + re-insert
+  await conn.query('DELETE FROM task_time_events WHERE task_id = ?', [task.id]);
+  await conn.query('DELETE FROM task_qc_reviews WHERE task_id = ?', [task.id]);
+  await conn.query('DELETE FROM task_rework_entries WHERE task_id = ?', [task.id]);
+
+  if (Array.isArray(task.timeEvents)) {
+    for (const ev of task.timeEvents) {
+      await conn.query(
+        'INSERT INTO task_time_events (task_id, event_type, timestamp, department, owner) VALUES (?,?,?,?,?)',
+        [task.id, ev.type || '', ev.timestamp || '', ev.department || '', ev.owner || '']
+      );
+    }
+  }
+  if (Array.isArray(task.qcReviews)) {
+    for (const qc of task.qcReviews) {
+      await conn.query(
+        'INSERT INTO task_qc_reviews (task_id, review_id, submitted_by, submitted_by_dept, submitted_at, assigned_to, est_hours, note, outcome, completed_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [task.id, qc.id || '', qc.submittedBy || '', qc.submittedByDept || '', qc.submittedAt || '', qc.assignedTo || '', qc.estHours || 0, qc.note || '', qc.outcome || '', qc.completedAt || '']
+      );
+    }
+  }
+  if (Array.isArray(task.reworkEntries)) {
+    for (const rw of task.reworkEntries) {
+      await conn.query(
+        'INSERT INTO task_rework_entries (task_id, rework_id, date, est_hours, assigned_dept, assigned_owner, within_estimate, hours_already_spent, start_timestamp, end_timestamp, duration_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+        [task.id, rw.id || '', rw.date || '', rw.estHours || 0, rw.assignedDept || '', rw.assignedOwner || '', rw.withinEstimate ? 1 : 0, rw.hoursAlreadySpent || 0, rw.startTimestamp || '', rw.endTimestamp || '', rw.durationMs || 0]
+      );
+    }
+  }
+}
+
 // ── API: Tasks ────────────────────────────────────────
 app.get('/api/tasks', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT data FROM tasks ORDER BY id');
+    const [rows] = await pool.query('SELECT * FROM tasks ORDER BY id');
+    const [teRows] = await pool.query('SELECT * FROM task_time_events ORDER BY id');
+    const [qcRows] = await pool.query('SELECT * FROM task_qc_reviews ORDER BY id');
+    const [rwRows] = await pool.query('SELECT * FROM task_rework_entries ORDER BY id');
+    const teMap = groupBy(teRows, 'task_id');
+    const qcMap = groupBy(qcRows, 'task_id');
+    const rwMap = groupBy(rwRows, 'task_id');
     const tasks = rows.map(r => {
-      const t = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-      return normalizeTaskDates(t);
+      const t = rowToTask(r);
+      normalizeTaskDates(t);
+      t.timeEvents = (teMap[t.id] || []).map(e => ({ type: e.event_type, timestamp: e.timestamp, department: e.department, owner: e.owner }));
+      t.qcReviews = (qcMap[t.id] || []).map(e => {
+        const obj = { id: e.review_id, submittedBy: e.submitted_by, submittedByDept: e.submitted_by_dept, submittedAt: e.submitted_at, assignedTo: e.assigned_to, estHours: Number(e.est_hours) || 0 };
+        if (e.note) obj.note = e.note;
+        if (e.outcome) obj.outcome = e.outcome;
+        if (e.completed_at) obj.completedAt = e.completed_at;
+        return obj;
+      });
+      t.reworkEntries = (rwMap[t.id] || []).map(e => ({
+        id: e.rework_id, date: e.date, estHours: Number(e.est_hours) || 0,
+        assignedDept: e.assigned_dept, assignedOwner: e.assigned_owner,
+        withinEstimate: !!e.within_estimate, hoursAlreadySpent: Number(e.hours_already_spent) || 0,
+        startTimestamp: e.start_timestamp, endTimestamp: e.end_timestamp,
+        durationMs: Number(e.duration_ms) || 0,
+      }));
+      return t;
     });
     res.json(tasks);
   } catch (e) {
@@ -271,10 +495,16 @@ app.put('/api/tasks', async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    await conn.query('DELETE FROM tasks');
+    // Collect incoming IDs -> delete tasks NOT in the incoming set
+    const ids = tasks.map(t => t.id).filter(Boolean);
+    if (ids.length > 0) {
+      const ph = ids.map(() => '?').join(',');
+      await conn.query(`DELETE FROM tasks WHERE id NOT IN (${ph})`, ids);
+    } else {
+      await conn.query('DELETE FROM tasks');
+    }
     for (const t of tasks) {
-      normalizeTaskDates(t);
-      await conn.query('INSERT INTO tasks (id, data) VALUES (?, ?)', [t.id, JSON.stringify(t)]);
+      await saveTaskToDb(conn, t);
     }
     await conn.commit();
     res.json({ ok: true, count: tasks.length, message: `${tasks.length} task(s) saved successfully` });
@@ -296,13 +526,13 @@ app.put('/api/tasks/:id', async (req, res) => {
   let conn;
   try {
     conn = await pool.getConnection();
-    normalizeTaskDates(task);
-    await conn.query(
-      'INSERT INTO tasks (id, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data = VALUES(data)',
-      [req.params.id, JSON.stringify(task)]
-    );
+    await conn.beginTransaction();
+    task.id = req.params.id;
+    await saveTaskToDb(conn, task);
+    await conn.commit();
     res.json({ ok: true });
   } catch (e) {
+    if (conn) await conn.rollback().catch(() => {});
     console.error('PUT /api/tasks/:id error:', e.message);
     res.status(500).json({ error: 'Failed to save task' });
   } finally {
@@ -764,7 +994,8 @@ app.listen(PORT, HOST, () => {
       try {
         // Use pool.query (not pool.execute) for DDL — more compatible
         const tables = [
-          'tasks', 'app_config', 'users', 'audit_logs', 'sessions',
+          'tasks', 'task_time_events', 'task_qc_reviews', 'task_rework_entries',
+          'app_config', 'users', 'audit_logs', 'sessions',
           'client_config', 'historical_keywords', 'leave_records', 'workhub_remarks'
         ];
         await initDb();
