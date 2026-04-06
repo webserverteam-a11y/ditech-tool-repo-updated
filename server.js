@@ -493,6 +493,10 @@ app.get('/api/tasks', async (_req, res) => {
 app.put('/api/tasks', async (req, res) => {
   const tasks = req.body;
   if (!Array.isArray(tasks)) return res.status(400).json({ error: 'Expected array' });
+  // Safety guard — never allow a bulk wipe via empty payload
+  if (tasks.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'No tasks provided, nothing changed.' });
+  }
   let conn;
   try {
     conn = await pool.getConnection();
@@ -503,7 +507,9 @@ app.put('/api/tasks', async (req, res) => {
       const ph = ids.map(() => '?').join(',');
       await conn.query(`DELETE FROM tasks WHERE id NOT IN (${ph})`, ids);
     } else {
-      await conn.query('DELETE FROM tasks');
+      // All tasks have null/empty IDs — refuse to wipe
+      await conn.rollback();
+      return res.status(400).json({ error: 'No valid task IDs in payload, aborting to prevent data loss.' });
     }
     for (const t of tasks) {
       await saveTaskToDb(conn, t);
@@ -612,18 +618,25 @@ app.put('/api/config/:key', async (req, res) => {
     if (key === 'users' && Array.isArray(body)) {
       console.log(`PUT /api/config/users: ${body.length} users, names: [${body.map(u => u.name).join(', ')}]`);
 
+      // Safety guard — never allow a bulk wipe via empty payload
+      if (body.length === 0) {
+        return res.json({ ok: true, message: 'No users provided, nothing changed.' });
+      }
+
       let conn;
       try {
         conn = await pool.getConnection();
         await conn.beginTransaction();
         // Collect incoming IDs to remove deleted users
-        const incomingIds = body.map(u => u.id);
+        const incomingIds = body.map(u => u.id).filter(Boolean);
         if (incomingIds.length > 0) {
           // Delete users not in the incoming list
           const placeholders = incomingIds.map(() => '?').join(',');
           await conn.query(`DELETE FROM users WHERE id NOT IN (${placeholders})`, incomingIds);
         } else {
-          await conn.query('DELETE FROM users');
+          // All users have null/empty IDs — refuse to wipe
+          await conn.rollback();
+          return res.status(400).json({ error: 'No valid user IDs in payload, aborting to prevent data loss.' });
         }
         // Upsert each user — encrypt passwords before storing
         for (const u of body) {
@@ -737,19 +750,32 @@ app.get('/api/client-config', async (_req, res) => {
 app.put('/api/client-config', async (req, res) => {
   const body = req.body;
   if (!body || typeof body !== 'object') return res.status(400).json({ error: 'Expected object' });
+  // Safety guard — never wipe on empty payload
+  if (Object.keys(body).length === 0) {
+    return res.json({ ok: true, message: 'No client config provided, nothing changed.' });
+  }
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    await conn.query('DELETE FROM client_config');
+    // Upsert per row — never wipe first
+    const incomingKeys = [];
     for (const [client, data] of Object.entries(body)) {
       const months = data.months || {};
       for (const [month, cfg] of Object.entries(months)) {
+        incomingKeys.push(client, month);
         await conn.query(
-          'INSERT INTO client_config (client, month, budget_hrs, strategy_url, notes) VALUES (?, ?, ?, ?, ?)',
+          `INSERT INTO client_config (client, month, budget_hrs, strategy_url, notes) VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE budget_hrs = VALUES(budget_hrs), strategy_url = VALUES(strategy_url), notes = VALUES(notes)`,
           [client, month, cfg.budgetHrs || 0, cfg.strategyUrl || '', data.notes || '']
         );
       }
+    }
+    // Remove entries no longer in the payload (scoped delete)
+    if (incomingKeys.length > 0) {
+      const pairs = [];
+      for (let i = 0; i < incomingKeys.length; i += 2) pairs.push('(?, ?)');
+      await conn.query(`DELETE FROM client_config WHERE (client, month) NOT IN (${pairs.join(',')})`, incomingKeys);
     }
     await conn.commit();
     res.json({ ok: true, message: 'Client config saved successfully' });
@@ -780,16 +806,34 @@ app.get('/api/historical-keywords', async (_req, res) => {
 app.put('/api/historical-keywords', async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data)) return res.status(400).json({ error: 'Expected array' });
+  // Safety guard — never wipe on empty payload
+  if (data.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'No keywords provided, nothing changed.' });
+  }
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    await conn.query('DELETE FROM historical_keywords');
+    // Collect incoming IDs for scoped delete (remove rows not in payload)
+    const kwIds = data.map(kw => kw.id).filter(Boolean);
+    if (kwIds.length > 0) {
+      const kwPh = kwIds.map(() => '?').join(',');
+      await conn.query(`DELETE FROM historical_keywords WHERE id NOT IN (${kwPh})`, kwIds);
+    }
+    // Upsert existing rows, insert new rows
     for (const kw of data) {
-      await conn.query(
-        'INSERT INTO historical_keywords (task_id, keyword, month, rank_value, volume, client) VALUES (?, ?, ?, ?, ?, ?)',
-        [kw.taskId || kw.task_id || null, kw.keyword || '', kw.month || '', kw.rank || kw.rank_value || 0, kw.volume || 0, kw.client || '']
-      );
+      if (kw.id) {
+        await conn.query(
+          `INSERT INTO historical_keywords (id, task_id, keyword, month, rank_value, volume, client) VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE task_id = VALUES(task_id), keyword = VALUES(keyword), month = VALUES(month), rank_value = VALUES(rank_value), volume = VALUES(volume), client = VALUES(client)`,
+          [kw.id, kw.taskId || kw.task_id || null, kw.keyword || '', kw.month || '', kw.rank || kw.rank_value || 0, kw.volume || 0, kw.client || '']
+        );
+      } else {
+        await conn.query(
+          'INSERT INTO historical_keywords (task_id, keyword, month, rank_value, volume, client) VALUES (?, ?, ?, ?, ?, ?)',
+          [kw.taskId || kw.task_id || null, kw.keyword || '', kw.month || '', kw.rank || kw.rank_value || 0, kw.volume || 0, kw.client || '']
+        );
+      }
     }
     await conn.commit();
     res.json({ ok: true, count: data.length, message: `${data.length} keyword(s) saved successfully` });
@@ -820,16 +864,25 @@ app.get('/api/leave-records', async (_req, res) => {
 app.put('/api/leave-records', async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data)) return res.status(400).json({ error: 'Expected array' });
+  // Safety guard — never wipe on empty payload
+  if (data.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'No leave records provided, nothing changed.' });
+  }
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    await conn.query('DELETE FROM leave_records');
-    for (const r of data) {
-      const id = r.id || ('lv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+    // Assign IDs to new records, collect all IDs for scoped delete
+    const leaveRows = data.map(r => ({ ...r, _id: r.id || ('lv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)) }));
+    const leaveIds = leaveRows.map(r => r._id);
+    const lvPh = leaveIds.map(() => '?').join(',');
+    await conn.query(`DELETE FROM leave_records WHERE id NOT IN (${lvPh})`, leaveIds);
+    // Upsert per row — never wipe first
+    for (const r of leaveRows) {
       await conn.query(
-        'INSERT INTO leave_records (id, user_name, user_role, leave_date, leave_type, reason, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [id, r.userName || r.user_name || '', r.userRole || r.user_role || '', r.leaveDate || r.leave_date || new Date().toISOString().slice(0, 10), r.leaveType || r.leave_type || 'full', r.reason || '', r.status || 'approved']
+        `INSERT INTO leave_records (id, user_name, user_role, leave_date, leave_type, reason, status) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE user_name = VALUES(user_name), user_role = VALUES(user_role), leave_date = VALUES(leave_date), leave_type = VALUES(leave_type), reason = VALUES(reason), status = VALUES(status)`,
+        [r._id, r.userName || r.user_name || '', r.userRole || r.user_role || '', r.leaveDate || r.leave_date || new Date().toISOString().slice(0, 10), r.leaveType || r.leave_type || 'full', r.reason || '', r.status || 'approved']
       );
     }
     await conn.commit();
@@ -860,16 +913,25 @@ app.get('/api/workhub-remarks', async (_req, res) => {
 app.put('/api/workhub-remarks', async (req, res) => {
   const data = req.body;
   if (!Array.isArray(data)) return res.status(400).json({ error: 'Expected array' });
+  // Safety guard — never wipe on empty payload
+  if (data.length === 0) {
+    return res.json({ ok: true, count: 0, message: 'No remarks provided, nothing changed.' });
+  }
   let conn;
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
-    await conn.query('DELETE FROM workhub_remarks');
-    for (const r of data) {
-      const id = r.id || ('rm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+    // Assign IDs to new records, collect all IDs for scoped delete
+    const remarkRows = data.map(r => ({ ...r, _id: r.id || ('rm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7)) }));
+    const remarkIds = remarkRows.map(r => r._id);
+    const rmPh = remarkIds.map(() => '?').join(',');
+    await conn.query(`DELETE FROM workhub_remarks WHERE id NOT IN (${rmPh})`, remarkIds);
+    // Upsert per row — never wipe first
+    for (const r of remarkRows) {
       await conn.query(
-        'INSERT INTO workhub_remarks (id, task_id, user_name, user_role, remark) VALUES (?, ?, ?, ?, ?)',
-        [id, r.taskId || r.task_id || '', r.userName || r.user_name || '', r.userRole || r.user_role || '', r.remark || '']
+        `INSERT INTO workhub_remarks (id, task_id, user_name, user_role, remark) VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE task_id = VALUES(task_id), user_name = VALUES(user_name), user_role = VALUES(user_role), remark = VALUES(remark)`,
+        [r._id, r.taskId || r.task_id || '', r.userName || r.user_name || '', r.userRole || r.user_role || '', r.remark || '']
       );
     }
     await conn.commit();
