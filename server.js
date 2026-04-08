@@ -115,6 +115,12 @@ async function initDb() {
       user_name VARCHAR(255), user_role VARCHAR(100), remark TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_remark_task (task_id), INDEX idx_remark_user (user_name))`],
+    ['clients', `CREATE TABLE IF NOT EXISTS clients (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
   ];
   let ok = 0, fail = 0;
   for (const [name, sql] of ddl) {
@@ -166,7 +172,7 @@ app.get('/api/health', async (_req, res) => {
     result.db = testRows && testRows[0] && testRows[0].ok === 1;
     const [tables] = await pool.query('SHOW TABLES');
     const tableNames = tables.map(t => Object.values(t)[0]);
-    const expected = ['tasks','task_time_events','task_qc_reviews','task_rework_entries','app_config','users','audit_logs','sessions','client_config','historical_keywords','leave_records','workhub_remarks'];
+    const expected = ['tasks','task_time_events','task_qc_reviews','task_rework_entries','app_config','users','audit_logs','sessions','client_config','historical_keywords','leave_records','workhub_remarks','clients'];
     for (const name of expected) {
       result.tables[name] = tableNames.includes(name);
     }
@@ -278,6 +284,12 @@ app.get('/api/db-init', async (_req, res) => {
       user_name VARCHAR(255), user_role VARCHAR(100), remark TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_remark_task (task_id), INDEX idx_remark_user (user_name))`],
+    ['clients', `CREATE TABLE IF NOT EXISTS clients (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
   ];
   for (const [name, sql] of tableSQL) {
     try {
@@ -562,7 +574,7 @@ app.get('/api/config/:key', async (req, res) => {
       return res.json(decryptedRows);
     }
 
-    // admin_options: owner lists are derived live from the users table
+    // admin_options: owner lists from users table, clients from clients table
     if (key === 'admin_options') {
       const [cfgRows] = await pool.query('SELECT value FROM app_config WHERE `key` = ?', ['admin_options']);
       let config = {};
@@ -570,6 +582,11 @@ app.get('/api/config/:key', async (req, res) => {
         const val = cfgRows[0].value;
         config = typeof val === 'string' ? JSON.parse(val) : val;
       }
+
+      // Clients: always read from dedicated clients table (not from JSON blob)
+      const [clientRows] = await pool.query('SELECT name FROM clients ORDER BY sort_order, name');
+      config.clients = clientRows.map(r => r.name);
+
       // Query users table grouped by role — excludes admin accounts
       const [userRows] = await pool.query(
         'SELECT name, role FROM users WHERE role NOT IN (?, ?) ORDER BY name',
@@ -590,7 +607,7 @@ app.get('/api/config/:key', async (req, res) => {
         const ownerKey = ROLE_TO_OWNER_KEY[u.role];
         if (ownerKey) config[ownerKey].push(u.name);
       });
-      console.log(`GET /api/config/admin_options: owner lists injected from users table (${userRows.length} users)`);
+      console.log(`GET /api/config/admin_options: ${config.clients.length} clients from clients table, ${userRows.length} users`);
       return res.json(config);
     }
 
@@ -657,13 +674,54 @@ app.put('/api/config/:key', async (req, res) => {
       return res.json({ ok: true, message: `${body.length} user(s) saved successfully` });
     }
 
-    // admin_options: strip dynamic owner arrays before saving — they are always
-    // derived from the users table on GET, so storing them would cause stale data.
+    // admin_options: strip dynamic owner arrays and save clients to dedicated table
     if (key === 'admin_options' && body && typeof body === 'object' && !Array.isArray(body)) {
       const dynamicOwnerKeys = ['seoOwners', 'contentOwners', 'webOwners', 'adsOwners', 'designOwners', 'socialOwners', 'webdevOwners'];
       body = Object.assign({}, body);
       dynamicOwnerKeys.forEach(k => delete body[k]);
-      console.log(`PUT /api/config/admin_options: stripped dynamic owner arrays, saving ${Object.keys(body).length} static keys`);
+
+      // Save clients to dedicated clients table (prevents data loss from JSON overwrite)
+      const incomingClients = Array.isArray(body.clients) ? body.clients.filter(c => c && typeof c === 'string') : [];
+      delete body.clients; // remove from JSON blob — clients now live in their own table
+
+      if (incomingClients.length > 0) {
+        let conn;
+        try {
+          conn = await pool.getConnection();
+          await conn.beginTransaction();
+
+          // Get existing clients from DB
+          const [existingRows] = await conn.query('SELECT name FROM clients');
+          const existingSet = new Set(existingRows.map(r => r.name));
+          const incomingSet = new Set(incomingClients);
+
+          // Delete removed clients
+          const toDelete = [...existingSet].filter(c => !incomingSet.has(c));
+          if (toDelete.length > 0) {
+            const placeholders = toDelete.map(() => '?').join(',');
+            await conn.query(`DELETE FROM clients WHERE name IN (${placeholders})`, toDelete);
+          }
+
+          // Insert new clients with sort_order preserving the incoming order
+          for (let i = 0; i < incomingClients.length; i++) {
+            await conn.query(
+              `INSERT INTO clients (name, sort_order) VALUES (?, ?)
+               ON DUPLICATE KEY UPDATE sort_order = VALUES(sort_order)`,
+              [incomingClients[i], i]
+            );
+          }
+
+          await conn.commit();
+          console.log(`PUT /api/config/admin_options: saved ${incomingClients.length} clients to clients table (added ${incomingClients.length - existingSet.size + toDelete.length}, removed ${toDelete.length})`);
+        } catch (err) {
+          if (conn) await conn.rollback().catch(() => {});
+          throw err;
+        } finally {
+          if (conn) conn.release();
+        }
+      }
+
+      console.log(`PUT /api/config/admin_options: saving ${Object.keys(body).length} static keys to app_config`);
     }
 
     // Merge nav_access — preserve permission keys from DB that aren't in incoming data
@@ -1060,7 +1118,7 @@ app.listen(PORT, HOST, () => {
         const tables = [
           'tasks', 'task_time_events', 'task_qc_reviews', 'task_rework_entries',
           'app_config', 'users', 'audit_logs', 'sessions',
-          'client_config', 'historical_keywords', 'leave_records', 'workhub_remarks'
+          'client_config', 'historical_keywords', 'leave_records', 'workhub_remarks', 'clients'
         ];
         await initDb();
         // Verify
