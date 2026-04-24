@@ -4,11 +4,18 @@
  * Used by tasks.routes.js. Extracted from server.js so it can be
  * imported by any route file without circular deps.
  *
- * Rules:
- *   • Always runs inside a caller-supplied transaction connection.
- *   • task_time_events  → DELETE + re-INSERT within the transaction (safe).
+ * Multi-user concurrency rules (100-user safe):
+ *   • task_time_events  → INSERT IGNORE (append-only, never deletes existing events).
+ *                         A UNIQUE INDEX on (task_id, event_type, timestamp) prevents
+ *                         duplicates while ensuring concurrent saves never wipe each
+ *                         other's timer events.
  *   • task_qc_reviews   → INSERT ... ON DUPLICATE KEY UPDATE (upsert by review_id).
- *   • task_rework_entries → INSERT ... ON DUPLICATE KEY UPDATE (upsert by rework_id).
+ *                         NO prune step — deletes go through the dedicated
+ *                         DELETE /api/tasks/:id/qc-reviews/:reviewId endpoint so a
+ *                         concurrent full-task save can't silently remove a review
+ *                         that another user just submitted.
+ *   • task_rework_entries → Same upsert-only policy as qcReviews.
+ *                           Deletes go through DELETE /api/tasks/:id/rework/:reworkId.
  */
 
 import { normalizeTaskDates } from './dateNormalize.js';
@@ -29,14 +36,18 @@ export async function saveTaskToDb(conn, task) {
     vals
   );
 
-  // ── task_time_events (append-only semantics) ───────────────────────────────
-  // DELETE + re-INSERT inside a transaction is safe here: the lock held by
-  // BEGIN TRANSACTION prevents another session from seeing the gap.
+  // ── task_time_events — APPEND-ONLY, never delete ───────────────────────────
+  // Race condition fixed: the old DELETE + re-INSERT pattern let User B's stale
+  // task save wipe timer events that User A had just recorded.
+  //
+  // New approach: INSERT IGNORE skips rows that already exist in the DB
+  // (matched by the UNIQUE INDEX idx_tte_unique on task_id+event_type+timestamp).
+  // New events from the payload are added; existing events are left untouched.
+  // To remove a time event, use the explicit DELETE endpoint.
   if (Array.isArray(task.timeEvents)) {
-    await conn.query('DELETE FROM task_time_events WHERE task_id = ?', [task.id]);
     for (const ev of task.timeEvents) {
       await conn.query(
-        `INSERT INTO task_time_events
+        `INSERT IGNORE INTO task_time_events
            (task_id, event_type, timestamp, department, owner)
          VALUES (?,?,?,?,?)`,
         [task.id, ev.type || '', ev.timestamp || '', ev.department || '', ev.owner || '']
@@ -44,7 +55,10 @@ export async function saveTaskToDb(conn, task) {
     }
   }
 
-  // ── task_qc_reviews (upsert by review_id) ─────────────────────────────────
+  // ── task_qc_reviews — UPSERT-ONLY, never bulk-delete ──────────────────────
+  // Race condition fixed: the old "prune" step (DELETE WHERE review_id NOT IN ...)
+  // could silently delete a QC review that another user submitted after the current
+  // user loaded the task. Only explicit DELETE /qc-reviews/:reviewId removes a review.
   if (Array.isArray(task.qcReviews)) {
     for (const qc of task.qcReviews) {
       await conn.query(
@@ -68,22 +82,11 @@ export async function saveTaskToDb(conn, task) {
         ]
       );
     }
-    // Prune deleted reviews
-    if (task.qcReviews.length > 0) {
-      const ids = task.qcReviews.map(q => q.id).filter(Boolean);
-      if (ids.length > 0) {
-        const ph = ids.map(() => '?').join(',');
-        await conn.query(
-          `DELETE FROM task_qc_reviews WHERE task_id = ? AND review_id NOT IN (${ph})`,
-          [task.id, ...ids]
-        );
-      }
-    } else {
-      await conn.query('DELETE FROM task_qc_reviews WHERE task_id = ?', [task.id]);
-    }
+    // Prune step INTENTIONALLY REMOVED — see header comment above.
   }
 
-  // ── task_rework_entries (upsert by rework_id) ─────────────────────────────
+  // ── task_rework_entries — UPSERT-ONLY, never bulk-delete ──────────────────
+  // Same upsert-only policy as qcReviews — see comment above.
   if (Array.isArray(task.reworkEntries)) {
     for (const rw of task.reworkEntries) {
       await conn.query(
@@ -109,18 +112,6 @@ export async function saveTaskToDb(conn, task) {
         ]
       );
     }
-    // Prune deleted entries
-    if (task.reworkEntries.length > 0) {
-      const ids = task.reworkEntries.map(r => r.id).filter(Boolean);
-      if (ids.length > 0) {
-        const ph = ids.map(() => '?').join(',');
-        await conn.query(
-          `DELETE FROM task_rework_entries WHERE task_id = ? AND rework_id NOT IN (${ph})`,
-          [task.id, ...ids]
-        );
-      }
-    } else {
-      await conn.query('DELETE FROM task_rework_entries WHERE task_id = ?', [task.id]);
-    }
+    // Prune step INTENTIONALLY REMOVED — see header comment above.
   }
 }

@@ -2,14 +2,19 @@
  * tasks.routes.js — All task CRUD + atomic mutation endpoints.
  *
  * Endpoints:
- *   GET    /api/tasks              — full list with child arrays
- *   PUT    /api/tasks              — bulk upsert (no delete, safe for multi-user)
- *   PUT    /api/tasks/:id          — single-task upsert
- *   DELETE /api/tasks/:id          — explicit single-task delete
+ *   GET    /api/tasks                          — full list with child arrays
+ *   PUT    /api/tasks                          — bulk upsert (no delete, safe for multi-user)
+ *   PUT    /api/tasks/:id                      — single-task upsert
+ *   DELETE /api/tasks/:id                      — explicit single-task delete
  *
  * Atomic endpoints (multi-user safe — no full-task overwrite):
- *   PATCH  /api/tasks/:id/assign   — update only assignment fields
- *   POST   /api/tasks/:id/events   — append a single time event (no overwrite)
+ *   PATCH  /api/tasks/:id/assign               — update only assignment/status fields
+ *   PATCH  /api/tasks/:id/fields               — update any subset of scalar task fields
+ *   POST   /api/tasks/:id/events               — append a single time event (no overwrite)
+ *   POST   /api/tasks/:id/qc-reviews           — upsert a single QC review
+ *   DELETE /api/tasks/:id/qc-reviews/:reviewId — remove a single QC review
+ *   POST   /api/tasks/:id/rework               — upsert a single rework entry
+ *   DELETE /api/tasks/:id/rework/:reworkId     — remove a single rework entry
  */
 
 import { Router } from 'express';

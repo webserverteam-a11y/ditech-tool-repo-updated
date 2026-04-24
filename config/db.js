@@ -19,9 +19,13 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || '',
   port: parseInt(process.env.DB_PORT || '3306', 10),
   waitForConnections: true,
-  connectionLimit: 5,
+  // Raised from 5 → 20 to support ~100 concurrent users.
+  // Each in-flight API request can hold one connection for the duration of
+  // its transaction; with 20 connections, up to 20 concurrent saves/reads
+  // can execute simultaneously while the rest queue (queueLimit: 0 = no cap).
+  connectionLimit: parseInt(process.env.DB_POOL_LIMIT || '20', 10),
   queueLimit: 0,
-  connectTimeout: 10000,
+  connectTimeout: 15000,
   enableKeepAlive: true,
   keepAliveInitialDelay: 10000,
 });
