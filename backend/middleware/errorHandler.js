@@ -13,12 +13,11 @@ import { ErrorCodes } from './response.js';
 export function apiNotFound(req, res, next) {
   // Only handle /api/* paths here; other paths fall through to SPA fallback
   if (!req.path.startsWith('/api/')) return next();
+  // Return error as a string so the frontend toast can display it directly.
   return res.status(404).json({
     ok: false,
-    error: {
-      code: 'NOT_FOUND',
-      message: `API route not found: ${req.method} ${req.path}`,
-    },
+    error: `API route not found: ${req.method} ${req.path}`,
+    errorCode: 'NOT_FOUND',
   });
 }
 
@@ -33,7 +32,9 @@ export function globalErrorHandler(err, req, res, _next) {
     const { code, message, status, details } = err;
     return res.status(status || 500).json({
       ok: false,
-      error: { code, message, ...(details ? { details } : {}) },
+      error: message,       // string for toast compat
+      errorCode: code,
+      ...(details ? { errorDetails: details } : {}),
     });
   }
 
@@ -50,9 +51,11 @@ export function globalErrorHandler(err, req, res, _next) {
     err.message || err
   );
 
+  // Return error as a string so the frontend toast can display it directly.
   return res.status(status).json({
     ok: false,
-    error: { code, message },
+    error: message,       // always a plain string — toast uses this
+    errorCode: code,      // machine-readable code for programmatic consumers
   });
 }
 

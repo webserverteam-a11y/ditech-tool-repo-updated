@@ -600,7 +600,14 @@
             if (response.ok && data.message && !isConfigSave) {
               showToast(data.message, 'success');
             } else if (!response.ok && data.error) {
-              showToast(data.error, 'error');
+              // data.error can be a plain string (legacy routes) or an object
+              // { code, message } (new-style error handler). Always show a string.
+              var errMsg = typeof data.error === 'string'
+                ? data.error
+                : (data.error && (data.error.message || data.error.code)
+                    ? (data.error.message || data.error.code)
+                    : 'An error occurred');
+              showToast(errMsg, 'error');
             }
           }).catch(function () { /* ignore non-JSON */ });
           return response;

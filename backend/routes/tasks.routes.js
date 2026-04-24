@@ -290,3 +290,232 @@ tasksRouter.post('/:id/events', async (req, res) => {
     res.status(500).json({ error: 'Failed to record event' });
   }
 });
+
+// ── POST /api/tasks/:id/qc-reviews — upsert a single QC review ─────────────
+// Atomic: only touches the one review row. Safe for concurrent QC submits —
+// User B's submit will not be wiped by User A's concurrent full-task save.
+//
+// Body: { id, submittedBy, submittedByDept, submittedAt, assignedTo,
+//         estHours, note, outcome, completedAt }
+tasksRouter.post('/:id/qc-reviews', async (req, res) => {
+  const taskId   = req.params.id;
+  const qc       = req.body || {};
+  const reviewId = qc.id || qc.reviewId || '';
+
+  if (!reviewId)
+    return res.status(400).json({ error: 'QC review id is required' });
+
+  try {
+    const [tRows] = await pool.query('SELECT id FROM tasks WHERE id = ? LIMIT 1', [taskId]);
+    if (tRows.length === 0)
+      return res.status(404).json({ error: `Task "${taskId}" not found` });
+
+    await pool.query(
+      `INSERT INTO task_qc_reviews
+         (task_id, review_id, submitted_by, submitted_by_dept, submitted_at,
+          assigned_to, est_hours, note, outcome, completed_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         submitted_by      = VALUES(submitted_by),
+         submitted_by_dept = VALUES(submitted_by_dept),
+         submitted_at      = VALUES(submitted_at),
+         assigned_to       = VALUES(assigned_to),
+         est_hours         = VALUES(est_hours),
+         note              = VALUES(note),
+         outcome           = VALUES(outcome),
+         completed_at      = VALUES(completed_at)`,
+      [
+        taskId, reviewId, qc.submittedBy || '', qc.submittedByDept || '',
+        qc.submittedAt || '', qc.assignedTo || '', qc.estHours || 0,
+        qc.note || '', qc.outcome || '', qc.completedAt || '',
+      ]
+    );
+
+    res.status(201).json({
+      ok: true, taskId, reviewId,
+      message: `QC review "${reviewId}" saved for task "${taskId}"`,
+    });
+  } catch (e) {
+    console.error('POST /api/tasks/:id/qc-reviews error:', e.message);
+    res.status(500).json({ error: 'Failed to save QC review' });
+  }
+});
+
+// ── DELETE /api/tasks/:id/qc-reviews/:reviewId ─────────────────────────────
+// Explicit single-record delete. Safe: only removes the specified review.
+tasksRouter.delete('/:id/qc-reviews/:reviewId', async (req, res) => {
+  const { id: taskId, reviewId } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM task_qc_reviews WHERE task_id = ? AND review_id = ?',
+      [taskId, reviewId]
+    );
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: `QC review "${reviewId}" not found on task "${taskId}"` });
+
+    res.json({ ok: true, message: `QC review "${reviewId}" removed` });
+  } catch (e) {
+    console.error('DELETE /api/tasks/:id/qc-reviews/:reviewId error:', e.message);
+    res.status(500).json({ error: 'Failed to delete QC review' });
+  }
+});
+
+// ── POST /api/tasks/:id/rework — upsert a single rework entry ──────────────
+// Atomic: only touches the one rework row. Safe for concurrent rework submits.
+//
+// Body: { id, date, estHours, assignedDept, assignedOwner, withinEstimate,
+//         hoursAlreadySpent, startTimestamp, endTimestamp, durationMs }
+tasksRouter.post('/:id/rework', async (req, res) => {
+  const taskId   = req.params.id;
+  const rw       = req.body || {};
+  const reworkId = rw.id || rw.reworkId || '';
+
+  if (!reworkId)
+    return res.status(400).json({ error: 'Rework entry id is required' });
+
+  try {
+    const [tRows] = await pool.query('SELECT id FROM tasks WHERE id = ? LIMIT 1', [taskId]);
+    if (tRows.length === 0)
+      return res.status(404).json({ error: `Task "${taskId}" not found` });
+
+    await pool.query(
+      `INSERT INTO task_rework_entries
+         (task_id, rework_id, date, est_hours, assigned_dept, assigned_owner,
+          within_estimate, hours_already_spent, start_timestamp, end_timestamp, duration_ms)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         date                = VALUES(date),
+         est_hours           = VALUES(est_hours),
+         assigned_dept       = VALUES(assigned_dept),
+         assigned_owner      = VALUES(assigned_owner),
+         within_estimate     = VALUES(within_estimate),
+         hours_already_spent = VALUES(hours_already_spent),
+         start_timestamp     = VALUES(start_timestamp),
+         end_timestamp       = VALUES(end_timestamp),
+         duration_ms         = VALUES(duration_ms)`,
+      [
+        taskId, reworkId, rw.date || '', rw.estHours || 0,
+        rw.assignedDept || '', rw.assignedOwner || '', rw.withinEstimate ? 1 : 0,
+        rw.hoursAlreadySpent || 0, rw.startTimestamp || '',
+        rw.endTimestamp || '', rw.durationMs || 0,
+      ]
+    );
+
+    res.status(201).json({
+      ok: true, taskId, reworkId,
+      message: `Rework entry "${reworkId}" saved for task "${taskId}"`,
+    });
+  } catch (e) {
+    console.error('POST /api/tasks/:id/rework error:', e.message);
+    res.status(500).json({ error: 'Failed to save rework entry' });
+  }
+});
+
+// ── DELETE /api/tasks/:id/rework/:reworkId ──────────────────────────────────
+// Explicit single-record delete. Safe: only removes the specified entry.
+tasksRouter.delete('/:id/rework/:reworkId', async (req, res) => {
+  const { id: taskId, reworkId } = req.params;
+
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM task_rework_entries WHERE task_id = ? AND rework_id = ?',
+      [taskId, reworkId]
+    );
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: `Rework entry "${reworkId}" not found on task "${taskId}"` });
+
+    res.json({ ok: true, message: `Rework entry "${reworkId}" removed` });
+  } catch (e) {
+    console.error('DELETE /api/tasks/:id/rework/:reworkId error:', e.message);
+    res.status(500).json({ error: 'Failed to delete rework entry' });
+  }
+});
+
+// ── PATCH /api/tasks/:id/fields — atomic update of any scalar task fields ───
+// Updates only the fields present in the request body. Leaves all other fields
+// untouched. This is the safe alternative to PUT /:id when you only need to
+// change one or two fields without sending the entire task object.
+//
+// Body: any camelCase subset of task fields, e.g.
+//   { remarks: "new note", dueDate: "2026-05-01", isCompleted: true }
+tasksRouter.patch('/:id/fields', async (req, res) => {
+  const taskId = req.params.id;
+  const body   = req.body || {};
+
+  // Whitelist: camelCase input → snake_case DB column
+  const FIELD_MAP = {
+    title:                  'title',
+    client:                 'client',
+    focusedKw:              'focused_kw',
+    volume:                 'volume',
+    marRank:                'mar_rank',
+    currentRank:            'current_rank',
+    estHours:               'est_hours',
+    estHoursSEO:            'est_hours_seo',
+    estHoursContent:        'est_hours_content',
+    estHoursWeb:            'est_hours_web',
+    estHoursContentRework:  'est_hours_content_rework',
+    estHoursSEOReview:      'est_hours_seo_review',
+    actualHours:            'actual_hours',
+    targetUrl:              'target_url',
+    daysInStage:            'days_in_stage',
+    remarks:                'remarks',
+    isCompleted:            'is_completed',
+    executionState:         'execution_state',
+    docUrl:                 'doc_url',
+    intakeDate:             'intake_date',
+    deptType:               'dept_type',
+    taskType:               'task_type',
+    platform:               'platform',
+    deliverableUrl:         'deliverable_url',
+    dueDate:                'due_date',
+    assignedTo:             'assigned_to',
+    adBudget:               'ad_budget',
+    qcSubmittedAt:          'qc_submitted_at',
+    seoOwner:               'seo_owner',
+    contentOwner:           'content_owner',
+    webOwner:               'web_owner',
+    currentOwner:           'current_owner',
+    seoStage:               'seo_stage',
+    seoQcStatus:            'seo_qc_status',
+    contentStatus:          'content_status',
+    webStatus:              'web_status',
+    contentAssignedDate:    'content_assigned_date',
+    webAssignedDate:        'web_assigned_date',
+  };
+
+  const updates = [];
+  for (const [camel, col] of Object.entries(FIELD_MAP)) {
+    if (body[camel] !== undefined && body[camel] !== null) {
+      // Coerce isCompleted to 0/1 for MySQL TINYINT
+      updates.push([col, camel === 'isCompleted' ? (body[camel] ? 1 : 0) : body[camel]]);
+    }
+  }
+
+  if (updates.length === 0)
+    return res.status(400).json({ error: 'No valid fields provided' });
+
+  try {
+    const setClauses = updates.map(([col]) => `${col} = ?`).join(', ');
+    const values     = [...updates.map(([, v]) => v), taskId];
+
+    const [result] = await pool.query(
+      `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
+      values
+    );
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ error: `Task "${taskId}" not found` });
+
+    res.json({
+      ok: true,
+      taskId,
+      updated: Object.fromEntries(updates),
+      message: `Task "${taskId}" updated successfully`,
+    });
+  } catch (e) {
+    console.error('PATCH /api/tasks/:id/fields error:', e.message);
+    res.status(500).json({ error: 'Failed to update task fields' });
+  }
+});

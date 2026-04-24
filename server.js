@@ -156,6 +156,11 @@ async function initDb() {
     ['qc_reviews_unique', `ALTER TABLE task_qc_reviews ADD UNIQUE KEY uq_tqr_task_review (task_id, review_id)`],
     // Allow ON DUPLICATE KEY UPDATE on reworkEntries by (task_id, rework_id)
     ['rework_entries_unique', `ALTER TABLE task_rework_entries ADD UNIQUE KEY uq_tre_task_rework (task_id, rework_id)`],
+    // Remove duplicate task_time_events rows before adding unique index.
+    // Keeps the row with the lowest id for each (task_id, event_type, timestamp) triple.
+    ['dedup_time_events', `DELETE t1 FROM task_time_events t1 INNER JOIN task_time_events t2 ON t1.task_id = t2.task_id AND t1.event_type = t2.event_type AND t1.timestamp = t2.timestamp AND t1.id > t2.id`],
+    // Add unique index so INSERT IGNORE in saveTask.js correctly deduplicates events.
+    ['tte_unique', `ALTER TABLE task_time_events ADD UNIQUE KEY idx_tte_unique (task_id, event_type, \`timestamp\`)`],
     // Add new columns to historical_keywords for full keyword data
     ['hk_add_seo_owner', `ALTER TABLE historical_keywords ADD COLUMN seo_owner VARCHAR(255) DEFAULT ''`],
     ['hk_add_intake_date', `ALTER TABLE historical_keywords ADD COLUMN intake_date VARCHAR(50) DEFAULT ''`],
