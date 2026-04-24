@@ -517,7 +517,7 @@
 
   <!-- ── Success / error toast for API mutations ──────────────────────── -->
   <style>
-    /* ── Time stamps injected on task cards ── */
+    /* ── Time stamps injected on task cards — DISABLED ──
     ._dt-timestamps {
       display:none;
       display: flex; gap: 14px; flex-wrap: wrap;
@@ -529,6 +529,7 @@
     ._dt-timestamps .ts-assigned b { color: #6366f1; }
     ._dt-timestamps .ts-started  b { color: #0ea5e9; }
     ._dt-timestamps .ts-ended    b { color: #22c55e; }
+    ── END DISABLED ── */
   </style>
   <style>
     #_dt-toast {
@@ -753,8 +754,9 @@
         return null;
       }
 
-      // Inject timestamps as a proper column into the Action Board list view table
+      // Inject timestamps as a proper column into the Action Board list view table — DISABLED
       function injectListViewTimestamps() {
+        return; // DISABLED: timestamp column hidden per user request
         var tables = document.querySelectorAll('table');
         tables.forEach(function(table) {
           var headerRow = table.querySelector('thead tr');
@@ -818,8 +820,9 @@
         });
       }
 
-      // Inject timestamp bar into a card view task card (non-table view)
+      // Inject timestamp bar into a card view task card (non-table view) — DISABLED
       function injectTimestamps(card) {
+        return; // DISABLED: timestamps hidden per user request
         if (card.querySelector('._dt-timestamps')) return; // already injected
         if (card.tagName === 'TABLE' || card.querySelector('thead') || card.closest('table')) return;
         var id = getCardId(card);
