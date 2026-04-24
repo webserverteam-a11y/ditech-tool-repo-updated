@@ -1,0 +1,20 @@
+{
+  "name": "seo-pm-dashboard",
+  "version": "1.0.6",
+  "type": "module",
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "db-init": "node scripts/db-init.js",
+    "build": "node scripts/patch-upload-button.js && node scripts/patch-keyword-db-persist.js && node scripts/patch-keyword-input-focus.js",
+    "patch-bundle": "node scripts/patch-bundle-fixes.js",
+    "postinstall": "node scripts/patch-bundle-fixes.js || true"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.0"
+  }
+}

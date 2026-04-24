@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DiTech CDM - Task Manager</title>
+
+
+  <script>
+    // Config persistence — must run BEFORE React module loads
+    // Ensures PUT requests survive page unload via keepalive
+    (function () {
+      var PREFIX = '_seo_backup_';
+      // NOTE: 'users' is intentionally excluded from page-load re-sync.
+      // The DB is the source of truth for users. Re-syncing localStorage on
+      // page load would overwrite DB users with stale cached data, deleting
+      // any users not present in the old cache (including newly created ones).
+      var KEYS = ['nav_access'];
+      var RESYNC_KEYS = ['nav_access']; // never re-sync users or admin_options
+      // var KEYS = [];
+
+      var _fetch = window.fetch.bind(window);
+      window._origFetch = _fetch; // expose for sync script
+      var CONFIG_RE = /^\/api\/config\/(users|admin_options|nav_access)$/;
+
+      function bk(k) { return PREFIX + k; }
+
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+        var m = url.match(CONFIG_RE);
+
+        if (m) {
+          var cfgKey = m[1];
+
+          // On PUT → add keepalive so browser doesn't cancel on reload,
+          // and save body to localStorage as secondary backup
+          if (method === 'PUT' && init) {
+            if (init.body && cfgKey !== 'admin_options') {
+              try { localStorage.setItem(bk(cfgKey), init.body); } catch (e) { }
+            }
+            // Force keepalive on ALL config PUTs — this is the core fix.
+            // Without keepalive, the browser cancels in-flight fetches on
+            // page reload, so the data never reaches the DB.
+            var opts = {};
+            for (var p in init) opts[p] = init[p];
+            opts.keepalive = true;
+            return _fetch(input, opts);
+          }
+
+          // On GET → merge server response with localStorage backup
+          if (method === 'GET') {
+            var raw;
+            try { raw = localStorage.getItem(bk(cfgKey)); } catch (e) { }
+            if (raw) {
+              var backup;
+              try { backup = JSON.parse(raw); } catch (e) { backup = null; }
+              if (backup !== null && backup !== undefined) {
+                return _fetch(input, init).then(function (response) {
+                  var clone = response.clone();
+                  return clone.json().then(function (serverData) {
+                    var merged = mergeConfig(cfgKey, serverData, backup);
+                    if (merged !== null) {
+                      return new Response(JSON.stringify(merged), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                      });
+                    }
+                    return response;
+                  }).catch(function () { return response; });
+                });
+              }
+            }
+          }
+        }
+
+        return _fetch(input, init);
+      };
+
+      function mergeConfig(key, server, backup) {
+        if (key === 'users') {
+          // DB is the source of truth for users. Never merge localStorage
+          // backup on top of the server response — doing so would re-introduce
+          // deleted users (e.g. Aman, Heena) back into the UI.
+          return null;
+        }
+        if (key === 'nav_access') {
+          if (!server || typeof server !== 'object') return backup;
+          if (!backup || typeof backup !== 'object') return null;
+          var bKeys = Object.keys(backup).filter(function (k) { return backup[k]; });
+          var sKeys = Object.keys(server).filter(function (k) { return server[k]; });
+          if (bKeys.length > sKeys.length) return backup;
+          var merged = {};
+          var changed = false;
+          for (var k in server) merged[k] = server[k];
+          for (var k in backup) {
+            if (!(k in merged)) { merged[k] = backup[k]; changed = true; }
+          }
+          return changed ? merged : null;
+        }
+        if (key === 'admin_options') {
+          // Owner arrays always come from the server (derived from users table).
+          // Never prefer localStorage backup for admin_options — it may contain
+          // stale owner lists. Only merge static config keys (clients, stages, etc).
+          if (!server || typeof server !== 'object') return null;
+          return null;
+        }
+        return null;
+      }
+
+      // Belt-and-suspenders: clear any stale admin_options backup
+      try { localStorage.removeItem(bk('admin_options')); } catch (e) { }
+
+      // On page load: re-send backups to server as safety net
+      // Excludes 'users' and 'admin_options' — DB is authoritative, not localStorage
+      RESYNC_KEYS.forEach(function (cfgKey) {
+        try {
+          var saved = localStorage.getItem(bk(cfgKey));
+          if (saved) {
+            setTimeout(function () {
+              _fetch('/api/config/' + cfgKey, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: saved,
+                keepalive: true
+              }).catch(function () { });
+            }, 500);
+          }
+        } catch (e) { }
+      });
+    })();
+  </script>
+  <script>
+    // Owner-array sanitization — must run BEFORE React module loads.
+    // The compiled React bundle has hardcoded fallback owner arrays (e.g.
+    // webOwners:["Gauri","Shubham"]) and caches admin_options in localStorage
+    // under "seo_admin_options". When the page loads, React reads localStorage
+    // BEFORE the API fetch completes, so stale/deleted users appear in dropdowns.
+    //
+    // Fix: owner arrays (*Owners) are ALWAYS derived from the users DB table via
+    // GET /api/config/admin_options. They must never persist in localStorage.
+    (function () {
+      var DYNAMIC_OWNER_KEYS = [
+        'seoOwners', 'contentOwners', 'webOwners',
+        'adsOwners', 'designOwners', 'socialOwners', 'webdevOwners'
+      ];
+      var ADMIN_OPTS_KEY = 'seo_admin_options';
+      var BACKUP_KEY = '_seo_backup_admin_options';
+
+      function stripOwners(jsonStr) {
+        if (!jsonStr) return jsonStr;
+        try {
+          var obj = JSON.parse(jsonStr);
+          if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+            var changed = false;
+            DYNAMIC_OWNER_KEYS.forEach(function (k) {
+              if (k in obj) {
+                obj[k] = [];
+                changed = true;
+              }
+            });
+            if (changed) return JSON.stringify(obj);
+          }
+        } catch (e) { }
+        return jsonStr;
+      }
+
+      // 1. On startup: immediately sanitize both localStorage keys
+      [ADMIN_OPTS_KEY, BACKUP_KEY].forEach(function (key) {
+        try {
+          var raw = localStorage.getItem(key);
+          if (raw) {
+            var cleaned = stripOwners(raw);
+            if (cleaned !== raw) localStorage.setItem(key, cleaned);
+          }
+        } catch (e) { }
+      });
+
+      // 2. Intercept localStorage.getItem — strip owners on every read
+      var _origGetItem = localStorage.getItem.bind(localStorage);
+      localStorage.getItem = function (key) {
+        var val = _origGetItem(key);
+        if (key === ADMIN_OPTS_KEY || key === BACKUP_KEY) {
+          return stripOwners(val);
+        }
+        return val;
+      };
+
+      // 3. Intercept localStorage.setItem — strip owners before every write
+      //    (Note: the sync script below already patches setItem for SYNC_MAP keys.
+      //     We wrap whatever setItem is current, so both patches compose correctly.)
+      var _origSetItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function (key, value) {
+        if (key === ADMIN_OPTS_KEY || key === BACKUP_KEY) {
+          value = stripOwners(value);
+        }
+        return _origSetItem(key, value);
+      };
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-xUiSJVv5.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CnEX9X-2.css">
+  <script>
+    // Sync localStorage-only data to/from the DB so data loads dynamically
+    // across sessions and browsers. These 4 keys are never sent to the server
+    // by the React app — we bridge that gap here.
+    (function () {
+      var _f = window._origFetch || window.fetch.bind(window);
+      var SYNC_MAP = {
+        'seo_client_config': '/api/client-config',
+        'seo_historical_kw': '/api/historical-keywords',
+        'seo_leave_records': '/api/leave-records',
+        'seo_workhub_remarks': '/api/workhub-remarks'
+      };
+      var loaded = {};
+      var dirty = {};
+      var loadPromises = [];
+
+      // ── Format transforms: server API response → React localStorage format ──
+      // React reads these keys synchronously (useState initializer). If the DB
+      // response format differs from what React expects, the component crashes.
+      // leave: server gives {userName,leaveDate,leaveType,reason}
+      //        React needs  {owner,date,type,note}
+      function toReactFormat(lsKey, data) {
+        if (lsKey === 'seo_leave_records' && Array.isArray(data)) {
+          return data.map(function(r) {
+            return {
+              id:    r.id,
+              owner: r.userName  || r.owner  || '',
+              date:  r.leaveDate
+                       ? (typeof r.leaveDate === 'string'
+                           ? r.leaveDate.slice(0, 10)
+                           : new Date(r.leaveDate).toISOString().slice(0, 10))
+                       : (r.date || ''),
+              type:  r.leaveType || r.type  || 'full',
+              note:  r.reason    || r.note  || '',
+            };
+          });
+        }
+        return data;
+      }
+
+      // ── SYNCHRONOUS pre-flight: fix any server-formatted leave records that
+      // may already be in localStorage before React reads them (React calls
+      // localStorage.getItem('seo_leave_records') synchronously in useState).
+      (function sanitizeLeaveRecords() {
+        try {
+          var raw = localStorage.getItem('seo_leave_records');
+          if (!raw) return;
+          var parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed) || parsed.length === 0) return;
+          // Detect server format: has leaveDate or userName but no date/owner
+          var first = parsed[0];
+          if ((first.leaveDate !== undefined || first.userName !== undefined) &&
+              first.date === undefined) {
+            var fixed = toReactFormat('seo_leave_records', parsed);
+            localStorage.setItem('seo_leave_records', JSON.stringify(fixed));
+            console.log('[sync] Converted leave records to React format (' + fixed.length + ' records)');
+          }
+        } catch (e) {}
+      })();
+
+      // On page load: fetch each key from DB → populate localStorage
+      // Track promises so we don't flush stale data before DB load completes
+      Object.entries(SYNC_MAP).forEach(function (entry) {
+        var lsKey = entry[0], apiUrl = entry[1];
+        var p = _f(apiUrl).then(function (r) { return r.json(); }).then(function (data) {
+          var hasData = data && ((Array.isArray(data) && data.length > 0) ||
+            (!Array.isArray(data) && Object.keys(data).length > 0));
+          if (hasData) {
+            // DB has data → convert to React format and store (DB is source of truth)
+            var toStore = toReactFormat(lsKey, data);
+            localStorage.setItem(lsKey, JSON.stringify(toStore));
+          } else {
+            // DB is empty → push existing localStorage data to DB (one-time migration)
+            // Read current localStorage value (already in React format after sanitize above)
+            var existing;
+            try { existing = localStorage.getItem(lsKey); } catch (e) {}
+            if (existing) {
+              var parsed;
+              try { parsed = JSON.parse(existing); } catch(e) {}
+              // Only migrate non-empty arrays or non-empty objects
+              var hasLocal = parsed && ((Array.isArray(parsed) && parsed.length > 0) ||
+                (!Array.isArray(parsed) && typeof parsed === 'object' && Object.keys(parsed).length > 0));
+              if (hasLocal) {
+                setTimeout(function () {
+                  _f(apiUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: existing,
+                    keepalive: true
+                  }).then(function(r){ return r.json(); })
+                    .then(function(d){ console.log('[sync] Migrated ' + lsKey + ' to DB:', d && d.message); })
+                    .catch(function(e){ console.warn('[sync] Migration failed for ' + lsKey, e); });
+                }, 800);
+              }
+            }
+          }
+          loaded[lsKey] = true;
+        }).catch(function () { loaded[lsKey] = true; });
+        loadPromises.push(p);
+      });
+      // Mark all keys as clean after DB load — React may setItem during load,
+      // which marks keys dirty with stale data. Clear dirty flags once DB wins.
+      Promise.all(loadPromises).then(function () { dirty = {}; });
+
+      // Watch for localStorage changes and mark keys dirty
+      var origSetItem = localStorage.setItem;
+      localStorage.setItem = function (key, value) {
+        origSetItem.call(localStorage, key, value);
+        if (SYNC_MAP[key]) dirty[key] = true;
+      };
+
+      // Flush dirty keys to DB — only for keys that finished loading from DB
+      function flushToDb(useKeepalive) {
+        Object.keys(dirty).forEach(function (lsKey) {
+          if (!loaded[lsKey]) return; // skip — DB GET hasn't finished yet
+          var raw;
+          try { raw = localStorage.getItem(lsKey); } catch (e) { return; }
+          if (!raw) return;
+          _f(SYNC_MAP[lsKey], {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: raw,
+            keepalive: !!useKeepalive
+          }).catch(function () { });
+        });
+        dirty = {};
+      }
+
+      // Periodic sync every 30s for dirty keys
+      setInterval(function () { flushToDb(false); }, 30000);
+
+      // On page unload: flush with keepalive
+      window.addEventListener('beforeunload', function () { flushToDb(true); });
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') flushToDb(true);
+      });
+    })();
+  </script>
+  <script>
+    // ── Task delete fix ───────────────────────────────────────────────────
+    // The compiled React app removes deleted tasks from local state, then
+    // the debounced PUT /api/tasks sends the remaining tasks. However, PUT
+    // only upserts — it never removes rows from the DB. So deleted tasks
+    // reappear on the next fetch (page reload / tab focus).
+    //
+    // Fix: intercept PUT /api/tasks, compare incoming task IDs against the
+    // last-known set, and fire DELETE /api/tasks/:id for any IDs that
+    // disappeared.
+    //
+    // Race-condition guard: a pendingDeletes map prevents stale GET responses
+    // (arriving before DELETE commits) from re-adding a deleted ID into
+    // knownTaskIds. Without this, the sequence:
+    //   DELETE fires → GET returns stale row → knownTaskIds revived → task reappears
+    // would cause the task to bounce back.
+    // ──────────────────────────────────────────────────────────────────────
+    (function () {
+      var _fetch = window._origFetch || window.fetch.bind(window);
+      var knownTaskIds = null;   // { id: true } — last-known full set
+      var pendingDeletes = {};   // { id: true } — DELETEs currently in-flight
+      var origFetch = window.fetch; // may already be patched by earlier scripts
+
+      window.fetch = function (input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        var method = (init && init.method) ? init.method.toUpperCase() : 'GET';
+
+        // Track task IDs from GET /api/tasks (initial load + visibility refetch)
+        if (method === 'GET' && url === '/api/tasks') {
+          return origFetch.call(window, input, init).then(function (response) {
+            var clone = response.clone();
+            clone.json().then(function (data) {
+              if (Array.isArray(data) && data.length > 0) {
+                knownTaskIds = {};
+                data.forEach(function (t) {
+                  // Skip IDs with an in-flight DELETE — stale DB row
+                  if (t && t.id && !pendingDeletes[t.id]) {
+                    knownTaskIds[t.id] = true;
+                  }
+                });
+              }
+            }).catch(function () {});
+            return response;
+          });
+        }
+
+        // Intercept bulk PUT /api/tasks (NOT single-task /api/tasks/:id)
+        if (method === 'PUT' && url === '/api/tasks' && init && init.body) {
+          var tasks;
+          try { tasks = JSON.parse(init.body); } catch (e) { tasks = null; }
+
+          if (Array.isArray(tasks) && knownTaskIds) {
+            var newIds = {};
+            tasks.forEach(function (t) { if (t && t.id) newIds[t.id] = true; });
+
+            // Find IDs that were known but are now missing AND not already pending
+            var deletedIds = [];
+            Object.keys(knownTaskIds).forEach(function (id) {
+              if (!newIds[id] && !pendingDeletes[id]) deletedIds.push(id);
+            });
+
+            // Fire DELETE for each removed task
+            if (deletedIds.length > 0) {
+              deletedIds.forEach(function (id) {
+                // Mark pending BEFORE the async call — closes the race window
+                pendingDeletes[id] = true;
+
+                _fetch('/api/tasks/' + encodeURIComponent(id), {
+                  method: 'DELETE',
+                  keepalive: true
+                }).then(function (r) {
+                  delete pendingDeletes[id];
+                  if (r.ok) console.log('[delete-fix] Deleted task:', id);
+                  else console.warn('[delete-fix] DELETE failed for', id, r.status);
+                }).catch(function (e) {
+                  delete pendingDeletes[id];
+                  console.error('[delete-fix] DELETE error for', id, e);
+                });
+              });
+            }
+
+            // Update known IDs to the new set
+            knownTaskIds = newIds;
+          } else if (Array.isArray(tasks)) {
+            // First PUT before any GET — just record the IDs
+            knownTaskIds = {};
+            tasks.forEach(function (t) { if (t && t.id) knownTaskIds[t.id] = true; });
+          }
+        }
+
+        return origFetch.call(window, input, init);
+      };
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    // Override logo after React mounts
+    new MutationObserver(function (mutations, obs) {
+      var img = document.querySelector('img[alt="DiTech"]');
+      if (img) {
+        img.src = 'https://www.ditechcdm.com/img/ditechcdm_logo.svg';
+        img.style.height = '38px';
+        img.style.objectFit = 'contain';
+        img.style.objectPosition = 'left center';
+        img.style.maxWidth = '100%';
+        img.style.background = 'white';
+        img.style.borderRadius = '3px';
+        img.style.filter = 'none';
+        obs.disconnect();
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  </script>
+  <script>
+    // Action Board date-range fix: the compiled React bundle defaults both
+    // "From Date" and "To Date" to today (YYYY-MM-DD). This means any task
+    // with a future intakeDate (e.g. tomorrow, next week) is invisible.
+    //
+    // Fix: detect the Action Board's "To Date" input after React mounts and
+    // widen it to the end of the current month. This ensures tasks dated
+    // anywhere within the month are visible by default. Users can still
+    // narrow the range manually.
+    (function () {
+      var applied = false;
+      function getEndOfMonth() {
+        var d = new Date();
+        var last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        return last.toISOString().split('T')[0];
+      }
+
+      function tryFixDates() {
+        if (applied) return;
+        // The Action Board has two date inputs with labels "From Date" and "To Date"
+        var labels = document.querySelectorAll('label');
+        var toLabel = null;
+        for (var i = 0; i < labels.length; i++) {
+          if (labels[i].textContent.trim() === 'To Date') {
+            toLabel = labels[i];
+            break;
+          }
+        }
+        if (!toLabel) return;
+        // The input[type="date"] is a sibling inside the same parent div
+        var container = toLabel.parentElement;
+        if (!container) return;
+        var toInput = container.querySelector('input[type="date"]');
+        if (!toInput) return;
+
+        var today = new Date().toISOString().split('T')[0];
+        var eom = getEndOfMonth();
+        // Only widen if the current value is exactly today (the default)
+        if (toInput.value === today && eom > today) {
+          // Trigger React's controlled input update via native setter + events
+          var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value'
+          ).set;
+          nativeInputValueSetter.call(toInput, eom);
+          toInput.dispatchEvent(new Event('input', { bubbles: true }));
+          toInput.dispatchEvent(new Event('change', { bubbles: true }));
+          applied = true;
+        }
+      }
+
+      // Watch for the Action Board to mount (SPA — it won't be there on initial load)
+      new MutationObserver(function () {
+        tryFixDates();
+      }).observe(document.body, { childList: true, subtree: true });
+
+      // Also try on initial page load in case Action Board is the default view
+      setTimeout(tryFixDates, 1500);
+      setTimeout(tryFixDates, 3000);
+    })();
+  </script>
+
+  <!-- ── Success / error toast for API mutations ──────────────────────── -->
+  <style>
+    /* ── Time stamps injected on task cards ── */
+    ._dt-timestamps {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      font-size: 11px; color: #64748b; margin: 4px 0 2px 0;
+      font-family: system-ui, sans-serif; line-height: 1.4;
+    }
+    ._dt-timestamps span { display: flex; align-items: center; gap: 3px; }
+    ._dt-timestamps span b { color: #334155; font-weight: 600; }
+    ._dt-timestamps .ts-assigned b { color: #6366f1; }
+    ._dt-timestamps .ts-started  b { color: #0ea5e9; }
+    ._dt-timestamps .ts-ended    b { color: #22c55e; }
+  </style>
+  <style>
+    #_dt-toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 99999;
+      display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    ._dt-toast-item {
+      padding: 10px 18px; border-radius: 8px; font-size: 14px;
+      font-family: system-ui, sans-serif; color: #fff;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      opacity: 1; transition: opacity 0.4s ease;
+      pointer-events: none; max-width: 380px; word-break: break-word;
+    }
+    ._dt-toast-item.success { background: #22c55e; }
+    ._dt-toast-item.error   { background: #ef4444; }
+    ._dt-toast-item.info    { background: #3b82f6; }
+    ._dt-toast-item.fade    { opacity: 0; }
+  </style>
+  <div id="_dt-toast"></div>
+  <script>
+    (function () {
+      function showToast(msg, type, duration) {
+        var container = document.getElementById('_dt-toast');
+        if (!container) return;
+        var el = document.createElement('div');
+        el.className = '_dt-toast-item ' + (type || 'info');
+        el.textContent = msg;
+        container.appendChild(el);
+        var t = duration || (type === 'error' ? 5000 : 3000);
+        setTimeout(function () {
+          el.classList.add('fade');
+          setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 450);
+        }, t);
+      }
+
+      // Expose globally so any custom script can call it too
+      window._showToast = showToast;
+
+      // Track logged-in user for logAudit shim (set by the app after login)
+      window.__dtUser = window.__dtUser || null;
+
+      var _originalFetch = window.fetch;
+      window.fetch = function (input, init) {
+        var method = ((init && init.method) || 'GET').toUpperCase();
+        var url = (typeof input === 'string' ? input : (input && input.url)) || '';
+
+        // Capture logged-in user from /api/login response
+        var isLogin = method === 'POST' && url.indexOf('/api/login') !== -1;
+
+        // Only show toasts for mutating calls to our own API
+        var isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+        var isApi = url.indexOf('/api/') !== -1;
+        // Config saves (/api/config/*) are automatic background operations — suppress
+        // success toasts for them so they don't spam the user. Errors still show.
+        var isConfigSave = url.indexOf('/api/config/') !== -1;
+        if (!isMutation || !isApi) return _originalFetch.apply(this, arguments);
+
+        return _originalFetch.apply(this, arguments).then(function (response) {
+          // Clone so the real consumer can still read the body
+          var clone = response.clone();
+          clone.json().then(function (data) {
+            if (!data) return;
+            // Store user from login response
+            if (isLogin && response.ok && data.user) {
+              window.__dtUser = data.user;
+            }
+            if (response.ok && data.message && !isConfigSave) {
+              showToast(data.message, 'success');
+            } else if (!response.ok && data.error) {
+              showToast(data.error, 'error');
+            }
+          }).catch(function () { /* ignore non-JSON */ });
+          return response;
+        }).catch(function (err) {
+          showToast('Network error: ' + (err && err.message ? err.message : 'request failed'), 'error');
+          throw err;
+        });
+      };
+    })();
+  </script>
+
+  <!-- ── Keywords CSV Bulk Upload — button injected next to "Export CSV" ── -->
+  <input type="file" id="_dt-csv-input" accept=".csv,text/csv" style="display:none">
+  <script>
+    (function () {
+      var input = document.getElementById('_dt-csv-input');
+      var btnId = '_dt-import-csv-btn';
+
+      function injectImportBtn() {
+        if (document.getElementById(btnId)) return; // already injected
+
+        // Find the "Export CSV" button by its text content
+        var allBtns = document.querySelectorAll('button');
+        var exportBtn = null;
+        for (var i = 0; i < allBtns.length; i++) {
+          if (allBtns[i].textContent.indexOf('Export CSV') !== -1) {
+            exportBtn = allBtns[i];
+            break;
+          }
+        }
+        if (!exportBtn) return; // not on keywords page yet
+
+        // Clone Export CSV's style so Import looks identical
+        var importBtn = document.createElement('button');
+        importBtn.id = btnId;
+        importBtn.type = 'button';
+        importBtn.className = exportBtn.className;
+        importBtn.innerHTML = '&#8593; Import CSV';
+        importBtn.style.cssText = exportBtn.style.cssText;
+
+        // Insert immediately BEFORE the Export CSV button
+        exportBtn.parentNode.insertBefore(importBtn, exportBtn);
+
+        importBtn.addEventListener('click', function () {
+          input.click();
+        });
+      }
+
+      // Handle CSV file selection & upload
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+
+        var btn = document.getElementById(btnId);
+        if (btn) { btn.disabled = true; btn.innerHTML = 'Uploading…'; }
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          fetch('/api/keywords/upload-csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/csv' },
+            body: e.target.result
+          })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (res.ok && res.data.ok) {
+              window._showToast && window._showToast(res.data.message, 'success');
+              // Refresh keywords in localStorage from DB so React re-renders
+              fetch('/api/historical-keywords')
+                .then(function (r) { return r.json(); })
+                .then(function (rows) {
+                  if (Array.isArray(rows) && rows.length > 0)
+                    localStorage.setItem('seo_historical_kw', JSON.stringify(rows));
+                }).catch(function () {});
+            } else {
+              window._showToast && window._showToast(
+                (res.data && res.data.error) || 'Upload failed', 'error');
+            }
+          })
+          .catch(function () {
+            window._showToast && window._showToast('Network error — upload failed', 'error');
+          })
+          .finally(function () {
+            input.value = '';
+            var b = document.getElementById(btnId);
+            if (b) { b.disabled = false; b.innerHTML = '&#8593; Import CSV'; }
+          });
+        };
+        reader.readAsText(file);
+      });
+
+      // Watch DOM for the Export CSV button (SPA — may not be present on load)
+      new MutationObserver(function () { injectImportBtn(); })
+        .observe(document.body, { childList: true, subtree: true });
+      setTimeout(injectImportBtn, 1500);
+    })();
+  </script>
+</body>
+  <!-- Reads /api/tasks once on load (reuses the already-cached response)  -->
+  <!-- and stamps Assigned / First Started / Last Ended on every task card -->
+  <script>
+    (function () {
+      var _f = window._origFetch || window.fetch.bind(window);
+      var taskMap = {}; // id → { assigned, started, ended }
+
+      function fmtDate(isoStr) {
+        if (!isoStr) return null;
+        var d = new Date(isoStr);
+        if (isNaN(d)) return null;
+        // e.g. "24 Apr '26 09:41"
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
+        return pad(d.getDate()) + ' ' + months[d.getMonth()] + " '" +
+               String(d.getFullYear()).slice(-2) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      }
+
+      function fmtDateOnly(dateStr) {
+        // dateStr may be "2026-04-10" or ISO
+        if (!dateStr) return null;
+        var d = new Date(dateStr);
+        if (isNaN(d)) return null;
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return d.getDate() + ' ' + months[d.getMonth()] + " '" + String(d.getFullYear()).slice(-2);
+      }
+
+      // Build taskMap from API data
+      function buildMap(tasks) {
+        tasks.forEach(function (t) {
+          var assigned = fmtDateOnly(t.intakeDate || t.contentAssignedDate || t.webAssignedDate);
+          var started = null, ended = null;
+          if (Array.isArray(t.timeEvents) && t.timeEvents.length > 0) {
+            var starts = t.timeEvents.filter(function(e){ return e.type === 'start'; });
+            var ends   = t.timeEvents.filter(function(e){ return e.type === 'end'; });
+            if (starts.length > 0) started = fmtDate(starts[0].timestamp);
+            if (ends.length > 0)   ended   = fmtDate(ends[ends.length - 1].timestamp);
+          }
+          taskMap[t.id] = { assigned: assigned, started: started, ended: ended };
+        });
+      }
+
+      // Find the task ID from the card's DOM. The task card shows the task ID
+      // as a badge like "TASK-0001" at the top left.
+      function getCardId(card) {
+        var badges = card.querySelectorAll('span, div, p');
+        for (var i = 0; i < badges.length; i++) {
+          var txt = badges[i].textContent.trim();
+          if (/^TASK-\d+$/.test(txt)) return txt;
+          // Also check data-id or id attribute
+          if (badges[i].getAttribute && badges[i].getAttribute('data-id')) return badges[i].getAttribute('data-id');
+        }
+        return null;
+      }
+
+      // Inject timestamp bar into a task card
+      function injectTimestamps(card) {
+        if (card.querySelector('._dt-timestamps')) return; // already injected
+        var id = getCardId(card);
+        if (!id || !taskMap[id]) return;
+        var info = taskMap[id];
+        if (!info.assigned && !info.started && !info.ended) return;
+
+        var bar = document.createElement('div');
+        bar.className = '_dt-timestamps';
+        if (info.assigned) bar.innerHTML += '<span class="ts-assigned">📅 <b>Assigned:</b> ' + info.assigned + '</span>';
+        if (info.started)  bar.innerHTML += '<span class="ts-started">▶ <b>Started:</b> '  + info.started  + '</span>';
+        if (info.ended)    bar.innerHTML += '<span class="ts-ended">✓ <b>Last End:</b> '   + info.ended    + '</span>';
+
+        // Insert after the title/client line (2nd significant child)
+        // The card has: [badge row] [title] [client·stage] [keyword table] [button]
+        // We find the first <h3> or the first element with a large font to anchor after
+        var anchor = card.querySelector('h3, h2, [class*="title"], [class*="font-semibold"]');
+        if (anchor && anchor.parentNode === card) {
+          anchor.insertAdjacentElement('afterend', bar);
+        } else {
+          // Fallback: insert after the first child
+          var first = card.firstElementChild;
+          if (first) first.insertAdjacentElement('afterend', bar);
+          else card.prepend(bar);
+        }
+      }
+
+      // Scan all task cards on the page
+      function scanCards() {
+        // Task cards are direct children of the action board list; they are
+        // typically <div> elements with rounded corners / border class patterns.
+        // We identify them by whether they contain a TASK-XXXX badge.
+        var candidates = document.querySelectorAll('[class*="rounded"], [class*="border"], [class*="card"]');
+        candidates.forEach(function(el) {
+          var id = getCardId(el);
+          if (id && taskMap[id]) injectTimestamps(el);
+        });
+      }
+
+      // Load tasks then attach observer
+      function init() {
+        _f('/api/tasks').then(function(r){ return r.json(); }).then(function(tasks) {
+          if (!Array.isArray(tasks)) return;
+          buildMap(tasks);
+          scanCards();
+          // Watch for SPA navigation / new cards appearing
+          new MutationObserver(function() { scanCards(); })
+            .observe(document.body, { childList: true, subtree: true });
+        }).catch(function(){});
+      }
+
+      // Intercept GET /api/tasks to keep taskMap fresh whenever React re-fetches
+      var origFetch = window.fetch;
+      window.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        var method = ((init && init.method) || 'GET').toUpperCase();
+        if (method === 'GET' && url === '/api/tasks') {
+          return origFetch.apply(this, arguments).then(function(response) {
+            var clone = response.clone();
+            clone.json().then(function(tasks) {
+              if (Array.isArray(tasks)) { buildMap(tasks); scanCards(); }
+            }).catch(function(){});
+            return response;
+          });
+        }
+        return origFetch.apply(this, arguments);
+      };
+
+      // Wait for React to mount before first scan
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function(){ setTimeout(init, 2000); });
+      } else {
+        setTimeout(init, 2000);
+      }
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+audit-logs/
+hostinger-deploy.zip
+data.db
+
+# Timer patcher creates timestamped backups — don't commit them
+dist/assets/*.bak-*
