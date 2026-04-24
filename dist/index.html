@@ -752,9 +752,75 @@
         return null;
       }
 
-      // Inject timestamp bar into a task card
+      // Inject timestamps as a proper column into the Action Board list view table
+      function injectListViewTimestamps() {
+        var tables = document.querySelectorAll('table');
+        tables.forEach(function(table) {
+          var headerRow = table.querySelector('thead tr');
+          if (!headerRow) return;
+          var ths = headerRow.querySelectorAll('th');
+          if (ths.length < 5) return;
+          var texts = [];
+          ths.forEach(function(th) { texts.push(th.textContent.trim()); });
+          // Must be the Action Board list view (has "Task" and "Actions" headers)
+          if (texts.indexOf('Task') === -1 || texts.indexOf('Actions') === -1) return;
+          if (texts.indexOf('Timestamps') !== -1) return; // already injected
+
+          // Insert "Timestamps" <th> after the "Task" header
+          var taskTh = null;
+          ths.forEach(function(th) { if (th.textContent.trim() === 'Task') taskTh = th; });
+          if (!taskTh) return;
+          var newTh = document.createElement('th');
+          newTh.className = 'px-3 py-2.5';
+          newTh.style.cssText = 'width:180px;white-space:nowrap;font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;background:#f8fafc;';
+          newTh.textContent = 'Timestamps';
+          taskTh.insertAdjacentElement('afterend', newTh);
+
+          // Add a <td> for timestamps to every tbody row
+          var bodyRows = table.querySelectorAll('tbody tr');
+          bodyRows.forEach(function(row) {
+            if (row.querySelector('._dt-ts-cell')) return; // already injected
+            var cells = row.querySelectorAll('td');
+            if (cells.length === 0) return;
+
+            // Expanded detail row (single <td> spanning all cols) — just widen the span
+            if (cells.length === 1 && parseInt(cells[0].colSpan || cells[0].getAttribute('colspan') || 1) > 1) {
+              cells[0].colSpan = parseInt(cells[0].colSpan) + 1;
+              return;
+            }
+
+            // Get the TASK-XXXX id from this row
+            var id = null;
+            var elems = row.querySelectorAll('span, div, p');
+            for (var i = 0; i < elems.length; i++) {
+              var txt = elems[i].textContent.trim();
+              if (/^TASK-\d+$/.test(txt)) { id = txt; break; }
+            }
+
+            var td = document.createElement('td');
+            td.className = '_dt-ts-cell';
+            td.style.cssText = 'padding:4px 8px;vertical-align:middle;min-width:160px;border-bottom:1px solid #f1f5f9;';
+            if (id && taskMap[id]) {
+              var info = taskMap[id];
+              var html = '<div class="_dt-timestamps" style="margin:0;flex-direction:column;gap:2px;">';
+              if (info.assigned) html += '<span class="ts-assigned">📅 <b>Assigned:</b> ' + info.assigned + '</span>';
+              if (info.started)  html += '<span class="ts-started">▶ <b>Started:</b> '   + info.started  + '</span>';
+              if (info.ended)    html += '<span class="ts-ended">✓ <b>Last End:</b> '    + info.ended    + '</span>';
+              html += '</div>';
+              td.innerHTML = html;
+            } else {
+              td.innerHTML = '<span style="color:#cbd5e1;font-size:10px;">—</span>';
+            }
+            // Insert after first cell (Task cell)
+            cells[0].insertAdjacentElement('afterend', td);
+          });
+        });
+      }
+
+      // Inject timestamp bar into a card view task card (non-table view)
       function injectTimestamps(card) {
         if (card.querySelector('._dt-timestamps')) return; // already injected
+        if (card.tagName === 'TABLE' || card.querySelector('thead') || card.closest('table')) return;
         var id = getCardId(card);
         if (!id || !taskMap[id]) return;
         var info = taskMap[id];
@@ -766,30 +832,41 @@
         if (info.started)  bar.innerHTML += '<span class="ts-started">▶ <b>Started:</b> '  + info.started  + '</span>';
         if (info.ended)    bar.innerHTML += '<span class="ts-ended">✓ <b>Last End:</b> '   + info.ended    + '</span>';
 
-        // Insert after the title/client line (2nd significant child)
-        // The card has: [badge row] [title] [client·stage] [keyword table] [button]
-        // We find the first <h3> or the first element with a large font to anchor after
+        // Insert after the first <h3> or font-semibold element inside the card
         var anchor = card.querySelector('h3, h2, [class*="title"], [class*="font-semibold"]');
         if (anchor && anchor.parentNode === card) {
           anchor.insertAdjacentElement('afterend', bar);
         } else {
-          // Fallback: insert after the first child
           var first = card.firstElementChild;
           if (first) first.insertAdjacentElement('afterend', bar);
           else card.prepend(bar);
         }
       }
 
-      // Scan all task cards on the page
+      // Scan for list view table or card view cards and inject timestamps
       function scanCards() {
-        // Task cards are direct children of the action board list; they are
-        // typically <div> elements with rounded corners / border class patterns.
-        // We identify them by whether they contain a TASK-XXXX badge.
-        var candidates = document.querySelectorAll('[class*="rounded"], [class*="border"], [class*="card"]');
-        candidates.forEach(function(el) {
-          var id = getCardId(el);
-          if (id && taskMap[id]) injectTimestamps(el);
+        // Detect if list view is active (Action Board table with Task + Actions headers)
+        var listViewActive = false;
+        var tables = document.querySelectorAll('table');
+        tables.forEach(function(table) {
+          var headerRow = table.querySelector('thead tr');
+          if (!headerRow) return;
+          var texts = [];
+          headerRow.querySelectorAll('th').forEach(function(th) { texts.push(th.textContent.trim()); });
+          if (texts.indexOf('Task') !== -1 && texts.indexOf('Actions') !== -1) listViewActive = true;
         });
+
+        if (listViewActive) {
+          injectListViewTimestamps();
+        } else {
+          // Card view: inject into individual task card divs (skip anything table-related)
+          var candidates = document.querySelectorAll('[class*="rounded"], [class*="border"], [class*="card"]');
+          candidates.forEach(function(el) {
+            if (el.tagName === 'TABLE' || el.querySelector('thead') || el.closest('table')) return;
+            var id = getCardId(el);
+            if (id && taskMap[id]) injectTimestamps(el);
+          });
+        }
       }
 
       // Load tasks then attach observer
@@ -798,9 +875,12 @@
           if (!Array.isArray(tasks)) return;
           buildMap(tasks);
           scanCards();
-          // Watch for SPA navigation / new cards appearing
-          new MutationObserver(function() { scanCards(); })
-            .observe(document.body, { childList: true, subtree: true });
+          // Watch for SPA navigation / new cards or table rows appearing (debounced)
+          var _scanTimer = null;
+          new MutationObserver(function() {
+            if (_scanTimer) clearTimeout(_scanTimer);
+            _scanTimer = setTimeout(scanCards, 80);
+          }).observe(document.body, { childList: true, subtree: true });
         }).catch(function(){});
       }
 
