@@ -11,7 +11,7 @@
     "build": "node scripts/patch-upload-button.js && node scripts/patch-keyword-db-persist.js && node scripts/patch-keyword-input-focus.js",
     "patch-bundle": "node scripts/patch-bundle-fixes.js",
     "patch-ab-handoff": "node scripts/patch-action-board-handoff-fix.js",
-    "postinstall": "node scripts/patch-bundle-fixes.js || true && node scripts/patch-action-board-handoff-fix.js || true"
+    "postinstall": "node scripts/patch-bundle-fixes.js || true && node scripts/patch-action-board-handoff-fix.js || true && node scripts/patch-timesheet-url-cols.js || true"
   },
   "dependencies": {
     "dotenv": "^17.3.1",
