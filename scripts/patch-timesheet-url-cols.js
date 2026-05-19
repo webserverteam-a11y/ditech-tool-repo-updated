@@ -119,7 +119,7 @@ const R3_OLD =
   `,n.jsx("td",{style:{padding:"8px 10px",borderBottom:"0.5px solid #E2E8F0",fontSize:11,color:"var(--color-text-secondary)",whiteSpace:"nowrap"},children:Ke.client})`;
 
 const R3_NEW =
-  `children:["⚠ Overdue — was ",at]}]})` +
+  `children:["⚠ Overdue — was ",at]})]})` +
   `,n.jsx("td",{style:{padding:"8px 10px",borderBottom:"0.5px solid #E2E8F0",maxWidth:140},children:Ke.docUrl?n.jsx("a",{href:Ke.docUrl,target:"_blank",rel:"noreferrer",style:{fontSize:10,color:"#185FA5",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130},children:"Doc"}):n.jsx("span",{style:{color:"#9CA3AF",fontSize:11},children:"—"})})` +
   `,n.jsx("td",{style:{padding:"8px 10px",borderBottom:"0.5px solid #E2E8F0",maxWidth:140},children:Ke.targetUrl?n.jsx("a",{href:Ke.targetUrl,target:"_blank",rel:"noreferrer",style:{fontSize:10,color:"#185FA5",display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130},children:"URL"}):n.jsx("span",{style:{color:"#9CA3AF",fontSize:11},children:"—"})})` +
   `,n.jsx("td",{style:{padding:"8px 10px",borderBottom:"0.5px solid #E2E8F0",fontSize:11,color:"var(--color-text-secondary)",whiteSpace:"nowrap"},children:Ke.client})`;
