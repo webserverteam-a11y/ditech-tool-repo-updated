@@ -18,6 +18,7 @@ import { leaveRouter }       from './leave.routes.js';
 import { workhubRouter }     from './workhub.routes.js';
 import { auditRouter }       from './audit.routes.js';
 import { configRouter }      from './config.routes.js';
+import { reportRouter }      from './report.routes.js';
 
 export function buildApiRouter() {
   const router = Router();
@@ -38,6 +39,7 @@ export function buildApiRouter() {
   router.use('/workhub-remarks',     workhubRouter);
   router.use('/audit',               auditRouter);
   router.use('/config',              configRouter);
+  router.use('/reports/seo-scorecard', reportRouter);  // GET scorecard + months + clients
 
   return router;
 }

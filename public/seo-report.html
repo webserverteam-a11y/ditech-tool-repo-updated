@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEO Client Scorecard — DiTech CDM</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .header {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .header-brand svg { opacity: 0.9; }
+    .header-sub {
+      font-size: 0.85rem;
+      opacity: 0.65;
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      color: #fff;
+    }
+    .btn-outline:hover { background: rgba(255,255,255,0.1); }
+    .btn-primary {
+      background: #4f6ef7;
+      color: #fff;
+    }
+    .btn-primary:hover { background: #3b5be0; }
+
+    /* ── Controls Bar ─────────────────────────────────────────── */
+    .controls {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 28px;
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ctrl-select {
+      padding: 7px 32px 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 170px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-select:focus { outline: none; border-color: #4f6ef7; }
+    .snapshot-label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      align-self: flex-end;
+      padding-bottom: 7px;
+    }
+
+    /* ── Loading / Empty ──────────────────────────────────────── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 20px;
+      color: #94a3b8;
+    }
+    .state-box svg { opacity: 0.4; }
+    .state-box p { font-size: 0.95rem; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Report Container ─────────────────────────────────────── */
+    .report { padding: 20px 28px 40px; }
+
+    /* ── Summary Strip ────────────────────────────────────────── */
+    .summary-strip {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .summary-header {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 9px 16px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .summary-header span { opacity: 0.6; font-weight: 400; }
+    .summary-grid {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .sum-group {
+      border-right: 1px solid #f1f5f9;
+      display: flex;
+      flex-direction: column;
+    }
+    .sum-group:last-child { border-right: none; }
+    .sum-group-label {
+      background: #f8fafc;
+      border-bottom: 1px solid #f1f5f9;
+      padding: 5px 12px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sum-cells {
+      display: flex;
+    }
+    .sum-cell {
+      padding: 10px 14px;
+      border-right: 1px solid #f1f5f9;
+      min-width: 68px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .sum-cell:last-child { border-right: none; }
+    .sum-cell-label {
+      font-size: 0.67rem;
+      color: #94a3b8;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .sum-cell-val {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1;
+    }
+    .sum-cell-val.green  { color: #16a34a; }
+    .sum-cell-val.red    { color: #dc2626; }
+    .sum-cell-val.orange { color: #ea580c; }
+    .sum-cell-val.blue   { color: #2563eb; }
+    .sum-cell-val.purple { color: #7c3aed; }
+
+    /* ── Section ──────────────────────────────────────────────── */
+    .section {
+      margin-bottom: 16px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+    }
+    .section-header {
+      padding: 9px 16px;
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0.3px;
+    }
+    .section-header .badge {
+      background: rgba(255,255,255,0.22);
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .section-header .sub {
+      opacity: 0.7;
+      font-weight: 400;
+      font-size: 0.75rem;
+    }
+    /* Section colours */
+    .hdr-top10    { background: #15803d; }
+    .hdr-dropped  { background: #b91c1c; }
+    .hdr-improved { background: #c2410c; }
+    .hdr-unranked { background: #78350f; }
+    .hdr-stable   { background: #475569; }
+    .hdr-other    { background: #1d4ed8; }
+    .hdr-design   { background: #6d28d9; }
+
+    .section-empty {
+      background: #fff;
+      padding: 14px 16px;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* ── Table ────────────────────────────────────────────────── */
+    .tbl-wrap { overflow-x: auto; background: #fff; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    thead tr {
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    thead th {
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 700;
+      color: #64748b;
+      white-space: nowrap;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr:last-child { border-bottom: none; }
+    td {
+      padding: 7px 10px;
+      vertical-align: middle;
+      color: #334155;
+    }
+    .td-id {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    .td-title {
+      font-weight: 600;
+      color: #1e293b;
+      max-width: 200px;
+    }
+    .td-kw { color: #2563eb; font-style: italic; }
+    .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .td-link a {
+      color: #4f6ef7;
+      text-decoration: none;
+      font-size: 0.75rem;
+    }
+    .td-link a:hover { text-decoration: underline; }
+    .td-link .no-link { color: #cbd5e1; font-size: 0.75rem; }
+
+    /* Movement badges */
+    .mv-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .mv-improved  { background: #dcfce7; color: #15803d; }
+    .mv-dropped   { background: #fee2e2; color: #b91c1c; }
+    .mv-stable    { background: #f1f5f9; color: #475569; }
+    .mv-top10     { background: #d1fae5; color: #065f46; }
+    .mv-unranked  { background: #fef9c3; color: #92400e; }
+
+    /* State badges */
+    .st-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .st-ended       { background: #dcfce7; color: #166534; }
+    .st-inprogress  { background: #dbeafe; color: #1d4ed8; }
+    .st-notstarted  { background: #f1f5f9; color: #475569; }
+    .st-paused      { background: #fef9c3; color: #92400e; }
+    .st-approved    { background: #ede9fe; color: #6d28d9; }
+
+    /* Delta colours */
+    .delta-pos { color: #16a34a; font-weight: 700; }
+    .delta-neg { color: #dc2626; font-weight: 700; }
+    .delta-zero { color: #94a3b8; }
+    .pct-pos { color: #16a34a; }
+    .pct-neg { color: #dc2626; }
+
+    /* ── Print ────────────────────────────────────────────────── */
+    @media print {
+      .header .header-actions,
+      .controls .btn { display: none; }
+      .section { break-inside: avoid; }
+      body { background: #fff; font-size: 11px; }
+      .report { padding: 0; }
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .controls { padding: 12px 14px; }
+      .report { padding: 12px 14px 30px; }
+      .header { padding: 0 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<div class="header">
+  <div class="header-brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    DiTech CDM
+    <span class="header-sub">/ SEO Client Scorecard</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-outline" onclick="window.print()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print
+    </button>
+    <button class="btn btn-primary" id="exportBtn" onclick="exportCSV()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
+</div>
+
+<!-- ── Controls ─────────────────────────────────────────────────── -->
+<div class="controls">
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="clientSel">Client</label>
+    <select class="ctrl-select" id="clientSel" onchange="onClientChange()">
+      <option value="">— Select Client —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="monthSel">Month</label>
+    <select class="ctrl-select" id="monthSel" onchange="loadReport()" disabled>
+      <option value="">— Select Month —</option>
+    </select>
+  </div>
+  <div class="snapshot-label" id="snapLabel"></div>
+</div>
+
+<!-- ── Report Output ─────────────────────────────────────────────── -->
+<div id="reportArea">
+  <div class="state-box">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </svg>
+    <p>Select a client and month to generate the scorecard</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Init ─────────────────────────────────────────────────────── */
+  var currentData = null;
+
+  window.addEventListener('DOMContentLoaded', function () {
+    loadClients();
+  });
+
+  /* ── Load clients ─────────────────────────────────────────────── */
+  function loadClients() {
+    fetch('/api/reports/seo-scorecard/clients')
+      .then(function (r) { return r.json(); })
+      .then(function (clients) {
+        var sel = document.getElementById('clientSel');
+        clients.forEach(function (c) {
+          var opt = document.createElement('option');
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+        // Auto-select from URL param
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('client')) {
+          sel.value = params.get('client');
+          onClientChange();
+        }
+      })
+      .catch(function (e) {
+        console.error('Failed to load clients', e);
+      });
+  }
+
+  /* ── Client change ─────────────────────────────────────────────── */
+  window.onClientChange = function () {
+    var client = document.getElementById('clientSel').value;
+    var monthSel = document.getElementById('monthSel');
+    monthSel.innerHTML = '<option value="">— Select Month —</option>';
+    monthSel.disabled = true;
+    document.getElementById('snapLabel').textContent = '';
+    if (!client) { renderEmpty(); return; }
+
+    fetch('/api/reports/seo-scorecard/months?client=' + encodeURIComponent(client))
+      .then(function (r) { return r.json(); })
+      .then(function (months) {
+        months.forEach(function (m) {
+          var opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = formatMonth(m);
+          monthSel.appendChild(opt);
+        });
+        monthSel.disabled = false;
+        // Auto-select latest month or URL param
+        var params = new URLSearchParams(window.location.search);
+        var urlMonth = params.get('month');
+        if (urlMonth && months.includes(urlMonth)) {
+          monthSel.value = urlMonth;
+        } else if (months.length > 0) {
+          monthSel.value = months[0];
+        }
+        if (monthSel.value) loadReport();
+      })
+      .catch(function (e) { console.error('Failed to load months', e); });
+  };
+
+  /* ── Load report ───────────────────────────────────────────────── */
+  window.loadReport = function () {
+    var client = document.getElementById('clientSel').value;
+    var month  = document.getElementById('monthSel').value;
+    if (!client || !month) { renderEmpty(); return; }
+
+    // Update URL without reload
+    var url = new URL(window.location.href);
+    url.searchParams.set('client', client);
+    url.searchParams.set('month', month);
+    history.replaceState(null, '', url.toString());
+
+    renderLoading();
+    fetch('/api/reports/seo-scorecard?client=' + encodeURIComponent(client) + '&month=' + encodeURIComponent(month))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        currentData = data;
+        renderReport(data);
+        var d = new Date();
+        document.getElementById('snapLabel').textContent =
+          'Snapshot: ' + client + ' · ' + formatMonth(month) +
+          ' · Generated ' + d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+      })
+      .catch(function (e) {
+        renderError(e.message);
+      });
+  };
+
+  /* ── Render: loading ───────────────────────────────────────────── */
+  function renderLoading() {
+    document.getElementById('reportArea').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><p>Generating scorecard…</p></div>';
+  }
+
+  /* ── Render: empty ─────────────────────────────────────────────── */
+  function renderEmpty() {
+    currentData = null;
+    document.getElementById('reportArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' +
+      '<p>Select a client and month to generate the scorecard</p></div>';
+  }
+
+  /* ── Render: error ─────────────────────────────────────────────── */
+  function renderError(msg) {
+    document.getElementById('reportArea').innerHTML =
+      '<div class="state-box"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '<p style="color:#ef4444">Failed to load scorecard: ' + esc(msg) + '</p></div>';
+  }
+
+  /* ── Render: full report ───────────────────────────────────────── */
+  function renderReport(data) {
+    var html = '';
+    html += renderSummary(data.summary);
+    html += renderSection('top10',    data.sections.top10,    'hdr-top10',    '🏆', 'Top 10', 'ranking positions 1–10 · wins');
+    html += renderSection('dropped',  data.sections.dropped,  'hdr-dropped',  '📉', 'Dropped', 'slipped vs last month · review first');
+    html += renderSection('improved', data.sections.improved, 'hdr-improved', '📈', 'Improved', 'moved up, not yet top 10');
+    html += renderSection('unranked', data.sections.unranked, 'hdr-unranked', '⬜', 'Unranked', 'no rank / beyond top 100');
+    html += renderSection('stable',   data.sections.stable,   'hdr-stable',   '➡️', 'Same Position', 'held steady');
+    html += renderSection('other',    data.sections.other,    'hdr-other',    '🔧', 'Other Tasks', 'Tech SEO, reports, strategy');
+    html += renderSection('design',   data.sections.design,   'hdr-design',   '🎨', 'Design / WH', 'creative & web · outside SEO ranking effort');
+    document.getElementById('reportArea').innerHTML = '<div class="report">' + html + '</div>';
+  }
+
+  /* ── Summary strip ─────────────────────────────────────────────── */
+  function renderSummary(s) {
+    var kw = s.keywords;
+    var pct = kw.pctImproved;
+    var pctClass = pct >= 50 ? 'green' : pct >= 25 ? 'orange' : 'red';
+
+    return '<div class="summary-strip">' +
+      '<div class="summary-header">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>' +
+        'SUMMARY &nbsp;<span>· horizontal snapshot</span>' +
+      '</div>' +
+      '<div class="summary-grid">' +
+
+        sumGroup('Tasks & Hours', [
+          { label: 'SEO Tasks', val: s.totalTasks, cls: 'blue' },
+          { label: 'Est Hrs',   val: s.estHrs },
+        ]) +
+        sumGroup('Hours by Type', [
+          { label: 'OnPage h',  val: s.hours.onpage },
+          { label: 'Blogs h',   val: s.hours.blogs },
+          { label: 'Content h', val: s.hours.content },
+          { label: 'Tech h',    val: s.hours.tech },
+          { label: 'Strat h',   val: s.hours.strategy },
+          { label: 'Rep h',     val: s.hours.reports },
+          { label: 'Design/WH', val: s.hours.design },
+        ]) +
+        sumGroup('Keyword Positions', [
+          { label: 'Keywords',  val: kw.total,    cls: 'blue' },
+          { label: 'Pos 1-3',   val: kw.pos1to3,  cls: 'green' },
+          { label: 'Pos 4-10',  val: kw.pos4to10, cls: 'green' },
+          { label: 'Pos 11+',   val: kw.pos11plus },
+          { label: 'Unranked',  val: kw.unranked, cls: 'red' },
+        ]) +
+        sumGroup('Movement', [
+          { label: 'Improved',    val: kw.improved,    cls: 'green' },
+          { label: 'Dropped',     val: kw.dropped,     cls: 'red' },
+          { label: 'Stable',      val: kw.stable },
+          { label: 'Still Unr',  val: kw.stillUnranked, cls: 'orange' },
+          { label: '% Impr',     val: pct + '%',      cls: pctClass },
+        ]) +
+
+      '</div>' +
+    '</div>';
+  }
+
+  function sumGroup(label, cells) {
+    var html = '<div class="sum-group">';
+    html += '<div class="sum-group-label">' + esc(label) + '</div>';
+    html += '<div class="sum-cells">';
+    cells.forEach(function (c) {
+      html += '<div class="sum-cell">' +
+        '<span class="sum-cell-label">' + esc(c.label) + '</span>' +
+        '<span class="sum-cell-val ' + (c.cls || '') + '">' + esc(String(c.val)) + '</span>' +
+        '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  /* ── Section ───────────────────────────────────────────────────── */
+  function renderSection(key, tasks, hdrClass, icon, title, sub) {
+    var html = '<div class="section">';
+    html += '<div class="section-header ' + hdrClass + '">' +
+      '<span>' + icon + '</span>' +
+      '<strong>' + esc(title) + '</strong>' +
+      '<span class="badge">' + tasks.length + '</span>' +
+      '<span class="sub">— ' + esc(sub) + '</span>' +
+    '</div>';
+
+    if (tasks.length === 0) {
+      html += '<div class="section-empty">No tasks in this section for the selected period.</div>';
+    } else {
+      html += '<div class="tbl-wrap">' + renderTable(tasks, key) + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* ── Table ─────────────────────────────────────────────────────── */
+  function renderTable(tasks, key) {
+    var hasKw    = key !== 'other' && key !== 'design';
+    var hasRank  = key !== 'other' && key !== 'design';
+
+    var html = '<table><thead><tr>' +
+      '<th>Task ID</th>' +
+      '<th>Task</th>' +
+      '<th>Owner</th>' +
+      '<th>Content Owner</th>' +
+      (hasKw ? '<th>Keyword</th><th class="td-num">Vol</th>' : '') +
+      (hasRank ? '<th class="td-num">Was</th><th class="td-num">Now</th><th class="td-num">Rank Δ</th><th class="td-num">% Impr</th><th>Movement</th>' : '') +
+      '<th>Type</th>' +
+      '<th>State</th>' +
+      '<th>Intake</th>' +
+      '<th class="td-num">Hours</th>' +
+      '<th>Target URL</th>' +
+      '<th>Doc URL</th>' +
+      '<th>Remarks</th>' +
+    '</tr></thead><tbody>';
+
+    tasks.forEach(function (t) {
+      html += '<tr>';
+      html += '<td class="td-id">' + esc(t.id) + '</td>';
+      html += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 40)) + '</span></td>';
+      html += '<td>' + esc(t.owner || '—') + '</td>';
+      html += '<td>' + esc(t.contentOwner && t.contentOwner !== '-' ? t.contentOwner : '—') + '</td>';
+
+      if (hasKw) {
+        html += '<td class="td-kw">' + esc(t.keyword || '—') + '</td>';
+        html += '<td class="td-num">' + (t.volume > 0 ? t.volume : '—') + '</td>';
+      }
+      if (hasRank) {
+        var wasDisp = t.was >= 100 ? '>100' : (t.was || '—');
+        var nowDisp = t.now >= 100 ? '>100' : (t.now || '—');
+        html += '<td class="td-num">' + wasDisp + '</td>';
+        html += '<td class="td-num">' + nowDisp + '</td>';
+
+        if (t.delta === null || t.delta === undefined) {
+          html += '<td class="td-num delta-zero">—</td>';
+          html += '<td class="td-num">—</td>';
+        } else {
+          var deltaClass = t.delta > 0 ? 'delta-pos' : t.delta < 0 ? 'delta-neg' : 'delta-zero';
+          var deltaStr   = t.delta > 0 ? '+' + t.delta : String(t.delta);
+          html += '<td class="td-num ' + deltaClass + '">' + deltaStr + '</td>';
+          var pct = t.pctImpr;
+          if (pct === null || pct === undefined) {
+            html += '<td class="td-num">—</td>';
+          } else {
+            var pctClass2 = pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : '';
+            var pctStr = (pct > 0 ? '+' : '') + pct + '%';
+            html += '<td class="td-num ' + pctClass2 + '">' + pctStr + '</td>';
+          }
+        }
+        html += '<td>' + mvBadge(t.movement) + '</td>';
+      }
+
+      html += '<td>' + esc(t.type || '—') + '</td>';
+      html += '<td>' + stateBadge(t.state) + '</td>';
+      html += '<td style="white-space:nowrap">' + esc(t.intake || '—') + '</td>';
+      html += '<td class="td-num">' + (t.hours > 0 ? t.hours : '—') + '</td>';
+      html += '<td class="td-link">' + linkCell(t.targetUrl, 'page') + '</td>';
+      html += '<td class="td-link">' + linkCell(t.docUrl, 'doc') + '</td>';
+      html += '<td style="max-width:160px;color:#64748b">' + esc(truncate(t.remarks, 50)) + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    return html;
+  }
+
+  /* ── Helpers ───────────────────────────────────────────────────── */
+  function mvBadge(mv) {
+    if (!mv) return '<span class="mv-badge mv-stable">—</span>';
+    var map = {
+      'Top 10':        'mv-top10',
+      'Improved':      'mv-improved',
+      'Dropped':       'mv-dropped',
+      'Stable':        'mv-stable',
+      'Still unranked':'mv-unranked',
+    };
+    var cls = map[mv] || 'mv-stable';
+    var arrows = { 'Top 10':'▲', 'Improved':'▲', 'Dropped':'▼', 'Stable':'→', 'Still unranked':'·' };
+    return '<span class="mv-badge ' + cls + '">' + (arrows[mv] || '') + ' ' + esc(mv) + '</span>';
+  }
+
+  function stateBadge(state) {
+    if (!state) return '<span class="st-badge st-notstarted">—</span>';
+    var s = state.toLowerCase().replace(/\s+/g, '');
+    var cls = s === 'ended' ? 'st-ended'
+            : s === 'inprogress' ? 'st-inprogress'
+            : s === 'notstarted' ? 'st-notstarted'
+            : s === 'paused' ? 'st-paused'
+            : s === 'approved' ? 'st-approved'
+            : 'st-notstarted';
+    return '<span class="st-badge ' + cls + '">' + esc(state) + '</span>';
+  }
+
+  function linkCell(url, label) {
+    if (!url) return '<span class="no-link">—</span>';
+    return '<a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(label) + ' ↗</a>';
+  }
+
+  function formatMonth(m) {
+    if (!m) return '';
+    var parts = m.split('-');
+    if (parts.length < 2) return m;
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mo = parseInt(parts[1], 10) - 1;
+    return (months[mo] || parts[1]) + ' ' + parts[0];
+  }
+
+  function truncate(str, n) {
+    if (!str) return '';
+    return str.length > n ? str.slice(0, n) + '…' : str;
+  }
+
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── Export CSV ─────────────────────────────────────────────────── */
+  window.exportCSV = function () {
+    if (!currentData) return;
+    var rows = [['Task ID','Task','Owner','Content Owner','Keyword','Vol',
+                 'Was','Now','Rank Delta','% Impr','Movement','Type',
+                 'State','Intake','Hours','Target URL','Doc URL','Remarks','Section']];
+
+    var sectionNames = {
+      top10:'Top 10', dropped:'Dropped', improved:'Improved',
+      unranked:'Unranked', stable:'Stable', other:'Other', design:'Design/WH'
+    };
+
+    Object.keys(currentData.sections).forEach(function (key) {
+      currentData.sections[key].forEach(function (t) {
+        rows.push([
+          t.id, t.title, t.owner, t.contentOwner, t.keyword, t.volume,
+          t.was, t.now, t.delta !== null ? t.delta : '',
+          t.pctImpr !== null ? t.pctImpr + '%' : '',
+          t.movement || '', t.type, t.state, t.intake, t.hours,
+          t.targetUrl, t.docUrl, t.remarks, sectionNames[key] || key
+        ]);
+      });
+    });
+
+    var csv = rows.map(function (r) {
+      return r.map(function (v) {
+        return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'seo-scorecard-' + currentData.client + '-' + currentData.month + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+})();
+</script>
+</body>
+</html>

@@ -1384,6 +1384,13 @@ app.get('/api/audit/download', async (req, res) => {
   }
 });
 
+// ── SEO Scorecard report page ─────────────────────────
+// Served before the SPA fallback so /seo-report returns our standalone
+// HTML page rather than falling through to dist/index.html.
+app.get('/seo-report', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'seo-report.html'));
+});
+
 // ── API 404 + global error handler ────────────────────
 // apiNotFound catches requests to unknown /api/* routes before the SPA
 // fallback swallows them. globalErrorHandler catches anything thrown from
