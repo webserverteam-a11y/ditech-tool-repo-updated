@@ -62,14 +62,58 @@ reportRouter.get('/clients', async (_req, res) => {
   }
 });
 
-// ── GET /?client=X&month=YYYY-MM ──────────────────────────────────────────
-reportRouter.get('/', async (req, res) => {
-  const { client, month } = req.query;
+// ── GET /owners?client=X&from=YYYY-MM-DD&to=YYYY-MM-DD ───────────────────
+reportRouter.get('/owners', async (req, res) => {
+  const { client, from, to } = req.query;
   if (!client) return res.status(400).json({ error: 'client param required' });
-  if (!month)  return res.status(400).json({ error: 'month param required' });
+  try {
+    const params = [client];
+    let dateClause = '';
+    if (from && to) {
+      dateClause = 'AND intake_date >= ? AND intake_date <= ?';
+      params.push(from, to);
+    }
+    const [rows] = await pool.query(
+      `SELECT DISTINCT seo_owner FROM tasks
+       WHERE client = ? AND seo_owner IS NOT NULL AND seo_owner != ''
+       ${dateClause}
+       ORDER BY seo_owner`,
+      params
+    );
+    res.json(rows.map(r => r.seo_owner));
+  } catch (e) {
+    console.error('GET /api/reports/seo-scorecard/owners error:', e.message);
+    res.status(500).json({ error: 'Failed to load owners' });
+  }
+});
+
+// ── GET /?client=X&from=YYYY-MM-DD&to=YYYY-MM-DD[&owner=X] ───────────────
+// Also accepts legacy &month=YYYY-MM for backward compat.
+reportRouter.get('/', async (req, res) => {
+  const { client, month, from, to, owner } = req.query;
+  if (!client) return res.status(400).json({ error: 'client param required' });
+
+  // Resolve date range: prefer explicit from/to, fall back to month prefix
+  let dateClause, dateParams;
+  if (from && to) {
+    dateClause = 'AND intake_date >= ? AND intake_date <= ?';
+    dateParams = [from, to];
+  } else if (month) {
+    dateClause = 'AND intake_date LIKE ?';
+    dateParams = [`${month}%`];
+  } else {
+    return res.status(400).json({ error: 'from+to or month param required' });
+  }
 
   try {
-    // Fetch all tasks for this client + month
+    // Fetch tasks for client + date range [+ optional owner filter]
+    const params = [client, ...dateParams];
+    let ownerClause = '';
+    if (owner && owner !== 'all') {
+      ownerClause = 'AND seo_owner = ?';
+      params.push(owner);
+    }
+
     const [rows] = await pool.query(
       `SELECT id, title, client, seo_owner, content_owner, focused_kw,
               volume, mar_rank, current_rank,
@@ -78,9 +122,10 @@ reportRouter.get('/', async (req, res) => {
               task_type, dept_type, remarks, is_completed
        FROM tasks
        WHERE client = ?
-         AND intake_date LIKE ?
+         ${dateClause}
+         ${ownerClause}
        ORDER BY intake_date DESC, id`,
-      [client, `${month}%`]
+      params
     );
 
     // ── Classify each task ────────────────────────────────────────────────

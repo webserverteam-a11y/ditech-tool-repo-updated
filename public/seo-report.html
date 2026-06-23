@@ -102,6 +102,20 @@
       transition: border-color 0.15s;
     }
     .ctrl-select:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-input {
+      padding: 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc;
+      cursor: pointer;
+      min-width: 140px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-input:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-input:disabled { opacity: 0.45; cursor: not-allowed; }
     .snapshot-label {
       font-size: 0.8rem;
       color: #94a3b8;
@@ -395,8 +409,22 @@
   </div>
   <div class="ctrl-group">
     <label class="ctrl-label" for="monthSel">Month</label>
-    <select class="ctrl-select" id="monthSel" onchange="loadReport()" disabled>
+    <select class="ctrl-select" id="monthSel" onchange="onMonthChange()" disabled>
       <option value="">— Select Month —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="fromDate">From Date</label>
+    <input class="ctrl-input" type="date" id="fromDate" onchange="onDateChange()" disabled />
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="toDate">To Date</label>
+    <input class="ctrl-input" type="date" id="toDate" onchange="onDateChange()" disabled />
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="ownerSel">SEO Owner</label>
+    <select class="ctrl-select" id="ownerSel" onchange="loadReport()" disabled>
+      <option value="all">All Owners</option>
     </select>
   </div>
   <div class="snapshot-label" id="snapLabel"></div>
@@ -408,7 +436,7 @@
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
     </svg>
-    <p>Select a client and month to generate the scorecard</p>
+    <p>Select a client and date range to generate the scorecard</p>
   </div>
 </div>
 
@@ -434,16 +462,13 @@
           opt.value = c; opt.textContent = c;
           sel.appendChild(opt);
         });
-        // Auto-select from URL param
         var params = new URLSearchParams(window.location.search);
         if (params.get('client')) {
           sel.value = params.get('client');
           onClientChange();
         }
       })
-      .catch(function (e) {
-        console.error('Failed to load clients', e);
-      });
+      .catch(function (e) { console.error('Failed to load clients', e); });
   }
 
   /* ── Client change ─────────────────────────────────────────────── */
@@ -452,6 +477,8 @@
     var monthSel = document.getElementById('monthSel');
     monthSel.innerHTML = '<option value="">— Select Month —</option>';
     monthSel.disabled = true;
+    resetDateRange();
+    resetOwners();
     document.getElementById('snapLabel').textContent = '';
     if (!client) { renderEmpty(); return; }
 
@@ -460,12 +487,10 @@
       .then(function (months) {
         months.forEach(function (m) {
           var opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = formatMonth(m);
+          opt.value = m; opt.textContent = formatMonth(m);
           monthSel.appendChild(opt);
         });
         monthSel.disabled = false;
-        // Auto-select latest month or URL param
         var params = new URLSearchParams(window.location.search);
         var urlMonth = params.get('month');
         if (urlMonth && months.includes(urlMonth)) {
@@ -473,25 +498,110 @@
         } else if (months.length > 0) {
           monthSel.value = months[0];
         }
-        if (monthSel.value) loadReport();
+        if (monthSel.value) onMonthChange();
       })
       .catch(function (e) { console.error('Failed to load months', e); });
   };
 
+  /* ── Month dropdown change → fill date range ───────────────────── */
+  window.onMonthChange = function () {
+    var month = document.getElementById('monthSel').value;
+    if (!month) return;
+    var from = document.getElementById('fromDate');
+    var to   = document.getElementById('toDate');
+    // First and last day of selected month
+    var year = parseInt(month.split('-')[0], 10);
+    var mo   = parseInt(month.split('-')[1], 10);
+    var firstDay = month + '-01';
+    var lastDay  = month + '-' + new Date(year, mo, 0).getDate();
+    from.value = firstDay;
+    to.value   = lastDay;
+    from.disabled = false;
+    to.disabled   = false;
+    loadOwnersAndReport();
+  };
+
+  /* ── Date range changed manually → set month to Custom ────────── */
+  window.onDateChange = function () {
+    var monthSel = document.getElementById('monthSel');
+    // Remove custom option if it exists, re-add at top
+    var existing = monthSel.querySelector('option[value="custom"]');
+    if (existing) existing.remove();
+    var customOpt = document.createElement('option');
+    customOpt.value = 'custom'; customOpt.textContent = 'Custom Range';
+    monthSel.insertBefore(customOpt, monthSel.options[1]);
+    monthSel.value = 'custom';
+    loadOwnersAndReport();
+  };
+
+  /* ── Helpers: reset states ─────────────────────────────────────── */
+  function resetDateRange() {
+    var from = document.getElementById('fromDate');
+    var to   = document.getElementById('toDate');
+    from.value = ''; from.disabled = true;
+    to.value   = ''; to.disabled   = true;
+  }
+
+  function resetOwners() {
+    var ownerSel = document.getElementById('ownerSel');
+    ownerSel.innerHTML = '<option value="all">All Owners</option>';
+    ownerSel.disabled = true;
+  }
+
+  /* ── Load owners then load report ─────────────────────────────── */
+  function loadOwnersAndReport() {
+    var client = document.getElementById('clientSel').value;
+    var from   = document.getElementById('fromDate').value;
+    var to     = document.getElementById('toDate').value;
+    if (!client || !from || !to) return;
+
+    var ownerSel = document.getElementById('ownerSel');
+    var prevOwner = ownerSel.value || 'all';
+
+    fetch('/api/reports/seo-scorecard/owners?client=' + encodeURIComponent(client) +
+          '&from=' + encodeURIComponent(from) + '&to=' + encodeURIComponent(to))
+      .then(function (r) { return r.json(); })
+      .then(function (owners) {
+        ownerSel.innerHTML = '<option value="all">All Owners</option>';
+        owners.forEach(function (o) {
+          var opt = document.createElement('option');
+          opt.value = o; opt.textContent = o;
+          ownerSel.appendChild(opt);
+        });
+        ownerSel.disabled = owners.length === 0;
+        // Restore previous owner selection if still available
+        if (prevOwner !== 'all' && owners.includes(prevOwner)) {
+          ownerSel.value = prevOwner;
+        }
+        loadReport();
+      })
+      .catch(function () { loadReport(); });
+  }
+
   /* ── Load report ───────────────────────────────────────────────── */
   window.loadReport = function () {
     var client = document.getElementById('clientSel').value;
-    var month  = document.getElementById('monthSel').value;
-    if (!client || !month) { renderEmpty(); return; }
+    var from   = document.getElementById('fromDate').value;
+    var to     = document.getElementById('toDate').value;
+    var owner  = document.getElementById('ownerSel').value || 'all';
+    if (!client || !from || !to) { renderEmpty(); return; }
 
     // Update URL without reload
     var url = new URL(window.location.href);
     url.searchParams.set('client', client);
-    url.searchParams.set('month', month);
+    url.searchParams.set('from', from);
+    url.searchParams.set('to', to);
+    if (owner !== 'all') url.searchParams.set('owner', owner);
+    else url.searchParams.delete('owner');
     history.replaceState(null, '', url.toString());
 
     renderLoading();
-    fetch('/api/reports/seo-scorecard?client=' + encodeURIComponent(client) + '&month=' + encodeURIComponent(month))
+    var apiUrl = '/api/reports/seo-scorecard?client=' + encodeURIComponent(client) +
+                 '&from=' + encodeURIComponent(from) +
+                 '&to='   + encodeURIComponent(to);
+    if (owner !== 'all') apiUrl += '&owner=' + encodeURIComponent(owner);
+
+    fetch(apiUrl)
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
@@ -500,13 +610,13 @@
         currentData = data;
         renderReport(data);
         var d = new Date();
+        var ownerLabel = owner !== 'all' ? ' · ' + owner : '';
         document.getElementById('snapLabel').textContent =
-          'Snapshot: ' + client + ' · ' + formatMonth(month) +
+          'Snapshot: ' + client + ownerLabel +
+          ' · ' + from + ' → ' + to +
           ' · Generated ' + d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
       })
-      .catch(function (e) {
-        renderError(e.message);
-      });
+      .catch(function (e) { renderError(e.message); });
   };
 
   /* ── Render: loading ───────────────────────────────────────────── */
@@ -521,7 +631,7 @@
     document.getElementById('reportArea').innerHTML =
       '<div class="state-box">' +
       '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>' +
-      '<p>Select a client and month to generate the scorecard</p></div>';
+      '<p>Select a client and date range to generate the scorecard</p></div>';
   }
 
   /* ── Render: error ─────────────────────────────────────────────── */
