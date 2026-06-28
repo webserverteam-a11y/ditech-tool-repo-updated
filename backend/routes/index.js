@@ -19,6 +19,7 @@ import { workhubRouter }     from './workhub.routes.js';
 import { auditRouter }       from './audit.routes.js';
 import { configRouter }      from './config.routes.js';
 import { reportRouter }      from './report.routes.js';
+import { indexingRouter }    from './indexing.routes.js';
 
 export function buildApiRouter() {
   const router = Router();
@@ -40,6 +41,7 @@ export function buildApiRouter() {
   router.use('/audit',               auditRouter);
   router.use('/config',              configRouter);
   router.use('/reports/seo-scorecard', reportRouter);  // GET scorecard + months + clients
+  router.use('/indexing',              indexingRouter); // GET tasks list + PATCH bulk status
 
   return router;
 }

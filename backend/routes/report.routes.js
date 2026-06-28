@@ -119,7 +119,7 @@ reportRouter.get('/', async (req, res) => {
               volume, mar_rank, current_rank,
               est_hours, est_hours_seo, est_hours_content, est_hours_web,
               intake_date, execution_state, doc_url, deliverable_url,
-              task_type, dept_type, remarks, is_completed
+              task_type, dept_type, remarks, index_status, is_completed
        FROM tasks
        WHERE client = ?
          ${dateClause}
@@ -286,5 +286,6 @@ function mapTask(r) {
     targetUrl:    r.deliverable_url || '',
     docUrl:       r.doc_url       || '',
     remarks:      r.remarks       || '',
+    indexStatus:  r.index_status  || '',
   };
 }

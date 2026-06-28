@@ -359,6 +359,22 @@
     .pct-pos { color: #16a34a; }
     .pct-neg { color: #dc2626; }
 
+    /* ── Index Status Badge ──────────────────────────────────── */
+    .idx-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .idx-indexed     { background: #dcfce7; color: #15803d; }
+    .idx-nonindexed  { background: #fee2e2; color: #b91c1c; }
+    .idx-notchecked  { background: #f1f5f9; color: #64748b; }
+    .idx-empty       { color: #cbd5e1; font-size: 0.75rem; }
+
     /* ── Print ────────────────────────────────────────────────── */
     @media print {
       .header .header-actions,
@@ -752,6 +768,7 @@
       '<th>Target URL</th>' +
       '<th>Doc URL</th>' +
       '<th>Remarks</th>' +
+      '<th>Index Status</th>' +
     '</tr></thead><tbody>';
 
     tasks.forEach(function (t) {
@@ -797,6 +814,7 @@
       html += '<td class="td-link">' + linkCell(t.targetUrl, 'page') + '</td>';
       html += '<td class="td-link">' + linkCell(t.docUrl, 'doc') + '</td>';
       html += '<td style="max-width:160px;color:#64748b">' + esc(truncate(t.remarks, 50)) + '</td>';
+      html += '<td>' + idxStatusBadge(t.indexStatus) + '</td>';
       html += '</tr>';
     });
 
@@ -829,6 +847,14 @@
             : s === 'approved' ? 'st-approved'
             : 'st-notstarted';
     return '<span class="st-badge ' + cls + '">' + esc(state) + '</span>';
+  }
+
+  function idxStatusBadge(status) {
+    if (!status) return '<span class="idx-empty">—</span>';
+    if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
+    if (status === 'Non-Indexed') return '<span class="idx-badge idx-nonindexed">✗ Non-Indexed</span>';
+    if (status === 'Not Checked') return '<span class="idx-badge idx-notchecked">· Not Checked</span>';
+    return '<span class="idx-badge idx-notchecked">' + esc(status) + '</span>';
   }
 
   function linkCell(url, label) {
@@ -864,7 +890,7 @@
     if (!currentData) return;
     var rows = [['Task ID','Task','Owner','Content Owner','Keyword','Vol',
                  'Was','Now','Rank Delta','% Impr','Movement','Type',
-                 'State','Intake','Hours','Target URL','Doc URL','Remarks','Section']];
+                 'State','Intake','Hours','Target URL','Doc URL','Remarks','Index Status','Section']];
 
     var sectionNames = {
       top10:'Top 10', dropped:'Dropped', improved:'Improved',
@@ -878,7 +904,7 @@
           t.was, t.now, t.delta !== null ? t.delta : '',
           t.pctImpr !== null ? t.pctImpr + '%' : '',
           t.movement || '', t.type, t.state, t.intake, t.hours,
-          t.targetUrl, t.docUrl, t.remarks, sectionNames[key] || key
+          t.targetUrl, t.docUrl, t.remarks, t.indexStatus || '', sectionNames[key] || key
         ]);
       });
     });

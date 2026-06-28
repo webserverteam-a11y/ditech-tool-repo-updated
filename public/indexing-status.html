@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indexing Status Manager — DiTech CDM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .header-sub {
+      font-size: 0.85rem;
+      opacity: 0.65;
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      color: #fff;
+    }
+    .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+    .btn-primary { background: #4f6ef7; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3b5be0; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #15803d; }
+    .btn-danger  { background: #dc2626; color: #fff; }
+    .btn-danger:hover:not(:disabled)  { background: #b91c1c; }
+    .btn-neutral { background: #475569; color: #fff; }
+    .btn-neutral:hover:not(:disabled) { background: #334155; }
+
+    /* ── Controls Bar ── */
+    .controls {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 28px;
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ctrl-select {
+      padding: 7px 32px 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 170px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-select:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-select:disabled { opacity: 0.45; cursor: not-allowed; }
+    .ctrl-input {
+      padding: 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc;
+      cursor: pointer;
+      min-width: 140px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-input:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Bulk Action Bar ── */
+    .bulk-bar {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 10px 28px;
+      display: none;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .bulk-bar.visible { display: flex; }
+    .bulk-bar-label { font-size: 0.88rem; font-weight: 600; }
+    .bulk-bar-select {
+      padding: 6px 28px 6px 10px;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1e293b;
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 150px;
+    }
+    .bulk-bar-select:focus { outline: none; }
+    .bulk-deselect {
+      margin-left: auto;
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .bulk-deselect:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.visible { display: flex; }
+    .toast.success { background: #15803d; }
+    .toast.error   { background: #b91c1c; }
+
+    /* ── Loading / Empty ── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 20px;
+      color: #94a3b8;
+    }
+    .state-box svg { opacity: 0.4; }
+    .state-box p { font-size: 0.95rem; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Content Area ── */
+    .content { padding: 20px 28px 40px; }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 20px;
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .stat-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1;
+    }
+    .stat-val.green  { color: #16a34a; }
+    .stat-val.red    { color: #dc2626; }
+    .stat-val.gray   { color: #64748b; }
+    .stat-val.blue   { color: #2563eb; }
+    .stat-label {
+      font-size: 0.67rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    /* ── Table ── */
+    .tbl-card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .tbl-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    thead tr {
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    thead th {
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 700;
+      color: #64748b;
+      white-space: nowrap;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    thead th.td-num { text-align: right; }
+    tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr.selected { background: #eff6ff; }
+    tbody tr.selected:hover { background: #dbeafe; }
+    td {
+      padding: 7px 10px;
+      vertical-align: middle;
+      color: #334155;
+    }
+    .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .td-id {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    .td-title {
+      font-weight: 600;
+      color: #1e293b;
+      max-width: 220px;
+    }
+    .td-kw { color: #2563eb; font-style: italic; }
+
+    /* ── Index Status Badge ── */
+    .idx-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .idx-indexed     { background: #dcfce7; color: #15803d; }
+    .idx-nonindexed  { background: #fee2e2; color: #b91c1c; }
+    .idx-notchecked  { background: #f1f5f9; color: #64748b; }
+    .idx-empty       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
+
+    /* ── Inline row dropdown ── */
+    .row-status-sel {
+      padding: 4px 24px 4px 7px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 6px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 130px;
+    }
+    .row-status-sel:focus { outline: none; border-color: #4f6ef7; }
+
+    /* ── Checkbox ── */
+    .cb { width: 15px; height: 15px; cursor: pointer; accent-color: #4f6ef7; }
+    th.cb-col, td.cb-col { width: 34px; padding-right: 4px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .controls, .content { padding-left: 14px; padding-right: 14px; }
+      .header { padding: 0 14px; }
+      .bulk-bar { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    DiTech CDM
+    <span class="header-sub">/ Indexing Status Manager</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-outline" id="exportBtn" onclick="exportCSV()" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
+</div>
+
+<!-- ── Controls ── -->
+<div class="controls">
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="clientSel">Client</label>
+    <select class="ctrl-select" id="clientSel" onchange="onClientChange()">
+      <option value="">— Select Client —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="monthSel">Month</label>
+    <select class="ctrl-select" id="monthSel" onchange="onMonthChange()" disabled>
+      <option value="">— Select Month —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="fromDate">From Date</label>
+    <input class="ctrl-input" type="date" id="fromDate" onchange="onDateChange()" disabled />
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="toDate">To Date</label>
+    <input class="ctrl-input" type="date" id="toDate" onchange="onDateChange()" disabled />
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="filterStatus">Filter by Status</label>
+    <select class="ctrl-select" id="filterStatus" onchange="applyFilter()" disabled style="min-width:140px">
+      <option value="">All Statuses</option>
+      <option value="Indexed">Indexed</option>
+      <option value="Non-Indexed">Non-Indexed</option>
+      <option value="Not Checked">Not Checked</option>
+      <option value="">Not Set</option>
+    </select>
+  </div>
+</div>
+
+<!-- ── Bulk Action Bar ── -->
+<div class="bulk-bar" id="bulkBar">
+  <span class="bulk-bar-label" id="bulkCount">0 selected</span>
+  <span style="opacity:0.5;font-size:0.85rem">Set as →</span>
+  <select class="bulk-bar-select" id="bulkStatusSel">
+    <option value="Indexed">Indexed</option>
+    <option value="Non-Indexed">Non-Indexed</option>
+    <option value="Not Checked">Not Checked</option>
+  </select>
+  <button class="btn btn-success" onclick="applyBulkUpdate()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    Update Selected
+  </button>
+  <button class="bulk-deselect" onclick="deselectAll()">✕ Deselect All</button>
+</div>
+
+<!-- ── Main Content ── -->
+<div id="mainArea">
+  <div class="state-box">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <p>Select a client and date range to load tasks</p>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var allTasks    = [];   // raw from API
+  var filtered    = [];   // after status filter
+  var selectedIds = new Set();
+  var currentClient = '';
+  var currentFrom   = '';
+  var currentTo     = '';
+
+  /* ── Init ── */
+  window.addEventListener('DOMContentLoaded', function () {
+    loadClients();
+  });
+
+  /* ── Load clients ── */
+  function loadClients() {
+    fetch('/api/reports/seo-scorecard/clients')
+      .then(function (r) { return r.json(); })
+      .then(function (clients) {
+        var sel = document.getElementById('clientSel');
+        clients.forEach(function (c) {
+          var opt = document.createElement('option');
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+      })
+      .catch(function (e) { console.error('Failed to load clients', e); });
+  }
+
+  /* ── Client change ── */
+  window.onClientChange = function () {
+    var client = document.getElementById('clientSel').value;
+    var monthSel = document.getElementById('monthSel');
+    monthSel.innerHTML = '<option value="">— Select Month —</option>';
+    monthSel.disabled = true;
+    resetDateRange();
+    resetFilterStatus();
+    selectedIds.clear();
+    updateBulkBar();
+    if (!client) { renderEmpty(); return; }
+
+    fetch('/api/reports/seo-scorecard/months?client=' + encodeURIComponent(client))
+      .then(function (r) { return r.json(); })
+      .then(function (months) {
+        months.forEach(function (m) {
+          var opt = document.createElement('option');
+          opt.value = m; opt.textContent = formatMonth(m);
+          monthSel.appendChild(opt);
+        });
+        monthSel.disabled = false;
+        if (months.length > 0) {
+          monthSel.value = months[0];
+          onMonthChange();
+        }
+      })
+      .catch(function (e) { console.error('Failed to load months', e); });
+  };
+
+  /* ── Month change ── */
+  window.onMonthChange = function () {
+    var month = document.getElementById('monthSel').value;
+    if (!month) return;
+    var year  = parseInt(month.split('-')[0], 10);
+    var mo    = parseInt(month.split('-')[1], 10);
+    var from  = document.getElementById('fromDate');
+    var to    = document.getElementById('toDate');
+    from.value = month + '-01';
+    to.value   = month + '-' + new Date(year, mo, 0).getDate();
+    from.disabled = false;
+    to.disabled   = false;
+    loadTasks();
+  };
+
+  /* ── Date change (manual) ── */
+  window.onDateChange = function () {
+    var monthSel = document.getElementById('monthSel');
+    var existing = monthSel.querySelector('option[value="custom"]');
+    if (existing) existing.remove();
+    var customOpt = document.createElement('option');
+    customOpt.value = 'custom'; customOpt.textContent = 'Custom Range';
+    monthSel.insertBefore(customOpt, monthSel.options[1]);
+    monthSel.value = 'custom';
+    loadTasks();
+  };
+
+  /* ── Helpers: reset ── */
+  function resetDateRange() {
+    var from = document.getElementById('fromDate');
+    var to   = document.getElementById('toDate');
+    from.value = ''; from.disabled = true;
+    to.value   = ''; to.disabled   = true;
+  }
+
+  function resetFilterStatus() {
+    var f = document.getElementById('filterStatus');
+    f.value = '';
+    f.disabled = true;
+  }
+
+  /* ── Load tasks from API ── */
+  function loadTasks() {
+    var client = document.getElementById('clientSel').value;
+    var from   = document.getElementById('fromDate').value;
+    var to     = document.getElementById('toDate').value;
+    if (!client || !from || !to) return;
+
+    currentClient = client;
+    currentFrom   = from;
+    currentTo     = to;
+    selectedIds.clear();
+    updateBulkBar();
+    renderLoading();
+
+    fetch('/api/indexing?client=' + encodeURIComponent(client) +
+          '&from=' + encodeURIComponent(from) +
+          '&to='   + encodeURIComponent(to))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        allTasks = data;
+        document.getElementById('filterStatus').disabled = false;
+        document.getElementById('exportBtn').disabled = data.length === 0;
+        applyFilter();
+      })
+      .catch(function (e) { renderError(e.message); });
+  }
+
+  /* ── Filter ── */
+  window.applyFilter = function () {
+    var status = document.getElementById('filterStatus').value;
+    if (status === '') {
+      // "All Statuses" — show everything
+      // But we need to distinguish between the blank "All Statuses" option
+      // and "Not Set" which was also blank in the option.
+      // We'll handle Not Set via a special sentinel below.
+      filtered = allTasks.slice();
+    } else {
+      filtered = allTasks.filter(function (t) { return t.indexStatus === status; });
+    }
+    // "Not Set" sentinel: the second blank option
+    var sel = document.getElementById('filterStatus');
+    var selectedOption = sel.options[sel.selectedIndex];
+    if (selectedOption && selectedOption.value === '' && selectedOption.text === 'Not Set') {
+      filtered = allTasks.filter(function (t) { return !t.indexStatus; });
+    }
+    selectedIds.clear();
+    updateBulkBar();
+    renderTable();
+  };
+
+  /* ── Render: loading ── */
+  function renderLoading() {
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>';
+  }
+
+  /* ── Render: empty ── */
+  function renderEmpty() {
+    allTasks = [];
+    filtered = [];
+    document.getElementById('exportBtn').disabled = true;
+    document.getElementById('filterStatus').disabled = true;
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>' +
+      '<p>Select a client and date range to load tasks</p></div>';
+  }
+
+  /* ── Render: error ── */
+  function renderError(msg) {
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '<p style="color:#ef4444">Failed to load tasks: ' + esc(msg) + '</p></div>';
+  }
+
+  /* ── Render: table ── */
+  function renderTable() {
+    if (filtered.length === 0) {
+      document.getElementById('mainArea').innerHTML =
+        '<div class="content"><div class="state-box" style="padding:40px 20px">' +
+        '<p>No tasks match the current filter.</p></div></div>';
+      renderStats();
+      return;
+    }
+
+    // Count stats
+    var indexed = 0, nonIndexed = 0, notChecked = 0, notSet = 0;
+    allTasks.forEach(function (t) {
+      if (t.indexStatus === 'Indexed')     indexed++;
+      else if (t.indexStatus === 'Non-Indexed') nonIndexed++;
+      else if (t.indexStatus === 'Not Checked') notChecked++;
+      else notSet++;
+    });
+
+    var statsHtml =
+      '<div class="content">' +
+      '<div class="stats-bar">' +
+        statItem(allTasks.length, 'Total Tasks', 'blue') +
+        statItem(indexed,    'Indexed',     'green') +
+        statItem(nonIndexed, 'Non-Indexed', 'red') +
+        statItem(notChecked, 'Not Checked', 'gray') +
+        statItem(notSet,     'Not Set',     'gray') +
+      '</div>';
+
+    var tableHtml =
+      '<div class="tbl-card"><div class="tbl-wrap">' +
+      '<table><thead><tr>' +
+        '<th class="cb-col"><input type="checkbox" class="cb" id="selectAll" onchange="toggleSelectAll(this.checked)" /></th>' +
+        '<th>Task ID</th>' +
+        '<th>Task</th>' +
+        '<th>Owner</th>' +
+        '<th>Keyword</th>' +
+        '<th class="td-num">Vol</th>' +
+        '<th class="td-num">Monthly Rank</th>' +
+        '<th class="td-num">Current Rank</th>' +
+        '<th>Index Status</th>' +
+        '<th>Set Status</th>' +
+      '</tr></thead><tbody>';
+
+    filtered.forEach(function (t) {
+      var isChecked = selectedIds.has(t.id);
+      tableHtml += '<tr id="row-' + esc(t.id) + '"' + (isChecked ? ' class="selected"' : '') + '>';
+      tableHtml += '<td class="cb-col"><input type="checkbox" class="cb" data-id="' + esc(t.id) + '" ' +
+                   (isChecked ? 'checked' : '') + ' onchange="onRowCheck(this)" /></td>';
+      tableHtml += '<td class="td-id">' + esc(t.id) + '</td>';
+      tableHtml += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 42)) + '</span></td>';
+      tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
+      tableHtml += '<td class="td-kw">' + esc(t.keyword || '—') + '</td>';
+      tableHtml += '<td class="td-num">' + (t.volume > 0 ? t.volume : '—') + '</td>';
+      tableHtml += '<td class="td-num">' + (t.monthlyRank > 0 ? (t.monthlyRank >= 100 ? '>100' : t.monthlyRank) : '—') + '</td>';
+      tableHtml += '<td class="td-num">' + (t.currentRank > 0 ? (t.currentRank >= 100 ? '>100' : t.currentRank) : '—') + '</td>';
+      tableHtml += '<td>' + idxBadge(t.indexStatus) + '</td>';
+      tableHtml += '<td><select class="row-status-sel" data-id="' + esc(t.id) + '" onchange="onRowStatusChange(this)">' +
+                     '<option value="">— select —</option>' +
+                     '<option value="Indexed"' + (t.indexStatus === 'Indexed' ? ' selected' : '') + '>Indexed</option>' +
+                     '<option value="Non-Indexed"' + (t.indexStatus === 'Non-Indexed' ? ' selected' : '') + '>Non-Indexed</option>' +
+                     '<option value="Not Checked"' + (t.indexStatus === 'Not Checked' ? ' selected' : '') + '>Not Checked</option>' +
+                   '</select></td>';
+      tableHtml += '</tr>';
+    });
+
+    tableHtml += '</tbody></table></div></div></div>';
+    document.getElementById('mainArea').innerHTML = statsHtml + tableHtml;
+  }
+
+  function statItem(val, label, cls) {
+    return '<div class="stat-item">' +
+      '<span class="stat-val ' + (cls || '') + '">' + val + '</span>' +
+      '<span class="stat-label">' + esc(label) + '</span>' +
+    '</div>';
+  }
+
+  /* ── Checkbox logic ── */
+  window.toggleSelectAll = function (checked) {
+    filtered.forEach(function (t) {
+      if (checked) selectedIds.add(t.id);
+      else selectedIds.delete(t.id);
+      var row = document.getElementById('row-' + t.id);
+      var cb  = document.querySelector('input[data-id="' + t.id + '"]');
+      if (row) row.className = checked ? 'selected' : '';
+      if (cb)  cb.checked = checked;
+    });
+    updateBulkBar();
+  };
+
+  window.onRowCheck = function (el) {
+    var id = el.getAttribute('data-id');
+    if (el.checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+    var row = document.getElementById('row-' + id);
+    if (row) row.className = el.checked ? 'selected' : '';
+    updateBulkBar();
+    // Sync select-all checkbox
+    var selectAll = document.getElementById('selectAll');
+    if (selectAll) selectAll.checked = selectedIds.size === filtered.length;
+  };
+
+  window.deselectAll = function () {
+    selectedIds.clear();
+    document.querySelectorAll('input.cb[data-id]').forEach(function (cb) { cb.checked = false; });
+    document.querySelectorAll('tbody tr').forEach(function (tr) { tr.className = ''; });
+    var selectAll = document.getElementById('selectAll');
+    if (selectAll) selectAll.checked = false;
+    updateBulkBar();
+  };
+
+  function updateBulkBar() {
+    var bar = document.getElementById('bulkBar');
+    var count = document.getElementById('bulkCount');
+    if (selectedIds.size > 0) {
+      bar.classList.add('visible');
+      count.textContent = selectedIds.size + ' task' + (selectedIds.size > 1 ? 's' : '') + ' selected';
+    } else {
+      bar.classList.remove('visible');
+    }
+  }
+
+  /* ── Inline row status change (single task) ── */
+  window.onRowStatusChange = function (sel) {
+    var id = sel.getAttribute('data-id');
+    var status = sel.value;
+    if (!status) return;
+
+    fetch('/api/indexing/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id], status: status }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function () {
+        // Update local data
+        var task = allTasks.find(function (t) { return t.id === id; });
+        if (task) task.indexStatus = status;
+        // Update badge in the same row without full re-render
+        var row = document.getElementById('row-' + id);
+        if (row) {
+          var badgeTd = row.querySelectorAll('td')[8];
+          if (badgeTd) badgeTd.innerHTML = idxBadge(status);
+        }
+        showToast('Updated ' + id + ' → ' + status, 'success');
+      })
+      .catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
+  };
+
+  /* ── Bulk update ── */
+  window.applyBulkUpdate = function () {
+    if (selectedIds.size === 0) return;
+    var status = document.getElementById('bulkStatusSel').value;
+    var ids = Array.from(selectedIds);
+
+    fetch('/api/indexing/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids, status: status }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (result) {
+        // Update local data
+        ids.forEach(function (id) {
+          var task = allTasks.find(function (t) { return t.id === id; });
+          if (task) task.indexStatus = status;
+        });
+        selectedIds.clear();
+        applyFilter();
+        showToast('Updated ' + result.updated + ' task(s) → ' + status, 'success');
+      })
+      .catch(function (e) { showToast('Bulk update failed: ' + e.message, 'error'); });
+  };
+
+  /* ── Export CSV ── */
+  window.exportCSV = function () {
+    if (!allTasks.length) return;
+    var rows = [['Task ID', 'Task', 'Owner', 'Keyword', 'Vol', 'Monthly Rank', 'Current Rank', 'Index Status']];
+    allTasks.forEach(function (t) {
+      rows.push([
+        t.id, t.title, t.owner, t.keyword,
+        t.volume || '',
+        t.monthlyRank || '',
+        t.currentRank || '',
+        t.indexStatus || '',
+      ]);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (v) {
+        return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'indexing-status-' + currentClient + '-' + currentFrom + '--' + currentTo + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ── Helpers ── */
+  function idxBadge(status) {
+    if (!status) return '<span class="idx-badge idx-empty">Not Set</span>';
+    if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
+    if (status === 'Non-Indexed') return '<span class="idx-badge idx-nonindexed">✗ Non-Indexed</span>';
+    if (status === 'Not Checked') return '<span class="idx-badge idx-notchecked">· Not Checked</span>';
+    return '<span class="idx-badge idx-empty">' + esc(status) + '</span>';
+  }
+
+  function renderStats() { /* stats rendered inline in renderTable */ }
+
+  function showToast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast visible ' + (type || '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function () { el.className = 'toast'; }, 3500);
+  }
+
+  function formatMonth(m) {
+    if (!m) return '';
+    var parts = m.split('-');
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mo = parseInt(parts[1], 10) - 1;
+    return (months[mo] || parts[1]) + ' ' + parts[0];
+  }
+
+  function truncate(str, n) {
+    if (!str) return '';
+    return str.length > n ? str.slice(0, n) + '…' : str;
+  }
+
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+})();
+</script>
+</body>
+</html>
