@@ -118,7 +118,7 @@ reportRouter.get('/', async (req, res) => {
       `SELECT id, title, client, seo_owner, content_owner, focused_kw,
               volume, mar_rank, current_rank,
               est_hours, est_hours_seo, est_hours_content, est_hours_web,
-              intake_date, execution_state, doc_url, deliverable_url,
+              intake_date, execution_state, doc_url, target_url,
               task_type, dept_type, remarks, index_status, is_completed
        FROM tasks
        WHERE client = ?
@@ -283,7 +283,7 @@ function mapTask(r) {
     state:        r.execution_state || '',
     intake:       (r.intake_date || '').slice(0, 10),
     hours:        Number(r.est_hours) || 0,
-    targetUrl:    r.deliverable_url || '',
+    targetUrl:    r.target_url      || '',
     docUrl:       r.doc_url       || '',
     remarks:      r.remarks       || '',
     indexStatus:  r.index_status  || '',
