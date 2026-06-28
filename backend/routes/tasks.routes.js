@@ -23,6 +23,7 @@ import { saveTaskToDb } from '../utils/saveTask.js';
 import { rowToTask } from '../utils/taskMapping.js';
 import { normalizeTaskDates } from '../utils/dateNormalize.js';
 import { groupBy } from '../utils/taskMapping.js';
+import { runOverrunCheck } from '../services/timerCheck.service.js';
 
 export const tasksRouter = Router();
 
@@ -337,6 +338,12 @@ tasksRouter.post('/:id/events', async (req, res) => {
       event: { type: ev.type, timestamp: ev.timestamp, department: ev.department, owner: ev.owner },
       message: `Event "${ev.type}" recorded for task "${taskId}"`,
     });
+
+    // Fire-and-forget: check if this task has now exceeded the time threshold.
+    // Runs after the response is sent so it never delays the timer action.
+    runOverrunCheck(pool, taskId).catch(err =>
+      console.error('[timerCheck] post-event check failed:', err.message)
+    );
   } catch (e) {
     console.error('POST /api/tasks/:id/events error:', e.message);
     res.status(500).json({ error: 'Failed to record event' });

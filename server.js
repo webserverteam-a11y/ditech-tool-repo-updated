@@ -18,6 +18,7 @@ import { attachResponders } from './backend/middleware/response.js';
 import { noCache } from './backend/middleware/noCache.js';
 import { apiNotFound, globalErrorHandler } from './backend/middleware/errorHandler.js';
 import { buildApiRouter } from './backend/routes/index.js';
+import { runOverrunCheck } from './backend/services/timerCheck.service.js';
 
 validateEnv();
 
@@ -1443,6 +1444,16 @@ app.listen(PORT, HOST, () => {
           if (attempt < 3) { await new Promise(r => setTimeout(r, 5000)); continue; }
         }
         console.log(`DB init succeeded on attempt ${attempt} — ${existing.length} tables`);
+
+        // Start the 15-minute timer overrun check (after DB is confirmed ready)
+        const OVERRUN_INTERVAL_MS = 15 * 60 * 1000;
+        setInterval(() => {
+          runOverrunCheck(pool).catch(err =>
+            console.error('[timerCheck] interval check error:', err.message)
+          );
+        }, OVERRUN_INTERVAL_MS);
+        console.log('[timerCheck] Overrun check scheduled every 15 minutes.');
+
         return;
       } catch (e) {
         console.error(`DB init attempt ${attempt}/3 failed:`, e.code, e.message);

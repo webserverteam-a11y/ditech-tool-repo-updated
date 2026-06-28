@@ -34,7 +34,7 @@ configRouter.get('/:key', async (req, res) => {
     // ── users ──────────────────────────────────────────────────────────────
     if (key === 'users') {
       const [rows] = await pool.query(
-        'SELECT id, name, password, role, ownerName FROM users ORDER BY created_at'
+        'SELECT id, name, password, role, ownerName, email FROM users ORDER BY created_at'
       );
       const decryptedRows = rows.map(u => ({ ...u, password: decrypt(u.password) }));
       console.log(`GET /api/config/users: ${decryptedRows.length} users from users table`);
@@ -133,10 +133,11 @@ configRouter.put('/:key', async (req, res) => {
               // Decrypt failed — password came from an old session. Skip updating
               // this user's password; keep whatever is already in the DB.
               await conn.query(
-                `INSERT INTO users (id, name, role, ownerName) VALUES (?, ?, ?, ?)
+                `INSERT INTO users (id, name, role, ownerName, email) VALUES (?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
-                   name=VALUES(name), role=VALUES(role), ownerName=VALUES(ownerName)`,
-                [u.id, u.name || '', u.role || 'seo', u.ownerName || '']
+                   name=VALUES(name), role=VALUES(role), ownerName=VALUES(ownerName),
+                   email=VALUES(email)`,
+                [u.id, u.name || '', u.role || 'seo', u.ownerName || '', u.email || null]
               );
               continue;
             }
@@ -147,11 +148,11 @@ configRouter.put('/:key', async (req, res) => {
             finalEncrypted = encrypt(rawPw);
           }
           await conn.query(
-            `INSERT INTO users (id, name, password, role, ownerName) VALUES (?, ?, ?, ?, ?)
+            `INSERT INTO users (id, name, password, role, ownerName, email) VALUES (?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                name=VALUES(name), password=VALUES(password),
-               role=VALUES(role), ownerName=VALUES(ownerName)`,
-            [u.id, u.name || '', finalEncrypted, u.role || 'seo', u.ownerName || '']
+               role=VALUES(role), ownerName=VALUES(ownerName), email=VALUES(email)`,
+            [u.id, u.name || '', finalEncrypted, u.role || 'seo', u.ownerName || '', u.email || null]
           );
         }
         await conn.commit();
