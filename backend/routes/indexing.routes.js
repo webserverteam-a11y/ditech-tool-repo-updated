@@ -2,8 +2,8 @@
  * indexing.routes.js — Indexing Status panel endpoints.
  *
  * GET  /api/indexing?client=X&from=YYYY-MM-DD&to=YYYY-MM-DD
- *   Returns lightweight task rows (id, title, owner, keyword, vol,
- *   mar_rank, current_rank, index_status) for the given client + date range.
+ *   Returns lightweight task rows (id, title, owner, content_owner,
+ *   target_url, index_status) for the given client + date range.
  *
  * PATCH /api/indexing/bulk
  *   Body: { ids: string[], status: 'Indexed' | 'Non-Indexed' | 'Not Checked' }
@@ -25,7 +25,7 @@ indexingRouter.get('/', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, title, seo_owner, focused_kw, volume, mar_rank, current_rank, index_status
+      `SELECT id, title, seo_owner, content_owner, target_url, index_status
        FROM tasks
        WHERE client = ?
          AND intake_date >= ?
@@ -36,13 +36,11 @@ indexingRouter.get('/', async (req, res) => {
 
     res.json(rows.map(r => ({
       id:           r.id,
-      title:        r.title        || '',
-      owner:        r.seo_owner    || '',
-      keyword:      r.focused_kw   || '',
-      volume:       Number(r.volume)      || 0,
-      monthlyRank:  Number(r.mar_rank)    || 0,
-      currentRank:  Number(r.current_rank) || 0,
-      indexStatus:  r.index_status || '',
+      title:        r.title         || '',
+      owner:        r.seo_owner     || '',
+      contentOwner: r.content_owner || '',
+      targetUrl:    r.target_url    || '',
+      indexStatus:  r.index_status  || '',
     })));
   } catch (e) {
     console.error('GET /api/indexing error:', e.message);

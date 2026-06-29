@@ -289,7 +289,6 @@
       color: #1e293b;
       max-width: 220px;
     }
-    .td-kw { color: #2563eb; font-style: italic; }
 
     /* ── Index Status Badge ── */
     .idx-badge {
@@ -637,10 +636,8 @@
         '<th>Task ID</th>' +
         '<th>Task</th>' +
         '<th>Owner</th>' +
-        '<th>Keyword</th>' +
-        '<th class="td-num">Vol</th>' +
-        '<th class="td-num">Monthly Rank</th>' +
-        '<th class="td-num">Current Rank</th>' +
+        '<th>Content Owner</th>' +
+        '<th>Target URL</th>' +
         '<th>Index Status</th>' +
         '<th>Set Status</th>' +
       '</tr></thead><tbody>';
@@ -653,10 +650,8 @@
       tableHtml += '<td class="td-id">' + esc(t.id) + '</td>';
       tableHtml += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 42)) + '</span></td>';
       tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
-      tableHtml += '<td class="td-kw">' + esc(t.keyword || '—') + '</td>';
-      tableHtml += '<td class="td-num">' + (t.volume > 0 ? t.volume : '—') + '</td>';
-      tableHtml += '<td class="td-num">' + (t.monthlyRank > 0 ? (t.monthlyRank >= 100 ? '>100' : t.monthlyRank) : '—') + '</td>';
-      tableHtml += '<td class="td-num">' + (t.currentRank > 0 ? (t.currentRank >= 100 ? '>100' : t.currentRank) : '—') + '</td>';
+      tableHtml += '<td>' + esc(t.contentOwner || '—') + '</td>';
+      tableHtml += '<td>' + (t.targetUrl ? '<a href="' + esc(t.targetUrl) + '" target="_blank" rel="noopener" style="color:#2563eb;word-break:break-all">' + esc(t.targetUrl) + '</a>' : '—') + '</td>';
       tableHtml += '<td>' + idxBadge(t.indexStatus) + '</td>';
       tableHtml += '<td><select class="row-status-sel" data-id="' + esc(t.id) + '" onchange="onRowStatusChange(this)">' +
                      '<option value="">— select —</option>' +
@@ -745,7 +740,7 @@
         // Update badge in the same row without full re-render
         var row = document.getElementById('row-' + id);
         if (row) {
-          var badgeTd = row.querySelectorAll('td')[8];
+          var badgeTd = row.querySelectorAll('td')[6];
           if (badgeTd) badgeTd.innerHTML = idxBadge(status);
         }
         showToast('Updated ' + id + ' → ' + status, 'success');
@@ -784,13 +779,12 @@
   /* ── Export CSV ── */
   window.exportCSV = function () {
     if (!allTasks.length) return;
-    var rows = [['Task ID', 'Task', 'Owner', 'Keyword', 'Vol', 'Monthly Rank', 'Current Rank', 'Index Status']];
+    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Target URL', 'Index Status']];
     allTasks.forEach(function (t) {
       rows.push([
-        t.id, t.title, t.owner, t.keyword,
-        t.volume || '',
-        t.monthlyRank || '',
-        t.currentRank || '',
+        t.id, t.title, t.owner,
+        t.contentOwner || '',
+        t.targetUrl || '',
         t.indexStatus || '',
       ]);
     });
