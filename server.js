@@ -174,6 +174,9 @@ async function initDb() {
     // Must be in this list because server.js calls its own initDb() at startup,
     // independently of backend/db/init.js (which has its own copy of this migration).
     ['hk_add_updated_at', `ALTER TABLE historical_keywords ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`],
+    // Columns required by the email notification feature added for timer overrun alerts.
+    ['users_add_email', `ALTER TABLE users ADD COLUMN email VARCHAR(255) DEFAULT NULL`],
+    ['tasks_add_overrun_notified_at', `ALTER TABLE tasks ADD COLUMN overrun_notified_at TIMESTAMP DEFAULT NULL`],
   ];
   for (const [name, sql] of migrations) {
     try {
