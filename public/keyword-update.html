@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Keyword Update Manager — DiTech CDM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .header-sub {
+      font-size: 0.85rem;
+      opacity: 0.65;
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-outline {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.35);
+      color: #fff;
+    }
+    .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+    .btn-primary { background: #4f6ef7; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3b5be0; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #15803d; }
+    .btn-danger  { background: #dc2626; color: #fff; }
+    .btn-danger:hover:not(:disabled)  { background: #b91c1c; }
+    .btn-neutral { background: #475569; color: #fff; }
+    .btn-neutral:hover:not(:disabled) { background: #334155; }
+
+    /* ── Controls Bar ── */
+    .controls {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 14px 28px;
+      display: flex;
+      align-items: flex-end;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+    .ctrl-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ctrl-select {
+      padding: 7px 32px 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 170px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-select:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-select:disabled { opacity: 0.45; cursor: not-allowed; }
+    .ctrl-input {
+      padding: 7px 10px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #1e293b;
+      background: #f8fafc;
+      cursor: pointer;
+      min-width: 140px;
+      transition: border-color 0.15s;
+    }
+    .ctrl-input:focus { outline: none; border-color: #4f6ef7; }
+    .ctrl-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Save Bar ── */
+    .save-bar {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 10px 28px;
+      display: none;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .save-bar.visible { display: flex; }
+    .save-bar-label { font-size: 0.88rem; font-weight: 600; }
+    .save-bar-hint { opacity: 0.6; font-size: 0.8rem; }
+    .save-discard {
+      margin-left: auto;
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.3);
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .save-discard:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      z-index: 9999;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .toast.visible { display: flex; }
+    .toast.success { background: #15803d; }
+    .toast.error   { background: #b91c1c; }
+
+    /* ── Loading / Empty ── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 80px 20px;
+      color: #94a3b8;
+    }
+    .state-box svg { opacity: 0.4; }
+    .state-box p { font-size: 0.95rem; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Content Area ── */
+    .content { padding: 20px 28px 40px; }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 20px;
+      display: flex;
+      gap: 28px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .stat-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .stat-val {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e293b;
+      line-height: 1;
+    }
+    .stat-val.blue   { color: #2563eb; }
+    .stat-val.amber  { color: #b45309; }
+    .stat-label {
+      font-size: 0.67rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    /* ── Table ── */
+    .tbl-card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .tbl-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    thead tr {
+      background: #f8fafc;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    thead th {
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 700;
+      color: #64748b;
+      white-space: nowrap;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    thead th.td-num { text-align: right; }
+    tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.1s;
+    }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr.row-dirty { background: #fffbeb; }
+    tbody tr.row-dirty:hover { background: #fef3c7; }
+    td {
+      padding: 7px 10px;
+      vertical-align: middle;
+      color: #334155;
+    }
+    .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+    .td-id {
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #64748b;
+      white-space: nowrap;
+    }
+    .td-title {
+      font-weight: 600;
+      color: #1e293b;
+      max-width: 220px;
+    }
+
+    /* ── Editable cell inputs ── */
+    .cell-input {
+      width: 100%;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 1.5px solid transparent;
+      border-radius: 5px;
+      padding: 5px 7px;
+    }
+    .cell-input:hover { border-color: #cbd5e1; background: #f8fafc; }
+    .cell-input:focus {
+      outline: none;
+      border-color: #4f6ef7;
+      background: #fff;
+      box-shadow: 0 0 0 2px rgba(79,110,247,0.15);
+    }
+    .cell-keyword { min-width: 170px; }
+    .cell-num { max-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
+    td.cell-td { padding: 5px 8px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .controls, .content { padding-left: 14px; padding-right: 14px; }
+      .header { padding: 0 14px; }
+      .save-bar { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-brand">
+    <a href="/" style="display:inline-flex;align-items:center;gap:5px;color:rgba(255,255,255,0.75);text-decoration:none;font-size:0.82rem;font-weight:600;padding:5px 10px;border:1.5px solid rgba(255,255,255,0.25);border-radius:6px;margin-right:10px;transition:background 0.15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+    DiTech CDM
+    <span class="header-sub">/ Keyword Update Manager</span>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-outline" id="exportBtn" onclick="exportCSV()" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export CSV
+    </button>
+  </div>
+</div>
+
+<!-- ── Controls ── -->
+<div class="controls">
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="clientSel">Client</label>
+    <select class="ctrl-select" id="clientSel" onchange="onClientChange()">
+      <option value="">— Select Client —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="monthSel">Month</label>
+    <select class="ctrl-select" id="monthSel" onchange="onMonthChange()" disabled>
+      <option value="">— Select Month —</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="fromDate">From Date</label>
+    <input class="ctrl-input" type="date" id="fromDate" onchange="onDateChange()" disabled />
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="toDate">To Date</label>
+    <input class="ctrl-input" type="date" id="toDate" onchange="onDateChange()" disabled />
+  </div>
+</div>
+
+<!-- ── Save Bar ── -->
+<div class="save-bar" id="saveBar">
+  <span class="save-bar-label" id="saveCount">0 unsaved changes</span>
+  <span class="save-bar-hint">Keyword / Vol / Was / Now</span>
+  <button class="btn btn-success" id="saveBtn" onclick="applySaveChanges()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+    Save Changes
+  </button>
+  <button class="save-discard" onclick="discardChanges()">✕ Discard</button>
+</div>
+
+<!-- ── Main Content ── -->
+<div id="mainArea">
+  <div class="state-box">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+    <p>Select a client and date range to load tasks</p>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var allTasks     = [];   // raw from API
+  var pendingEdits = {};   // { [taskId]: { keyword?, volume?, was?, now? } } — raw string values, coerced at save time
+  var currentClient = '';
+  var currentFrom   = '';
+  var currentTo     = '';
+  var isSaving = false;
+
+  var NUM_FIELDS = ['volume', 'was', 'now'];
+  var CELL_INDEX = { keyword: 4, volume: 5, was: 6, now: 7 }; // <td> index within a row
+
+  /* ── Init ── */
+  window.addEventListener('DOMContentLoaded', function () {
+    loadClients();
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (hasPendingEdits()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  function hasPendingEdits() {
+    return Object.keys(pendingEdits).length > 0;
+  }
+
+  function guardUnsavedChanges() {
+    if (!hasPendingEdits()) return true;
+    var ok = window.confirm('You have unsaved keyword/ranking changes. Discard them and continue?');
+    if (ok) pendingEdits = {};
+    return ok;
+  }
+
+  /* ── Load clients ── */
+  function loadClients() {
+    fetch('/api/reports/seo-scorecard/clients')
+      .then(function (r) { return r.json(); })
+      .then(function (clients) {
+        var sel = document.getElementById('clientSel');
+        clients.forEach(function (c) {
+          var opt = document.createElement('option');
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+      })
+      .catch(function (e) { console.error('Failed to load clients', e); });
+  }
+
+  /* ── Client change ── */
+  window.onClientChange = function () {
+    if (!guardUnsavedChanges()) {
+      document.getElementById('clientSel').value = currentClient;
+      return;
+    }
+    var client = document.getElementById('clientSel').value;
+    var monthSel = document.getElementById('monthSel');
+    monthSel.innerHTML = '<option value="">— Select Month —</option>';
+    monthSel.disabled = true;
+    resetDateRange();
+    updateSaveBar();
+    if (!client) { renderEmpty(); return; }
+
+    fetch('/api/reports/seo-scorecard/months?client=' + encodeURIComponent(client))
+      .then(function (r) { return r.json(); })
+      .then(function (months) {
+        months.forEach(function (m) {
+          var opt = document.createElement('option');
+          opt.value = m; opt.textContent = formatMonth(m);
+          monthSel.appendChild(opt);
+        });
+        monthSel.disabled = false;
+        if (months.length > 0) {
+          monthSel.value = months[0];
+          onMonthChange();
+        }
+      })
+      .catch(function (e) { console.error('Failed to load months', e); });
+  };
+
+  /* ── Month change ── */
+  window.onMonthChange = function () {
+    if (!guardUnsavedChanges()) return;
+    var month = document.getElementById('monthSel').value;
+    if (!month) return;
+    var year  = parseInt(month.split('-')[0], 10);
+    var mo    = parseInt(month.split('-')[1], 10);
+    var from  = document.getElementById('fromDate');
+    var to    = document.getElementById('toDate');
+    from.value = month + '-01';
+    to.value   = month + '-' + new Date(year, mo, 0).getDate();
+    from.disabled = false;
+    to.disabled   = false;
+    loadTasks();
+  };
+
+  /* ── Date change (manual) ── */
+  window.onDateChange = function () {
+    if (!guardUnsavedChanges()) return;
+    var monthSel = document.getElementById('monthSel');
+    var existing = monthSel.querySelector('option[value="custom"]');
+    if (existing) existing.remove();
+    var customOpt = document.createElement('option');
+    customOpt.value = 'custom'; customOpt.textContent = 'Custom Range';
+    monthSel.insertBefore(customOpt, monthSel.options[1]);
+    monthSel.value = 'custom';
+    loadTasks();
+  };
+
+  /* ── Helpers: reset ── */
+  function resetDateRange() {
+    var from = document.getElementById('fromDate');
+    var to   = document.getElementById('toDate');
+    from.value = ''; from.disabled = true;
+    to.value   = ''; to.disabled   = true;
+  }
+
+  /* ── Load tasks from API ── */
+  function loadTasks() {
+    var client = document.getElementById('clientSel').value;
+    var from   = document.getElementById('fromDate').value;
+    var to     = document.getElementById('toDate').value;
+    if (!client || !from || !to) return;
+
+    currentClient = client;
+    currentFrom   = from;
+    currentTo     = to;
+    pendingEdits  = {};
+    updateSaveBar();
+    renderLoading();
+
+    fetch('/api/keyword-update?client=' + encodeURIComponent(client) +
+          '&from=' + encodeURIComponent(from) +
+          '&to='   + encodeURIComponent(to))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        allTasks = data;
+        document.getElementById('exportBtn').disabled = data.length === 0;
+        renderTable();
+      })
+      .catch(function (e) { renderError(e.message); });
+  }
+
+  /* ── Render: loading ── */
+  function renderLoading() {
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>';
+  }
+
+  /* ── Render: empty ── */
+  function renderEmpty() {
+    allTasks = [];
+    pendingEdits = {};
+    document.getElementById('exportBtn').disabled = true;
+    updateSaveBar();
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' +
+      '<p>Select a client and date range to load tasks</p></div>';
+  }
+
+  /* ── Render: error ── */
+  function renderError(msg) {
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '<p style="color:#ef4444">Failed to load tasks: ' + esc(msg) + '</p></div>';
+  }
+
+  /* ── Render: table ── */
+  function renderTable() {
+    if (allTasks.length === 0) {
+      document.getElementById('mainArea').innerHTML =
+        '<div class="content"><div class="state-box" style="padding:40px 20px">' +
+        '<p>No tasks found for this client and date range.</p></div></div>';
+      return;
+    }
+
+    var statsHtml =
+      '<div class="content">' +
+      '<div class="stats-bar" id="statsBar">' +
+        statItem(allTasks.length, 'Total Tasks', 'blue') +
+        statItem(0, 'Unsaved Changes', 'amber', 'statUnsaved') +
+      '</div>';
+
+    var tableHtml =
+      '<div class="tbl-card"><div class="tbl-wrap">' +
+      '<table><thead><tr>' +
+        '<th>Task ID</th>' +
+        '<th>Task</th>' +
+        '<th>Owner</th>' +
+        '<th>Content Owner</th>' +
+        '<th>Keyword</th>' +
+        '<th class="td-num">Vol</th>' +
+        '<th class="td-num">Was</th>' +
+        '<th class="td-num">Now</th>' +
+      '</tr></thead><tbody>';
+
+    allTasks.forEach(function (t) {
+      tableHtml += '<tr id="row-' + esc(t.id) + '">';
+      tableHtml += '<td class="td-id">' + esc(t.id) + '</td>';
+      tableHtml += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 42)) + '</span></td>';
+      tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
+      tableHtml += '<td>' + esc(t.contentOwner || '—') + '</td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-keyword" type="text" data-id="' + esc(t.id) + '" data-field="keyword" value="' + esc(t.keyword || '') + '" oninput="onCellInput(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(t.volume || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(t.was || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(t.now || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '</tr>';
+    });
+
+    tableHtml += '</tbody></table></div></div></div>';
+    document.getElementById('mainArea').innerHTML = statsHtml + tableHtml;
+    updateSaveBar();
+  }
+
+  function statItem(val, label, cls, id) {
+    return '<div class="stat-item">' +
+      '<span class="stat-val ' + (cls || '') + '"' + (id ? ' id="' + id + '"' : '') + '>' + val + '</span>' +
+      '<span class="stat-label">' + esc(label) + '</span>' +
+    '</div>';
+  }
+
+  /* ── Cell edit tracking (no full re-render — preserves input focus while typing) ── */
+  window.onCellInput = function (el) {
+    var id    = el.getAttribute('data-id');
+    var field = el.getAttribute('data-field');
+    var task  = allTasks.find(function (t) { return t.id === id; });
+    if (!task) return;
+
+    var rawVal = el.value;
+    var origVal = field === 'keyword' ? (task.keyword || '') : (task[field] || 0);
+    var isChanged = field === 'keyword'
+      ? rawVal !== origVal
+      : String(parseInt(rawVal, 10) || 0) !== String(origVal);
+
+    if (isChanged) {
+      pendingEdits[id] = pendingEdits[id] || {};
+      pendingEdits[id][field] = rawVal;
+    } else if (pendingEdits[id]) {
+      delete pendingEdits[id][field];
+      if (Object.keys(pendingEdits[id]).length === 0) delete pendingEdits[id];
+    }
+
+    var row = document.getElementById('row-' + id);
+    if (row) row.classList.toggle('row-dirty', !!pendingEdits[id]);
+
+    updateSaveBar();
+  };
+
+  window.onNumCellBlur = function (el) {
+    var n = parseInt(el.value, 10);
+    el.value = isNaN(n) || n < 0 ? 0 : n;
+    onCellInput(el);
+  };
+
+  function updateSaveBar() {
+    var count = Object.keys(pendingEdits).length;
+    var bar = document.getElementById('saveBar');
+    var label = document.getElementById('saveCount');
+    if (count > 0) {
+      bar.classList.add('visible');
+      label.textContent = count + ' task' + (count > 1 ? 's' : '') + ' with unsaved changes';
+    } else {
+      bar.classList.remove('visible');
+    }
+    var statUnsaved = document.getElementById('statUnsaved');
+    if (statUnsaved) statUnsaved.textContent = count;
+  }
+
+  /* ── Save pending edits in bulk ── */
+  window.applySaveChanges = function () {
+    if (isSaving || !hasPendingEdits()) return;
+
+    var updates = Object.keys(pendingEdits).map(function (id) {
+      var edits = pendingEdits[id];
+      var u = { id: id };
+      if ('keyword' in edits) u.keyword = edits.keyword;
+      if ('volume'  in edits) u.volume  = parseInt(edits.volume, 10) || 0;
+      if ('was'     in edits) u.was     = parseInt(edits.was, 10) || 0;
+      if ('now'     in edits) u.now     = parseInt(edits.now, 10) || 0;
+      return u;
+    });
+
+    isSaving = true;
+    var saveBtn = document.getElementById('saveBtn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    fetch('/api/keyword-update/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates: updates }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (result) {
+        var savedIds = {};
+        updates.forEach(function (u) { savedIds[u.id] = u; });
+
+        allTasks.forEach(function (t) {
+          var u = savedIds[t.id];
+          if (!u) return;
+          if (!(result.failed || []).some(function (f) { return f.id === t.id; })) {
+            if ('keyword' in u) t.keyword = u.keyword;
+            if ('volume'  in u) t.volume  = u.volume;
+            if ('was'     in u) t.was     = u.was;
+            if ('now'     in u) t.now     = u.now;
+          }
+        });
+
+        pendingEdits = {};
+        renderTable();
+
+        if (result.failed && result.failed.length > 0) {
+          showToast('Saved ' + result.updated + ' task(s), ' + result.failed.length + ' failed', 'error');
+        } else {
+          showToast('Saved ' + result.updated + ' task(s) successfully', 'success');
+        }
+      })
+      .catch(function (e) { showToast('Save failed: ' + e.message, 'error'); })
+      .finally(function () {
+        isSaving = false;
+        var btn = document.getElementById('saveBtn');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
+        }
+      });
+  };
+
+  /* ── Discard pending edits ── */
+  window.discardChanges = function () {
+    if (!hasPendingEdits()) return;
+    if (!window.confirm('Discard all unsaved keyword/ranking changes?')) return;
+    pendingEdits = {};
+    renderTable();
+  };
+
+  /* ── Export CSV ── */
+  window.exportCSV = function () {
+    if (!allTasks.length) return;
+    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Keyword', 'Vol', 'Was', 'Now']];
+    allTasks.forEach(function (t) {
+      rows.push([
+        t.id, t.title, t.owner || '',
+        t.contentOwner || '',
+        t.keyword || '',
+        t.volume || 0,
+        t.was || 0,
+        t.now || 0,
+      ]);
+    });
+    var csv = rows.map(function (r) {
+      return r.map(function (v) {
+        return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'keyword-update-' + currentClient + '-' + currentFrom + '--' + currentTo + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ── Helpers ── */
+  function showToast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast visible ' + (type || '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function () { el.className = 'toast'; }, 3500);
+  }
+
+  function formatMonth(m) {
+    if (!m) return '';
+    var parts = m.split('-');
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var mo = parseInt(parts[1], 10) - 1;
+    return (months[mo] || parts[1]) + ' ' + parts[0];
+  }
+
+  function truncate(str, n) {
+    if (!str) return '';
+    return str.length > n ? str.slice(0, n) + '…' : str;
+  }
+
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+})();
+</script>
+</body>
+</html>

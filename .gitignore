@@ -7,3 +7,6 @@ data.db
 
 # Timer patcher creates timestamped backups — don't commit them
 dist/assets/*.bak-*
+
+# Claude Code local session state
+.claude/

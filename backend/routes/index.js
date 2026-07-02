@@ -20,6 +20,7 @@ import { auditRouter }       from './audit.routes.js';
 import { configRouter }      from './config.routes.js';
 import { reportRouter }      from './report.routes.js';
 import { indexingRouter }    from './indexing.routes.js';
+import { keywordUpdateRouter } from './keyword-update.routes.js';
 
 export function buildApiRouter() {
   const router = Router();
@@ -42,6 +43,7 @@ export function buildApiRouter() {
   router.use('/config',              configRouter);
   router.use('/reports/seo-scorecard', reportRouter);  // GET scorecard + months + clients
   router.use('/indexing',              indexingRouter); // GET tasks list + PATCH bulk status
+  router.use('/keyword-update',        keywordUpdateRouter); // GET tasks list + PATCH bulk keyword/rank
 
   return router;
 }

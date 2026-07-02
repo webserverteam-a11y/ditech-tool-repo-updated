@@ -1400,6 +1400,11 @@ app.get('/indexing-status', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'indexing-status.html'));
 });
 
+// ── Keyword Update panel ───────────────────────────────
+app.get('/keyword-update', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'keyword-update.html'));
+});
+
 // ── API 404 + global error handler ────────────────────
 // apiNotFound catches requests to unknown /api/* routes before the SPA
 // fallback swallows them. globalErrorHandler catches anything thrown from
