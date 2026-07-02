@@ -349,6 +349,18 @@
     <label class="ctrl-label" for="toDate">To Date</label>
     <input class="ctrl-input" type="date" id="toDate" onchange="onDateChange()" disabled />
   </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="filterOwner">Filter by Owner</label>
+    <select class="ctrl-select" id="filterOwner" onchange="applyFilter()" disabled style="min-width:160px">
+      <option value="">All Owners</option>
+    </select>
+  </div>
+  <div class="ctrl-group">
+    <label class="ctrl-label" for="filterContentOwner">Filter by Content Owner</label>
+    <select class="ctrl-select" id="filterContentOwner" onchange="applyFilter()" disabled style="min-width:160px">
+      <option value="">All Content Owners</option>
+    </select>
+  </div>
 </div>
 
 <!-- ── Save Bar ── -->
@@ -380,6 +392,7 @@
   'use strict';
 
   var allTasks     = [];   // raw from API
+  var filtered     = [];   // allTasks after Owner / Content Owner filter — what's actually rendered
   var pendingEdits = {};   // { [taskId]: { keyword?, volume?, was?, now? } } — raw string values, coerced at save time
   var currentClient = '';
   var currentFrom   = '';
@@ -438,6 +451,7 @@
     monthSel.innerHTML = '<option value="">— Select Month —</option>';
     monthSel.disabled = true;
     resetDateRange();
+    resetFilterDropdowns();
     updateSaveBar();
     if (!client) { renderEmpty(); return; }
 
@@ -519,10 +533,64 @@
       .then(function (data) {
         allTasks = data;
         document.getElementById('exportBtn').disabled = data.length === 0;
-        renderTable();
+        populateFilterDropdowns();
+        applyFilter();
       })
       .catch(function (e) { renderError(e.message); });
   }
+
+  /* ── Owner / Content Owner filter dropdowns (derived from loaded tasks) ── */
+  function populateFilterDropdowns() {
+    var owners       = uniqueSorted(allTasks.map(function (t) { return t.owner || ''; }).filter(Boolean));
+    var contentOwners = uniqueSorted(allTasks.map(function (t) { return t.contentOwner || ''; }).filter(Boolean));
+
+    var ownerSel = document.getElementById('filterOwner');
+    var prevOwner = ownerSel.value;
+    ownerSel.innerHTML = '<option value="">All Owners</option>';
+    owners.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o; opt.textContent = o;
+      ownerSel.appendChild(opt);
+    });
+    ownerSel.disabled = owners.length === 0;
+    if (owners.indexOf(prevOwner) !== -1) ownerSel.value = prevOwner;
+
+    var coSel = document.getElementById('filterContentOwner');
+    var prevCo = coSel.value;
+    coSel.innerHTML = '<option value="">All Content Owners</option>';
+    contentOwners.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o; opt.textContent = o;
+      coSel.appendChild(opt);
+    });
+    coSel.disabled = contentOwners.length === 0;
+    if (contentOwners.indexOf(prevCo) !== -1) coSel.value = prevCo;
+  }
+
+  function uniqueSorted(arr) {
+    return Array.from(new Set(arr)).sort(function (a, b) { return a.localeCompare(b); });
+  }
+
+  function resetFilterDropdowns() {
+    var ownerSel = document.getElementById('filterOwner');
+    var coSel    = document.getElementById('filterContentOwner');
+    ownerSel.innerHTML = '<option value="">All Owners</option>';
+    ownerSel.disabled = true;
+    coSel.innerHTML = '<option value="">All Content Owners</option>';
+    coSel.disabled = true;
+  }
+
+  /* ── Apply Owner / Content Owner filter (client-side; does not discard pending edits) ── */
+  window.applyFilter = function () {
+    var ownerVal = document.getElementById('filterOwner').value;
+    var coVal    = document.getElementById('filterContentOwner').value;
+    filtered = allTasks.filter(function (t) {
+      if (ownerVal && (t.owner || '') !== ownerVal) return false;
+      if (coVal && (t.contentOwner || '') !== coVal) return false;
+      return true;
+    });
+    renderTable();
+  };
 
   /* ── Render: loading ── */
   function renderLoading() {
@@ -533,8 +601,10 @@
   /* ── Render: empty ── */
   function renderEmpty() {
     allTasks = [];
+    filtered = [];
     pendingEdits = {};
     document.getElementById('exportBtn').disabled = true;
+    resetFilterDropdowns();
     updateSaveBar();
     document.getElementById('mainArea').innerHTML =
       '<div class="state-box">' +
@@ -559,10 +629,18 @@
       return;
     }
 
+    if (filtered.length === 0) {
+      document.getElementById('mainArea').innerHTML =
+        '<div class="content"><div class="state-box" style="padding:40px 20px">' +
+        '<p>No tasks match the selected Owner / Content Owner filter.</p></div></div>';
+      return;
+    }
+
     var statsHtml =
       '<div class="content">' +
       '<div class="stats-bar" id="statsBar">' +
         statItem(allTasks.length, 'Total Tasks', 'blue') +
+        statItem(filtered.length, 'Showing', 'blue') +
         statItem(0, 'Unsaved Changes', 'amber', 'statUnsaved') +
       '</div>';
 
@@ -579,16 +657,17 @@
         '<th class="td-num">Now</th>' +
       '</tr></thead><tbody>';
 
-    allTasks.forEach(function (t) {
-      tableHtml += '<tr id="row-' + esc(t.id) + '">';
+    filtered.forEach(function (t) {
+      var isDirty = !!pendingEdits[t.id];
+      tableHtml += '<tr id="row-' + esc(t.id) + '"' + (isDirty ? ' class="row-dirty"' : '') + '>';
       tableHtml += '<td class="td-id">' + esc(t.id) + '</td>';
       tableHtml += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 42)) + '</span></td>';
       tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
       tableHtml += '<td>' + esc(t.contentOwner || '—') + '</td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-keyword" type="text" data-id="' + esc(t.id) + '" data-field="keyword" value="' + esc(t.keyword || '') + '" oninput="onCellInput(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(t.volume || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(t.was || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(t.now || 0) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-keyword" type="text" data-id="' + esc(t.id) + '" data-field="keyword" value="' + esc(cellValue(t, 'keyword')) + '" oninput="onCellInput(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(cellValue(t, 'volume')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(cellValue(t, 'was')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(cellValue(t, 'now')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
       tableHtml += '</tr>';
     });
 
@@ -602,6 +681,15 @@
       '<span class="stat-val ' + (cls || '') + '"' + (id ? ' id="' + id + '"' : '') + '>' + val + '</span>' +
       '<span class="stat-label">' + esc(label) + '</span>' +
     '</div>';
+  }
+
+  /* ── Cell value overlay: a pending (unsaved) edit takes precedence over the loaded value,
+     so re-rendering the table (e.g. when the Owner/Content Owner filter changes) never
+     visually discards in-progress edits on rows that stay dirty. ── */
+  function cellValue(t, field) {
+    var edit = pendingEdits[t.id];
+    if (edit && field in edit) return edit[field];
+    return field === 'keyword' ? (t.keyword || '') : (t[field] || 0);
   }
 
   /* ── Cell edit tracking (no full re-render — preserves input focus while typing) ── */
