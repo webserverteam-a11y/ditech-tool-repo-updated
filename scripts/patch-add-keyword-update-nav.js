@@ -96,6 +96,7 @@ const navScript = `${MARKER}
         /* Clone the Indexing Status element to inherit all styles/classes exactly */
         var kwu = idxNav.cloneNode(true);
         kwu.id = NAV_ID;
+        kwu.style.display = ''; // Indexing Status nav is hidden — this clone must stay visible
 
         /* Replace SVG with the keyword-update icon */
         var existingSvg = kwu.querySelector('svg');
@@ -118,7 +119,7 @@ const navScript = `${MARKER}
         })(kwu);
 
         textNodes.forEach(function (n, i) {
-          if (i === 0) n.textContent = 'Keyword Update';
+          if (i === 0) n.textContent = 'Keyword/Indexing';
           else n.textContent = '';
         });
 
@@ -127,7 +128,7 @@ const navScript = `${MARKER}
           if (span.childNodes.length === 1 &&
               span.childNodes[0].nodeType === 3 &&
               span.childNodes[0].textContent.trim() === 'Indexing Status') {
-            span.childNodes[0].textContent = 'Keyword Update';
+            span.childNodes[0].textContent = 'Keyword/Indexing';
           }
         });
 

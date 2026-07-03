@@ -959,6 +959,13 @@
         idx.classList.remove('active', 'selected', 'current');
         idx.setAttribute('aria-current', 'false');
 
+        /* Hidden: the Indexing Status panel is superseded by the Keyword
+           Update panel's built-in Index Status column, so this nav item is
+           no longer surfaced. It's kept in the DOM (rather than skipped)
+           because the Keyword Update nav patch clones it for identical
+           styling — see patch-add-keyword-update-nav.js. */
+        idx.style.display = 'none';
+
         /* Insert immediately after Reports */
         if (rep.parentNode) {
           rep.parentNode.insertBefore(idx, rep.nextSibling);
@@ -1049,6 +1056,7 @@
         /* Clone the Indexing Status element to inherit all styles/classes exactly */
         var kwu = idxNav.cloneNode(true);
         kwu.id = NAV_ID;
+        kwu.style.display = ''; // Indexing Status nav is hidden — this clone must stay visible
 
         /* Replace SVG with the keyword-update icon */
         var existingSvg = kwu.querySelector('svg');
@@ -1071,7 +1079,7 @@
         })(kwu);
 
         textNodes.forEach(function (n, i) {
-          if (i === 0) n.textContent = 'Keyword Update';
+          if (i === 0) n.textContent = 'Keyword/Indexing';
           else n.textContent = '';
         });
 
@@ -1080,7 +1088,7 @@
           if (span.childNodes.length === 1 &&
               span.childNodes[0].nodeType === 3 &&
               span.childNodes[0].textContent.trim() === 'Indexing Status') {
-            span.childNodes[0].textContent = 'Keyword Update';
+            span.childNodes[0].textContent = 'Keyword/Indexing';
           }
         });
 

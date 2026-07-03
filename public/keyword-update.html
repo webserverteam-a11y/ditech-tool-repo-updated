@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Keyword Update Manager — DiTech CDM</title>
+  <title>Keyword/Indexing Manager — DiTech CDM</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-size: 13px; }
@@ -295,6 +295,7 @@
     .cell-keyword { min-width: 170px; }
     .cell-num { max-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
     td.cell-td { padding: 5px 8px; }
+    td.cell-td-num { text-align: right; }
 
     /* ── Index Status Badge ── */
     .idx-badge {
@@ -349,7 +350,7 @@
       <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
     </svg>
     DiTech CDM
-    <span class="header-sub">/ Keyword Update Manager</span>
+    <span class="header-sub">/ Keyword/Indexing Manager</span>
   </div>
   <div class="header-actions">
     <button class="btn btn-outline" id="exportBtn" onclick="exportCSV()" disabled>
@@ -699,9 +700,9 @@
       tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
       tableHtml += '<td>' + esc(t.contentOwner || '—') + '</td>';
       tableHtml += '<td class="cell-td"><input class="cell-input cell-keyword" type="text" data-id="' + esc(t.id) + '" data-field="keyword" value="' + esc(cellValue(t, 'keyword')) + '" oninput="onCellInput(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(cellValue(t, 'volume')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(cellValue(t, 'was')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
-      tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(cellValue(t, 'now')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td cell-td-num"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(cellValue(t, 'volume')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td cell-td-num"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(cellValue(t, 'was')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td class="cell-td cell-td-num"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(cellValue(t, 'now')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
       tableHtml += '<td>' + idxBadge(t.indexStatus) + '</td>';
       tableHtml += '<td><select class="row-status-sel" data-id="' + esc(t.id) + '" onchange="onRowStatusChange(this)">' +
                      '<option value="">— select —</option>' +

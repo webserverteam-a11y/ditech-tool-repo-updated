@@ -148,6 +148,13 @@ const navScript = `${MARKER}
         idx.classList.remove('active', 'selected', 'current');
         idx.setAttribute('aria-current', 'false');
 
+        /* Hidden: the Indexing Status panel is superseded by the Keyword
+           Update panel's built-in Index Status column, so this nav item is
+           no longer surfaced. It's kept in the DOM (rather than skipped)
+           because the Keyword Update nav patch clones it for identical
+           styling — see patch-add-keyword-update-nav.js. */
+        idx.style.display = 'none';
+
         /* Insert immediately after Reports */
         if (rep.parentNode) {
           rep.parentNode.insertBefore(idx, rep.nextSibling);
