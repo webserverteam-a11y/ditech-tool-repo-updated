@@ -3,13 +3,16 @@
  *
  * GET  /api/keyword-update?client=X&from=YYYY-MM-DD&to=YYYY-MM-DD
  *   Returns lightweight task rows (id, title, owner, contentOwner,
- *   keyword, volume, was, now) for the given client + date range.
+ *   keyword, volume, was, now, indexStatus) for the given client + date range.
  *
  * PATCH /api/keyword-update/bulk
  *   Body: { updates: [{ id, keyword?, volume?, was?, now? }, ...] }
  *   Bulk-updates keyword/ranking fields for the supplied tasks. Each row
  *   is a sparse update — only fields present on that row are touched, so
  *   concurrent edits to other task columns are never clobbered.
+ *
+ * Index status updates from this panel are saved via the shared
+ * PATCH /api/indexing/bulk endpoint (see indexing.routes.js).
  */
 
 import { Router } from 'express';
@@ -32,7 +35,7 @@ keywordUpdateRouter.get('/', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, title, seo_owner, content_owner, focused_kw, volume, mar_rank, current_rank
+      `SELECT id, title, seo_owner, content_owner, focused_kw, volume, mar_rank, current_rank, index_status
        FROM tasks
        WHERE client = ?
          AND intake_date >= ?
@@ -50,6 +53,7 @@ keywordUpdateRouter.get('/', async (req, res) => {
       volume:       r.volume        ?? 0,
       was:          r.mar_rank      ?? 0,
       now:          r.current_rank  ?? 0,
+      indexStatus:  r.index_status  || '',
     })));
   } catch (e) {
     console.error('GET /api/keyword-update error:', e.message);

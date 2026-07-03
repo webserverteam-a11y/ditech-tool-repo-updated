@@ -296,6 +296,38 @@
     .cell-num { max-width: 84px; text-align: right; font-variant-numeric: tabular-nums; }
     td.cell-td { padding: 5px 8px; }
 
+    /* ── Index Status Badge ── */
+    .idx-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .idx-indexed     { background: #dcfce7; color: #15803d; }
+    .idx-nonindexed  { background: #fee2e2; color: #b91c1c; }
+    .idx-notchecked  { background: #f1f5f9; color: #64748b; }
+    .idx-empty       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
+
+    /* ── Inline row status dropdown ── */
+    .row-status-sel {
+      padding: 4px 24px 4px 7px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 5px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #1e293b;
+      background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 6px center;
+      -webkit-appearance: none;
+      appearance: none;
+      cursor: pointer;
+      min-width: 130px;
+    }
+    .row-status-sel:focus { outline: none; border-color: #4f6ef7; }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .controls, .content { padding-left: 14px; padding-right: 14px; }
@@ -655,6 +687,8 @@
         '<th class="td-num">Vol</th>' +
         '<th class="td-num">Was</th>' +
         '<th class="td-num">Now</th>' +
+        '<th>Index Status</th>' +
+        '<th>Set Status</th>' +
       '</tr></thead><tbody>';
 
     filtered.forEach(function (t) {
@@ -668,6 +702,13 @@
       tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(cellValue(t, 'volume')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
       tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(cellValue(t, 'was')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
       tableHtml += '<td class="cell-td"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="now" value="' + esc(cellValue(t, 'now')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
+      tableHtml += '<td>' + idxBadge(t.indexStatus) + '</td>';
+      tableHtml += '<td><select class="row-status-sel" data-id="' + esc(t.id) + '" onchange="onRowStatusChange(this)">' +
+                     '<option value="">— select —</option>' +
+                     '<option value="Indexed"' + (t.indexStatus === 'Indexed' ? ' selected' : '') + '>Indexed</option>' +
+                     '<option value="Non-Indexed"' + (t.indexStatus === 'Non-Indexed' ? ' selected' : '') + '>Non-Indexed</option>' +
+                     '<option value="Not Checked"' + (t.indexStatus === 'Not Checked' ? ' selected' : '') + '>Not Checked</option>' +
+                   '</select></td>';
       tableHtml += '</tr>';
     });
 
@@ -723,6 +764,34 @@
     var n = parseInt(el.value, 10);
     el.value = isNaN(n) || n < 0 ? 0 : n;
     onCellInput(el);
+  };
+
+  /* ── Inline row index status change (saves immediately, independent of Save Changes) ── */
+  window.onRowStatusChange = function (sel) {
+    var id = sel.getAttribute('data-id');
+    var status = sel.value;
+    if (!status) return;
+
+    fetch('/api/indexing/bulk', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id], status: status }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function () {
+        var task = allTasks.find(function (t) { return t.id === id; });
+        if (task) task.indexStatus = status;
+        var row = document.getElementById('row-' + id);
+        if (row) {
+          var badgeTd = row.querySelectorAll('td')[8];
+          if (badgeTd) badgeTd.innerHTML = idxBadge(status);
+        }
+        showToast('Updated ' + id + ' → ' + status, 'success');
+      })
+      .catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
   };
 
   function updateSaveBar() {
@@ -813,7 +882,7 @@
   /* ── Export CSV ── */
   window.exportCSV = function () {
     if (!allTasks.length) return;
-    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Keyword', 'Vol', 'Was', 'Now']];
+    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Keyword', 'Vol', 'Was', 'Now', 'Index Status']];
     allTasks.forEach(function (t) {
       rows.push([
         t.id, t.title, t.owner || '',
@@ -822,6 +891,7 @@
         t.volume || 0,
         t.was || 0,
         t.now || 0,
+        t.indexStatus || '',
       ]);
     });
     var csv = rows.map(function (r) {
@@ -841,6 +911,14 @@
   };
 
   /* ── Helpers ── */
+  function idxBadge(status) {
+    if (!status) return '<span class="idx-badge idx-empty">Not Set</span>';
+    if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
+    if (status === 'Non-Indexed') return '<span class="idx-badge idx-nonindexed">✗ Non-Indexed</span>';
+    if (status === 'Not Checked') return '<span class="idx-badge idx-notchecked">· Not Checked</span>';
+    return '<span class="idx-badge idx-empty">' + esc(status) + '</span>';
+  }
+
   function showToast(msg, type) {
     var el = document.getElementById('toast');
     el.textContent = msg;
