@@ -119,7 +119,7 @@ const navScript = `${MARKER}
         })(kwu);
 
         textNodes.forEach(function (n, i) {
-          if (i === 0) n.textContent = 'Keyword/Indexing';
+          if (i === 0) n.textContent = 'Kw/Index';
           else n.textContent = '';
         });
 
@@ -128,7 +128,7 @@ const navScript = `${MARKER}
           if (span.childNodes.length === 1 &&
               span.childNodes[0].nodeType === 3 &&
               span.childNodes[0].textContent.trim() === 'Indexing Status') {
-            span.childNodes[0].textContent = 'Keyword/Indexing';
+            span.childNodes[0].textContent = 'Kw/Index';
           }
         });
 
