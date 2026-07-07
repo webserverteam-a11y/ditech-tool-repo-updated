@@ -266,11 +266,55 @@ function matrixDaysForRange(dateStr, range, customFrom, customTo) {
   return { matrixStart: weekStart, matrixEnd: weekEnd, days };
 }
 
+/**
+ * Team roles for the Team Timesheet view — copied verbatim from the
+ * bundle's own role-label array (byte ~461980 in
+ * dist/assets/index-xUiSJVv5.js) so labels match the rest of the app.
+ * `admin` is intentionally excluded — admins aren't a "team" to report on.
+ */
+const TEAM_ROLES = [
+  { value: 'seo', label: 'SEO' },
+  { value: 'content', label: 'Content' },
+  { value: 'web', label: 'Web' },
+  { value: 'social', label: 'Social Media' },
+  { value: 'design', label: 'Design' },
+  { value: 'ads', label: 'Ads' },
+  { value: 'webdev', label: 'Web Dev' },
+];
+
+/**
+ * Port of the bundle's daily target-hours rule (byte ~617314: `po=8`, then
+ * `leaveType==='full'||'holiday' ? 0 : leaveType==='half' ? po/2 : po`).
+ * `leaveType` is undefined/null when there's no leave record for that day.
+ */
+function dailyTargetMs(leaveType) {
+  if (leaveType === 'full' || leaveType === 'holiday') return 0;
+  if (leaveType === 'half') return 4 * HOUR_MS;
+  return 8 * HOUR_MS;
+}
+
+/**
+ * Utilization bucket for one person-day, matching the Team Timesheet
+ * legend: Underutilized <80%, Within Estimate 80-100%, Overrun >100%.
+ * `targetMs<=0` means a full-day leave/holiday — 'leave' if nothing was
+ * logged (the expected case), otherwise it still counts as overrun (any
+ * logged time against a zero budget).
+ */
+function classifyUtilization(actualMs, targetMs) {
+  if (targetMs <= 0) return actualMs > 0 ? 'overrun' : 'leave';
+  if (actualMs === 0) return 'empty';
+  const pct = actualMs / targetMs;
+  if (pct < 0.8) return 'underutilized';
+  if (pct <= 1.0) return 'within';
+  return 'overrun';
+}
+
 export {
   HOUR_MS,
   DAY_MS,
   MAX_CUSTOM_RANGE_DAYS,
   DEPT_OWNER_FIELD,
+  TEAM_ROLES,
   filterEventsForOwner,
   filterEventsInWindow,
   loggedMsFromEvents,
@@ -279,6 +323,8 @@ export {
   estHoursForOwner,
   productiveMs,
   overrunMs,
+  dailyTargetMs,
+  classifyUtilization,
   weekBounds,
   monthDays,
   customDays,

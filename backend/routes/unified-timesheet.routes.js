@@ -40,6 +40,7 @@ import pool from '../config/db.js';
 import { rowToTask } from '../utils/taskMapping.js';
 import {
   HOUR_MS,
+  TEAM_ROLES,
   filterEventsForOwner,
   filterEventsInWindow,
   loggedMsFromEvents,
@@ -48,6 +49,8 @@ import {
   estHoursForOwner,
   productiveMs,
   overrunMs,
+  dailyTargetMs,
+  classifyUtilization,
   rangeWindow,
   matrixDaysForRange,
 } from '../utils/timesheetCalc.js';
@@ -255,6 +258,230 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
     res.status(500).json({ error: 'Failed to load unified timesheet data' });
   }
 });
+
+/**
+ * GET /api/unified-timesheet/team — Team Timesheet view.
+ *
+ * Same panel, a different lens: instead of one stakeholder's tasks grouped
+ * by client, this groups a whole role/"team" roster's ACTUAL hours (gross
+ * session time, matching the mock's "Total (Actual)" column) against a
+ * per-person 8h/day target — halved/zeroed on approved leave — with a
+ * four-way utilization classification (leave/empty/underutilized/within/
+ * overrun). Entirely additive: reuses the same timesheetCalc.js helpers as
+ * the handler above, but never touches it.
+ *
+ * Query params: team (required, one of TEAM_ROLES' values), date, range
+ * (today|yesterday|week|month|custom), customFrom/customTo, client[]/status[]
+ * (optional task filters, same semantics as the single-stakeholder endpoint).
+ */
+const VALID_TEAMS = new Set(TEAM_ROLES.map(t => t.value));
+const TEAM_LABEL = Object.fromEntries(TEAM_ROLES.map(t => [t.value, t.label]));
+
+unifiedTimesheetRouter.get('/team', async (req, res) => {
+  try {
+    const team = (req.query.team || '').trim();
+    const date = (req.query.date || '').trim();
+    const range = (req.query.range || 'today').trim();
+    const customFrom = (req.query.customFrom || '').trim();
+    const customTo = (req.query.customTo || '').trim();
+    const clientFilter = toArray(req.query.client).filter(Boolean);
+    const statusFilter = toArray(req.query.status).filter(Boolean);
+
+    if (!VALID_TEAMS.has(team)) return res.status(400).json({ error: `team must be one of ${[...VALID_TEAMS].join('|')}` });
+    if (!DATE_RE.test(date)) return res.status(400).json({ error: 'date param required as YYYY-MM-DD' });
+    if (!VALID_RANGES.has(range)) return res.status(400).json({ error: `range must be one of ${[...VALID_RANGES].join('|')}` });
+    if (range === 'custom') {
+      if (!DATE_RE.test(customFrom) || !DATE_RE.test(customTo)) {
+        return res.status(400).json({ error: 'customFrom and customTo are required as YYYY-MM-DD when range=custom' });
+      }
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { matrixStart, matrixEnd, days: matrixDays } = matrixDaysForRange(date, range, customFrom, customTo);
+    const { fromStr: rangeFromStr, toStr: rangeToStr } = rangeWindow(date, range, customFrom, customTo);
+    const matrixDaysOut = matrixDays.map(d => ({ date: d, label: dayLabel(d), isToday: d === todayStr, isSelected: d === date }));
+
+    // ── Roster: everyone with this role ──
+    const [rosterRows] = await pool.query('SELECT name FROM users WHERE role = ? ORDER BY name', [team]);
+    const roster = rosterRows.map(r => r.name).filter(Boolean);
+
+    if (roster.length === 0) {
+      return res.json(emptyTeamResponse(team, range, date, matrixStart, matrixEnd, matrixDaysOut));
+    }
+
+    // ── Tasks matched to ANY roster member (same owner-field logic as the
+    //    single-stakeholder handler, just IN(...) instead of = ?) ──
+    const rosterPh = roster.map(() => '?').join(',');
+    const whereParts = [
+      `(seo_owner IN (${rosterPh}) OR content_owner IN (${rosterPh}) OR web_owner IN (${rosterPh}) OR assigned_to IN (${rosterPh}))`,
+    ];
+    const params = [...roster, ...roster, ...roster, ...roster];
+
+    if (clientFilter.length > 0) {
+      whereParts.push(`client IN (${clientFilter.map(() => '?').join(',')})`);
+      params.push(...clientFilter);
+    }
+    if (statusFilter.length > 0) {
+      whereParts.push(`execution_state IN (${statusFilter.map(() => '?').join(',')})`);
+      params.push(...statusFilter);
+    }
+
+    const [taskRows] = await pool.query(
+      `SELECT * FROM tasks WHERE ${whereParts.join(' AND ')}`,
+      params
+    );
+
+    if (taskRows.length === 0) {
+      return res.json(emptyTeamResponse(team, range, date, matrixStart, matrixEnd, matrixDaysOut, roster));
+    }
+
+    const taskIds = taskRows.map(r => r.id);
+    const [eventRows] = await pool.query(
+      `SELECT task_id, event_type, timestamp, department, owner FROM task_time_events
+       WHERE task_id IN (${taskIds.map(() => '?').join(',')})
+       ORDER BY id`,
+      taskIds
+    );
+    const eventsByTask = {};
+    for (const row of eventRows) {
+      (eventsByTask[row.task_id] = eventsByTask[row.task_id] || []).push({
+        type: row.event_type, timestamp: row.timestamp, department: row.department, owner: row.owner,
+      });
+    }
+    const tasks = taskRows.map(rowToTask);
+
+    // ── Leave records for the roster, bounded to the displayed matrix ──
+    const [leaveRows] = await pool.query(
+      `SELECT user_name, leave_date, leave_type FROM leave_records
+       WHERE user_name IN (${rosterPh}) AND leave_date BETWEEN ? AND ? AND status = 'approved'`,
+      [...roster, matrixStart, matrixEnd]
+    );
+    const leaveByUserDate = {};
+    for (const row of leaveRows) {
+      const dateStr = row.leave_date instanceof Date ? row.leave_date.toISOString().slice(0, 10) : String(row.leave_date).slice(0, 10);
+      (leaveByUserDate[row.user_name] = leaveByUserDate[row.user_name] || {})[dateStr] = row.leave_type;
+    }
+
+    // `rangeDays` is always a subset of `matrixDays`: rangeWindow() and
+    // matrixDaysForRange() build week/month/custom bounds identically for
+    // those ranges, and for today/yesterday rangeWindow's single day always
+    // falls inside matrixDaysForRange's week fallback. So each member's
+    // per-day figures only need computing once (over matrixDays); the range
+    // stat cards are derived by filtering that same per-day data down to
+    // rangeDays, rather than recomputing from scratch.
+    const rangeDaySet = new Set(matrixDays.filter(d => d >= rangeFromStr && d <= rangeToStr));
+
+    // ── Per member: gross ACTUAL ms per matrix day against a leave-adjusted
+    //    8h/day target, computed once and reused for every rollup below ──
+    const members = roster.map(name => {
+      const memberTasks = tasks.filter(t => t.seoOwner === name || t.contentOwner === name || t.webOwner === name || t.assignedTo === name);
+
+      const perDay = {};
+      for (const d of matrixDays) {
+        const actualMs = memberTasks.reduce((sum, task) => {
+          const events = eventsByTask[task.id] || [];
+          return sum + grossMsFromEvents(filterEventsForOwner(task, events, name, d, d));
+        }, 0);
+        const leaveType = (leaveByUserDate[name] || {})[d];
+        const targetMs = dailyTargetMs(leaveType);
+        perDay[d] = { actualMs, targetMs, state: classifyUtilization(actualMs, targetMs) };
+      }
+
+      const rangeReworkMs = memberTasks.reduce((sum, task) => {
+        const events = eventsByTask[task.id] || [];
+        return sum + reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr));
+      }, 0);
+
+      const matrixActualMs = sumBy(matrixDays, d => perDay[d].actualMs);
+      const matrixTargetMs = sumBy(matrixDays, d => perDay[d].targetMs);
+      const matrixWorkDays = matrixDays.filter(d => perDay[d].targetMs > 0).length;
+
+      const rangeDaysForMember = matrixDays.filter(d => rangeDaySet.has(d));
+      const rangeActualMs = sumBy(rangeDaysForMember, d => perDay[d].actualMs);
+      const rangeTargetMs = sumBy(rangeDaysForMember, d => perDay[d].targetMs);
+      const rangeProductiveMs = sumBy(rangeDaysForMember, d => productiveMs(perDay[d].actualMs, perDay[d].targetMs));
+      const rangeOverrunMs = sumBy(rangeDaysForMember, d => overrunMs(perDay[d].actualMs, perDay[d].targetMs));
+
+      return {
+        name,
+        perDay,
+        matrixActualMs,
+        matrixTargetMs,
+        avgPerDayActualMs: matrixWorkDays > 0 ? matrixActualMs / matrixWorkDays : 0,
+        avgPerDayTargetMs: matrixWorkDays > 0 ? matrixTargetMs / matrixWorkDays : 0,
+        rangeActualMs,
+        rangeTargetMs,
+        rangeProductiveMs,
+        rangeOverrunMs,
+        rangeReworkMs,
+      };
+    });
+
+    // ── Team-level stat cards, derived from the same per-member per-day data ──
+    const stats = {
+      totalMembers: roster.length,
+      actualMs: sumField(members, 'rangeActualMs'),
+      targetMs: sumField(members, 'rangeTargetMs'),
+      productiveMs: sumField(members, 'rangeProductiveMs'),
+      overrunMs: sumField(members, 'rangeOverrunMs'),
+      reworkMs: sumField(members, 'rangeReworkMs'),
+    };
+
+    const grandPerDayMs = {};
+    for (const d of matrixDays) grandPerDayMs[d] = members.reduce((s, m) => s + m.perDay[d].actualMs, 0);
+
+    res.json({
+      team,
+      teamLabel: TEAM_LABEL[team],
+      range,
+      selectedDate: date,
+      isToday: date === todayStr,
+      matrixStart,
+      matrixEnd,
+      matrixDays: matrixDaysOut,
+      stats,
+      members: members.map(m => ({
+        name: m.name,
+        perDay: m.perDay,
+        avgPerDayActualMs: m.avgPerDayActualMs,
+        avgPerDayTargetMs: m.avgPerDayTargetMs,
+        matrixActualMs: m.matrixActualMs,
+        matrixTargetMs: m.matrixTargetMs,
+      })),
+      grandTotal: {
+        memberCount: roster.length,
+        actualMs: sumField(members, 'matrixActualMs'),
+        targetMs: sumField(members, 'matrixTargetMs'),
+        perDayMs: grandPerDayMs,
+      },
+    });
+  } catch (e) {
+    console.error('GET /api/unified-timesheet/team error:', e.code, e.message);
+    res.status(500).json({ error: 'Failed to load team timesheet data' });
+  }
+});
+
+function sumBy(list, fn) {
+  return list.reduce((s, item) => s + fn(item), 0);
+}
+
+function emptyTeamResponse(team, range, date, matrixStart, matrixEnd, matrixDaysOut, roster) {
+  const perDayMs = {};
+  for (const d of matrixDaysOut) perDayMs[d.date] = 0;
+  return {
+    team,
+    teamLabel: TEAM_LABEL[team],
+    range,
+    selectedDate: date,
+    isToday: date === new Date().toISOString().slice(0, 10),
+    matrixStart,
+    matrixEnd,
+    matrixDays: matrixDaysOut,
+    stats: { totalMembers: (roster || []).length, actualMs: 0, targetMs: 0, productiveMs: 0, overrunMs: 0, reworkMs: 0 },
+    members: [],
+    grandTotal: { memberCount: (roster || []).length, actualMs: 0, targetMs: 0, perDayMs },
+  };
+}
 
 function sumField(list, field) {
   return list.reduce((s, c) => s + c[field], 0);

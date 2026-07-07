@@ -82,6 +82,28 @@
     }
     .page-title-row h1 { font-size: 1.4rem; font-weight: 700; color: #0f172a; }
 
+    /* ── View tabs ── */
+    .view-tabs {
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0 28px;
+      display: flex;
+      gap: 4px;
+    }
+    .view-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 10px 6px;
+      margin-bottom: -1px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+    }
+    .view-tab:hover { color: #1e293b; }
+    .view-tab.active { color: #4f6ef7; border-bottom-color: #4f6ef7; }
+
     /* ── Controls Bar ── */
     .controls {
       background: #fff;
@@ -132,6 +154,25 @@
     }
     .range-pill:hover { background: #f8fafc; }
     .range-pill.active { background: #4f6ef7; color: #fff; border-color: #4f6ef7; }
+    /* Team Timesheet's pills/date-nav are visually identical but a DIFFERENT
+       class, deliberately: the individual view's highlightRangePill()/
+       updateDateNavEnabled() query .range-pill/.date-nav-btn unscoped
+       (querySelectorAll across the whole document), so reusing those exact
+       classes here would make the individual view's range/date changes
+       spuriously restyle the Team view's controls too. Duplicated rather
+       than shared to keep the individual view's functions untouched. */
+    .team-range-pill {
+      padding: 7px 14px; border-radius: 7px; border: 1.5px solid #cbd5e1; background: #fff;
+      font-size: 0.82rem; font-weight: 600; color: #475569; cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .team-range-pill:hover { background: #f8fafc; }
+    .team-range-pill.active { background: #4f6ef7; color: #fff; border-color: #4f6ef7; }
+    .team-date-nav-btn {
+      width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #cbd5e1;
+      background: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #475569;
+    }
+    .team-date-nav-btn:hover { background: #f8fafc; }
 
     /* ── Date navigator ── */
     .date-nav { display: flex; align-items: center; gap: 8px; }
@@ -272,9 +313,44 @@
     td.day-cell.overrun { background: #fee2e2; color: #b91c1c; }
     td.day-cell.empty   { color: #cbd5e1; }
     td.day-cell.today-col { border-left: 2px solid #bfdbfe; border-right: 2px solid #bfdbfe; }
+    /* Team Timesheet adds two more utilization buckets to the same day-cell classes */
+    td.day-cell.underutilized { background: #fef3c7; color: #92400e; }
+    td.day-cell.leave { background: #f1f5f9; color: #94a3b8; font-style: italic; }
 
     tr.total-row { background: #f8fafc; font-weight: 700; }
     tr.total-row td { padding: 10px; border-top: 2px solid #e2e8f0; border-bottom: none; }
+
+    /* ── Team Timesheet: utilization progress bar ── */
+    .util-cell { display: flex; flex-direction: column; gap: 3px; min-width: 130px; }
+    .util-figures { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+    .util-pct { font-size: 0.72rem; font-weight: 700; color: #64748b; }
+    .util-bar-track { height: 5px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+    .util-bar-fill { height: 100%; border-radius: 3px; }
+    .util-bar-fill.within        { background: #16a34a; }
+    .util-bar-fill.overrun       { background: #dc2626; }
+    .util-bar-fill.underutilized { background: #d97706; }
+    .util-bar-fill.empty,
+    .util-bar-fill.leave         { background: #cbd5e1; }
+
+    /* ── Team Timesheet: member row menu ── */
+    .row-menu-wrap { position: relative; text-align: center; }
+    .row-menu-btn {
+      background: transparent; border: none; cursor: pointer; color: #94a3b8;
+      font-size: 1rem; line-height: 1; padding: 4px 8px; border-radius: 5px;
+    }
+    .row-menu-btn:hover { background: #f1f5f9; color: #475569; }
+    .row-menu-popover {
+      position: absolute; top: calc(100% + 2px); right: 0;
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12); z-index: 100;
+      display: none; min-width: 180px; padding: 4px;
+    }
+    .row-menu-popover.open { display: block; }
+    .row-menu-item {
+      display: block; width: 100%; text-align: left; background: none; border: none;
+      padding: 8px 10px; font-size: 0.82rem; color: #334155; cursor: pointer; border-radius: 5px;
+    }
+    .row-menu-item:hover { background: #f1f5f9; }
 
     /* ── Status badge ── */
     .st-badge {
@@ -296,6 +372,7 @@
     .legend-within  { background: #dcfce7; }
     .legend-overrun { background: #fee2e2; }
     .legend-empty   { background: #f1f5f9; border: 1px solid #e2e8f0; }
+    .legend-underutilized { background: #fef3c7; }
 
     /* ── Loading / Empty ── */
     .state-box {
@@ -353,6 +430,19 @@
 <div class="page-title-row">
   <h1>Timesheet</h1>
 </div>
+
+<!-- ── View tabs ── -->
+<div class="view-tabs">
+  <button class="view-tab active" id="tabIndividualBtn" onclick="showView('individual')">Timesheet</button>
+  <button class="view-tab" id="tabTeamBtn" onclick="showView('team')">Team Timesheet</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Individual Timesheet view — UNCHANGED from before the Team tab was
+     added. Only wrapped in a new outer div so it can be shown/hidden;
+     none of its own markup, ids, or JS below were touched.
+     ══════════════════════════════════════════════════════════════════ -->
+<div id="individualViewRoot">
 
 <!-- ── Controls ── -->
 <div class="controls">
@@ -430,6 +520,97 @@
     <p>Loading…</p>
   </div>
 </div>
+
+</div><!-- /individualViewRoot -->
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Team Timesheet view — brand new, entirely separate ids/state/JS.
+     ══════════════════════════════════════════════════════════════════ -->
+<div id="teamViewRoot" style="display:none">
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="teamSel">Team</label>
+      <select class="ctrl-select" id="teamSel" onchange="onTeamChange()">
+        <option value="">— Select —</option>
+      </select>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label">Date Range</label>
+      <div class="range-pills" id="teamRangePills">
+        <button class="team-range-pill" data-range="today">Today</button>
+        <button class="team-range-pill" data-range="yesterday">Yesterday</button>
+        <button class="team-range-pill" data-range="week">Week</button>
+        <button class="team-range-pill" data-range="month">Month</button>
+        <button class="team-range-pill" data-range="custom">Custom</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="teamCustomRangeGroup" style="display:none">
+      <label class="ctrl-label">From — To</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" class="ctrl-input" id="teamCustomFromInput" style="min-width:130px" onchange="onTeamCustomDateChange()" />
+        <input type="date" class="ctrl-input" id="teamCustomToInput" style="min-width:130px" onchange="onTeamCustomDateChange()" />
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label">&nbsp;</label>
+      <div class="date-nav">
+        <button class="team-date-nav-btn" onclick="stepTeamDate(-1)" title="Previous">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="date-display" id="teamDateDisplay">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+          <span id="teamDateDisplayText">—</span>
+          <span class="today-badge" id="teamTodayBadge" style="display:none">Today</span>
+        </div>
+        <button class="team-date-nav-btn" onclick="stepTeamDate(1)" title="Next">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctrl-group filters-wrap">
+      <label class="ctrl-label">&nbsp;</label>
+      <button class="btn btn-light" onclick="toggleTeamFilters()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filters
+        <span class="filter-count-badge" id="teamFilterCountBadge" style="display:none">0</span>
+      </button>
+      <div class="filters-popover" id="teamFiltersPopover">
+        <div class="filter-section">
+          <div class="filter-section-title">Client / Project</div>
+          <div id="teamClientCheckList"></div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-title">Status</div>
+          <div id="teamStatusCheckList"></div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-primary" style="flex:1" onclick="applyTeamFilters()">Apply</button>
+          <button class="btn btn-light" style="flex:1" onclick="clearTeamFilters()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctrl-group" style="margin-left:auto">
+      <label class="ctrl-label">&nbsp;</label>
+      <button class="btn btn-primary" id="teamExportBtn" onclick="exportTeamCSV()" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </button>
+    </div>
+  </div>
+
+  <div id="teamMainArea">
+    <div class="state-box">
+      <p>Select a team to load its timesheet.</p>
+    </div>
+  </div>
+
+</div><!-- /teamViewRoot -->
 
 <!-- ── Toast ── -->
 <div class="toast" id="toast"></div>
@@ -908,6 +1089,428 @@
     clearTimeout(el._timer);
     el._timer = setTimeout(function () { el.className = 'toast'; }, 3500);
   }
+
+  /* ══════════════════════════════════════════════════════════════════
+     Team Timesheet — entirely new state/functions below. Nothing above
+     this point (the individual Timesheet view) was modified to add it;
+     the only touch point is jumpToIndividual(), which only calls the
+     existing state/loadData() through their normal public surface.
+     ══════════════════════════════════════════════════════════════════ */
+
+  // Mirrors backend/utils/timesheetCalc.js's TEAM_ROLES — keep in sync.
+  var TEAM_ROLES = [
+    { value: 'seo', label: 'SEO' },
+    { value: 'content', label: 'Content' },
+    { value: 'web', label: 'Web' },
+    { value: 'social', label: 'Social Media' },
+    { value: 'design', label: 'Design' },
+    { value: 'ads', label: 'Ads' },
+    { value: 'webdev', label: 'Web Dev' },
+  ];
+
+  var teamState = {
+    team: '',
+    date: todayStr(),
+    range: 'today',
+    clients: [],
+    statuses: [],
+    customFrom: '',
+    customTo: '',
+  };
+
+  var teamLastData = null;
+
+  /* ── Init ── */
+  window.addEventListener('DOMContentLoaded', function () {
+    populateTeamSelect();
+    highlightTeamRangePill();
+
+    document.addEventListener('click', function (e) {
+      var wrap = document.querySelectorAll('#teamViewRoot .filters-wrap')[0];
+      var popover = document.getElementById('teamFiltersPopover');
+      if (popover && popover.classList.contains('open') && wrap && !wrap.contains(e.target)) {
+        popover.classList.remove('open');
+      }
+      document.querySelectorAll('.row-menu-popover.open').forEach(function (p) {
+        if (!p.contains(e.target) && !(e.target.closest && e.target.closest('.row-menu-btn'))) {
+          p.classList.remove('open');
+        }
+      });
+    });
+
+    document.getElementById('teamRangePills').addEventListener('click', function (e) {
+      var btn = e.target.closest('.team-range-pill');
+      if (!btn) return;
+      onTeamRangeChange(btn.getAttribute('data-range'));
+    });
+  });
+
+  /* ── View switching ── */
+  window.showView = function (view) {
+    var isTeam = view === 'team';
+    document.getElementById('individualViewRoot').style.display = isTeam ? 'none' : '';
+    document.getElementById('teamViewRoot').style.display = isTeam ? '' : 'none';
+    document.getElementById('tabIndividualBtn').classList.toggle('active', !isTeam);
+    document.getElementById('tabTeamBtn').classList.toggle('active', isTeam);
+
+    if (isTeam) {
+      // Reuse the individual view's already-fetched client list/status set —
+      // read-only, no re-fetch needed. Re-rendered every switch (cheap) so
+      // it's correct even if this runs before that fetch resolves.
+      renderTeamClientCheckList();
+      renderTeamStatusCheckList();
+      if (!teamState.team && TEAM_ROLES.length > 0) {
+        document.getElementById('teamSel').value = TEAM_ROLES[0].value;
+        teamState.team = TEAM_ROLES[0].value;
+        loadTeamData();
+      }
+    }
+  };
+
+  function populateTeamSelect() {
+    var sel = document.getElementById('teamSel');
+    sel.innerHTML = '<option value="">— Select —</option>';
+    TEAM_ROLES.forEach(function (t) {
+      var opt = document.createElement('option');
+      opt.value = t.value; opt.textContent = t.label;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderTeamClientCheckList() {
+    var wrap = document.getElementById('teamClientCheckList');
+    wrap.innerHTML = '';
+    allClients.forEach(function (c) {
+      var id = 'flt-team-client-' + c.replace(/[^a-z0-9]/gi, '_');
+      var row = document.createElement('label');
+      row.className = 'filter-check-row';
+      row.innerHTML = '<input type="checkbox" value="' + esc(c) + '" data-kind="team-client" id="' + id + '"' +
+        (teamState.clients.indexOf(c) !== -1 ? ' checked' : '') + '/> ' + esc(c);
+      wrap.appendChild(row);
+    });
+  }
+
+  function renderTeamStatusCheckList() {
+    var wrap = document.getElementById('teamStatusCheckList');
+    wrap.innerHTML = '';
+    STATUSES.forEach(function (s) {
+      var id = 'flt-team-status-' + s.replace(/[^a-z0-9]/gi, '_');
+      var row = document.createElement('label');
+      row.className = 'filter-check-row';
+      row.innerHTML = '<input type="checkbox" value="' + esc(s) + '" data-kind="team-status" id="' + id + '"' +
+        (teamState.statuses.indexOf(s) !== -1 ? ' checked' : '') + '/> ' + esc(s);
+      wrap.appendChild(row);
+    });
+  }
+
+  /* ── Controls ── */
+  window.onTeamChange = function () {
+    teamState.team = document.getElementById('teamSel').value;
+    if (teamState.team) loadTeamData();
+  };
+
+  window.onTeamRangeChange = onTeamRangeChange;
+  function onTeamRangeChange(range) {
+    teamState.range = range;
+    var customGroup = document.getElementById('teamCustomRangeGroup');
+
+    if (range === 'custom') {
+      customGroup.style.display = '';
+      highlightTeamRangePill();
+      updateTeamDateNavEnabled();
+      if (teamState.customFrom && teamState.customTo && teamState.team) loadTeamData();
+      return;
+    }
+
+    customGroup.style.display = 'none';
+    teamState.customFrom = '';
+    teamState.customTo = '';
+    document.getElementById('teamCustomFromInput').value = '';
+    document.getElementById('teamCustomToInput').value = '';
+    if (range === 'today') teamState.date = todayStr();
+    if (range === 'yesterday') teamState.date = shiftDateStr(todayStr(), -1, 'day');
+    highlightTeamRangePill();
+    updateTeamDateNavEnabled();
+    if (teamState.team) loadTeamData();
+  }
+
+  window.onTeamCustomDateChange = function () {
+    var fromVal = document.getElementById('teamCustomFromInput').value;
+    var toVal = document.getElementById('teamCustomToInput').value;
+    if (!fromVal || !toVal) return;
+    teamState.customFrom = fromVal;
+    teamState.customTo = toVal;
+    teamState.date = toVal;
+    if (teamState.team) loadTeamData();
+  };
+
+  function highlightTeamRangePill() {
+    document.querySelectorAll('.team-range-pill').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-range') === teamState.range);
+    });
+  }
+
+  function updateTeamDateNavEnabled() {
+    var isCustom = teamState.range === 'custom';
+    document.querySelectorAll('.team-date-nav-btn').forEach(function (btn) {
+      btn.disabled = isCustom; btn.style.opacity = isCustom ? '0.4' : '1'; btn.style.cursor = isCustom ? 'not-allowed' : 'pointer';
+    });
+  }
+
+  window.stepTeamDate = function (dir) {
+    if (teamState.range === 'custom') return;
+    var unit = teamState.range === 'week' ? 'week' : teamState.range === 'month' ? 'month' : 'day';
+    teamState.date = shiftDateStr(teamState.date, dir, unit);
+    if (teamState.team) loadTeamData();
+  };
+
+  window.toggleTeamFilters = function () {
+    document.getElementById('teamFiltersPopover').classList.toggle('open');
+  };
+
+  window.applyTeamFilters = function () {
+    teamState.clients = Array.from(document.querySelectorAll('input[data-kind="team-client"]:checked')).map(function (el) { return el.value; });
+    teamState.statuses = Array.from(document.querySelectorAll('input[data-kind="team-status"]:checked')).map(function (el) { return el.value; });
+    updateTeamFilterBadge();
+    document.getElementById('teamFiltersPopover').classList.remove('open');
+    if (teamState.team) loadTeamData();
+  };
+
+  window.clearTeamFilters = function () {
+    document.querySelectorAll('#teamFiltersPopover input[type="checkbox"]').forEach(function (el) { el.checked = false; });
+    teamState.clients = [];
+    teamState.statuses = [];
+    updateTeamFilterBadge();
+    if (teamState.team) loadTeamData();
+  };
+
+  function updateTeamFilterBadge() {
+    var count = teamState.clients.length + teamState.statuses.length;
+    var badge = document.getElementById('teamFilterCountBadge');
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    badge.textContent = count;
+  }
+
+  /* ── Load data ── */
+  function loadTeamData() {
+    renderTeamLoading();
+    var url = '/api/unified-timesheet/team?team=' + encodeURIComponent(teamState.team) +
+      '&date=' + encodeURIComponent(teamState.date) +
+      '&range=' + encodeURIComponent(teamState.range) +
+      teamState.clients.map(function (c) { return '&client=' + encodeURIComponent(c); }).join('') +
+      teamState.statuses.map(function (s) { return '&status=' + encodeURIComponent(s); }).join('') +
+      (teamState.range === 'custom' ? '&customFrom=' + encodeURIComponent(teamState.customFrom) + '&customTo=' + encodeURIComponent(teamState.customTo) : '');
+
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+        return r.json();
+      })
+      .then(function (data) {
+        teamLastData = data;
+        document.getElementById('teamExportBtn').disabled = false;
+        updateTeamDateDisplay(data);
+        renderTeamPage(data);
+      })
+      .catch(function (e) {
+        document.getElementById('teamExportBtn').disabled = true;
+        renderTeamError(e.message);
+      });
+  }
+
+  function updateTeamDateDisplay(data) {
+    if (data.range === 'custom') {
+      document.getElementById('teamDateDisplayText').textContent = fmtShortDate(data.matrixStart) + ' – ' + fmtShortDate(data.matrixEnd);
+      document.getElementById('teamTodayBadge').style.display = 'none';
+      return;
+    }
+    var d = new Date(data.selectedDate + 'T00:00:00Z');
+    var label = d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    document.getElementById('teamDateDisplayText').textContent = label;
+    document.getElementById('teamTodayBadge').style.display = data.isToday ? 'inline-block' : 'none';
+  }
+
+  /* ── Render: loading / empty / error ── */
+  function renderTeamLoading() {
+    document.getElementById('teamMainArea').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><p>Loading team timesheet…</p></div>';
+  }
+
+  function renderTeamError(msg) {
+    document.getElementById('teamMainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '<p style="color:#ef4444">' + esc(msg) + '</p></div>';
+  }
+
+  /* ── Render: full page ── */
+  function renderTeamPage(data) {
+    var subtitle = data.range === 'custom'
+      ? fmtShortDate(data.matrixStart) + ' – ' + fmtShortDate(data.matrixEnd)
+      : (new Date(data.selectedDate + 'T00:00:00Z')).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    var html = '<div class="content">';
+    html += '<div class="overview-heading">' +
+      '<h2>' + esc(data.teamLabel || data.team) + ' Team</h2>' +
+      '<p>' + esc(subtitle) + (data.isToday && data.range !== 'custom' ? ' <span class="today-tag">(Today)</span>' : '') + '</p>' +
+      '</div>';
+
+    html += renderTeamStats(data.stats);
+    html += renderTeamTable(data);
+    html += renderTeamLegend();
+    html += '</div>';
+
+    document.getElementById('teamMainArea').innerHTML = html;
+    attachRowMenus();
+  }
+
+  function renderTeamStats(stats) {
+    var pct = stats.targetMs > 0 ? Math.round((stats.actualMs / stats.targetMs) * 100) : 0;
+    return '<div class="stats-grid">' +
+      statCard('blue', iconClipboard(), stats.totalMembers, 'Total Members', 'Members') +
+      statCard('purple', iconClock(), fmtDuration(stats.actualMs), 'Total Actual Time', stats.targetMs > 0 ? ('of ' + fmtDuration(stats.targetMs) + ' · ' + pct + '%') : '') +
+      statCard('green', iconTrend(), fmtDuration(stats.productiveMs), 'Total Productive Time', '', 'green') +
+      statCard('red', iconAlert(), fmtOverrun(stats.overrunMs), 'Total Overrun', '', 'red') +
+      statCard('amber', iconWrench(), fmtDuration(stats.reworkMs), 'Total Rework') +
+      '</div>';
+  }
+
+  /* Mirrors backend/utils/timesheetCalc.js's classifyUtilization() — used
+     here only to color the two progress-bar cells (avg/range totals) that
+     the API returns as raw ms without a precomputed state. */
+  function classifyForBar(actualMs, targetMs) {
+    if (targetMs <= 0) return actualMs > 0 ? 'overrun' : 'leave';
+    if (actualMs === 0) return 'empty';
+    var pct = actualMs / targetMs;
+    if (pct < 0.8) return 'underutilized';
+    if (pct <= 1.0) return 'within';
+    return 'overrun';
+  }
+
+  function utilCell(actualMs, targetMs) {
+    var state = classifyForBar(actualMs, targetMs);
+    var pct = targetMs > 0 ? Math.round((actualMs / targetMs) * 100) : (actualMs > 0 ? 100 : 0);
+    var barPct = Math.min(100, pct);
+    return '<div class="util-cell">' +
+      '<div class="util-figures"><span>' + fmtDuration(actualMs) + (targetMs > 0 ? ' / ' + fmtDuration(targetMs) : '') + '</span>' +
+      '<span class="util-pct">' + (targetMs > 0 ? pct + '%' : '–') + '</span></div>' +
+      '<div class="util-bar-track"><div class="util-bar-fill ' + state + '" style="width:' + barPct + '%"></div></div>' +
+      '</div>';
+  }
+
+  function renderTeamTable(data) {
+    if (!data.members || data.members.length === 0) {
+      return '<div class="tbl-card"><div class="state-box" style="padding:40px 20px">' +
+        '<p>No data for this team in the current range.</p></div></div>';
+    }
+
+    var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
+      '<th>Team Member</th><th>Total (Actual) / Day</th>';
+    data.matrixDays.forEach(function (d) {
+      html += '<th class="day-col-header' + (d.isToday ? ' today' : '') + ' td-num">' + esc(d.label) + (d.isToday ? '<br><span style="font-weight:400">Today</span>' : '') + '</th>';
+    });
+    html += '<th class="td-num">Total (Actual)</th><th></th></tr></thead><tbody>';
+
+    data.members.forEach(function (m, mi) {
+      html += '<tr class="task-row">' +
+        '<td class="td-title">' + esc(m.name) + '</td>' +
+        '<td>' + utilCell(m.avgPerDayActualMs, m.avgPerDayTargetMs) + '</td>';
+      data.matrixDays.forEach(function (d) {
+        var cell = m.perDay[d.date] || { actualMs: 0, targetMs: 0, state: 'empty' };
+        html += '<td class="day-cell ' + cell.state + (d.isToday ? ' today-col' : '') + '">' +
+          (cell.state === 'leave' ? 'Leave' : fmtDuration(cell.actualMs)) + '</td>';
+      });
+      html += '<td>' + utilCell(m.matrixActualMs, m.matrixTargetMs) + '</td>';
+      html += '<td class="row-menu-wrap">' +
+        '<button class="row-menu-btn" onclick="toggleRowMenu(event, ' + mi + ')">⋮</button>' +
+        '<div class="row-menu-popover" id="rowMenu' + mi + '">' +
+        '<button class="row-menu-item" onclick="jumpToIndividual(\'' + esc(m.name).replace(/'/g, "\\'") + '\')">View ' + esc(m.name) + '&rsquo;s Timesheet</button>' +
+        '</div></td>';
+      html += '</tr>';
+    });
+
+    var grandPct = data.grandTotal.targetMs > 0 ? Math.round((data.grandTotal.actualMs / data.grandTotal.targetMs) * 100) : 0;
+    html += '<tr class="total-row"><td colspan="2">Total &nbsp; ' +
+      '<span class="grp-badge">' + data.grandTotal.memberCount + ' member' + (data.grandTotal.memberCount === 1 ? '' : 's') + '</span></td>';
+    data.matrixDays.forEach(function (d) {
+      html += '<td class="td-num">' + fmtDuration(data.grandTotal.perDayMs[d.date]) + '</td>';
+    });
+    html += '<td class="td-num">' + fmtDuration(data.grandTotal.actualMs) + ' / ' + fmtDuration(data.grandTotal.targetMs) +
+      (data.grandTotal.targetMs > 0 ? ' (' + grandPct + '%)' : '') + '</td><td></td></tr>';
+
+    html += '</tbody></table></div></div>';
+    return html;
+  }
+
+  function renderTeamLegend() {
+    return '<div class="legend">' +
+      '<span><span class="legend-swatch legend-within"></span>Within Estimate (≤100%)</span>' +
+      '<span><span class="legend-swatch legend-overrun"></span>Overrun (&gt;100%)</span>' +
+      '<span><span class="legend-swatch legend-underutilized"></span>Underutilized (&lt;80%)</span>' +
+      '<span><span class="legend-swatch legend-empty"></span>No Entry</span>' +
+      '</div>';
+  }
+
+  /* ── Row menu (⋮) ── */
+  window.toggleRowMenu = function (e, idx) {
+    e.stopPropagation();
+    var target = document.getElementById('rowMenu' + idx);
+    var isOpen = target.classList.contains('open');
+    document.querySelectorAll('.row-menu-popover.open').forEach(function (p) { p.classList.remove('open'); });
+    if (!isOpen) target.classList.add('open');
+  };
+
+  function attachRowMenus() {
+    // Popovers are positioned/opened purely via toggleRowMenu's inline
+    // onclick handlers already in the rendered HTML — nothing to wire here
+    // beyond what's already attached; kept as a named hook in case future
+    // row actions need JS-side setup instead of inline handlers.
+  }
+
+  /* Jumps to the individual Timesheet tab with this person pre-selected.
+     Only touches the individual view through its existing public surface
+     (its own `state` object + `loadData()`), never redefining either. */
+  window.jumpToIndividual = function (name) {
+    document.querySelectorAll('.row-menu-popover.open').forEach(function (p) { p.classList.remove('open'); });
+    showView('individual');
+    var sel = document.getElementById('stakeholderSel');
+    var hasOption = Array.from(sel.options).some(function (o) { return o.value === name; });
+    if (hasOption) sel.value = name;
+    state.stakeholder = name;
+    loadData();
+  };
+
+  /* ── Export CSV ── */
+  window.exportTeamCSV = function () {
+    if (!teamLastData || !teamLastData.members.length) return;
+    var header = ['Team Member', 'Avg Actual/Day', 'Avg Target/Day'];
+    teamLastData.matrixDays.forEach(function (d) { header.push(d.label); });
+    header.push('Total Actual (Range)', 'Total Target (Range)');
+
+    var rows = [header];
+    teamLastData.members.forEach(function (m) {
+      var row = [m.name, msToHM(m.avgPerDayActualMs), msToHM(m.avgPerDayTargetMs)];
+      teamLastData.matrixDays.forEach(function (d) {
+        var cell = m.perDay[d.date] || { actualMs: 0 };
+        row.push(cell.state === 'leave' ? 'Leave' : msToHM(cell.actualMs));
+      });
+      row.push(msToHM(m.matrixActualMs), msToHM(m.matrixTargetMs));
+      rows.push(row);
+    });
+
+    var csv = rows.map(function (r) {
+      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'team-timesheet-' + teamState.team + '-' + teamState.date + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
 
 })();
 </script>
