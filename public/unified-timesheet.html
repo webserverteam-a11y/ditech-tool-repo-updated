@@ -234,22 +234,27 @@
       overflow: hidden;
       box-shadow: 0 1px 4px rgba(0,0,0,0.06);
     }
-    .tbl-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    thead tr { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+    /* Both-axis scrolling inside the card so the header row can stay locked */
+    .tbl-wrap { overflow: auto; max-height: calc(100vh - 150px); }
+    table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem; }
     thead th {
+      position: sticky; top: 0; z-index: 5;
+      background: #f8fafc; border-bottom: 2px solid #e2e8f0;
       padding: 8px 10px; text-align: left; font-weight: 700; color: #64748b;
       white-space: nowrap; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.4px;
     }
     thead th.day-col-header.today { background: #eff6ff; border-left: 2px solid #4f6ef7; border-right: 2px solid #4f6ef7; color: #2563eb; }
     thead th.td-num { text-align: right; }
     th.day-col-header, td.day-cell { min-width: 68px; }
-    tbody tr.task-row { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+    tbody tr.task-row { transition: background 0.1s; }
     tbody tr.task-row:hover { background: #f8fafc; }
-    td { padding: 7px 10px; vertical-align: middle; color: #334155; }
+    /* border-collapse is `separate` (sticky header needs it), so row borders live on the cells */
+    td { padding: 7px 10px; vertical-align: middle; color: #334155; border-bottom: 1px solid #f1f5f9; }
     .td-num { text-align: right; font-variant-numeric: tabular-nums; }
     .td-key { font-family: monospace; font-size: 0.74rem; color: #4f6ef7; font-weight: 600; white-space: nowrap; }
     .td-title { font-weight: 600; color: #1e293b; max-width: 220px; }
+    .td-url { color: #4f6ef7; font-weight: 600; text-decoration: none; white-space: nowrap; font-size: 0.76rem; }
+    .td-url:hover { text-decoration: underline; }
 
     tr.grp-row { background: #f8fafc; cursor: pointer; font-weight: 700; }
     tr.grp-row:hover { background: #eef2f7; }
@@ -268,8 +273,8 @@
     td.day-cell.empty   { color: #cbd5e1; }
     td.day-cell.today-col { border-left: 2px solid #bfdbfe; border-right: 2px solid #bfdbfe; }
 
-    tr.total-row { background: #f8fafc; border-top: 2px solid #e2e8f0; font-weight: 700; }
-    tr.total-row td { padding: 10px; }
+    tr.total-row { background: #f8fafc; font-weight: 700; }
+    tr.total-row td { padding: 10px; border-top: 2px solid #e2e8f0; border-bottom: none; }
 
     /* ── Status badge ── */
     .st-badge {
@@ -744,7 +749,7 @@
     }
 
     var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
-      '<th>Issue Key</th><th>Summary</th><th>Status</th><th class="td-num">Actual time taken</th>';
+      '<th>Issue Key</th><th>Summary</th><th>Status</th><th>Doc URL</th><th>Target URL</th>';
     data.matrixDays.forEach(function (d) {
       html += '<th class="day-col-header' + (d.isToday ? ' today' : '') + ' td-num">' + esc(d.label) + (d.isToday ? '<br><span style="font-weight:400">Today</span>' : '') + '</th>';
     });
@@ -753,8 +758,8 @@
     data.groups.forEach(function (g, gi) {
       var gid = 'grp-' + gi;
       var collapsed = !!collapsedGroups[g.client];
-      html += '<tr class="grp-row" data-target="' + gid + '">' +
-        '<td colspan="4"><span class="grp-chevron' + (collapsed ? ' collapsed' : '') + '">▾</span>' + esc(g.client) +
+      html += '<tr class="grp-row" data-target="' + gid + '" data-client="' + esc(g.client) + '">' +
+        '<td colspan="5"><span class="grp-chevron' + (collapsed ? ' collapsed' : '') + '">▾</span>' + esc(g.client) +
         '<span class="grp-badge">' + g.taskCount + ' task' + (g.taskCount === 1 ? '' : 's') + '</span></td>';
       data.matrixDays.forEach(function (d) {
         html += '<td class="td-num">' + fmtDuration(g.rollup.perDayMs[d.date]) + '</td>';
@@ -766,7 +771,8 @@
           '<td class="td-key">' + esc(t.id) + '</td>' +
           '<td class="td-title">' + esc(t.title) + '</td>' +
           '<td>' + statusBadge(t.status) + '</td>' +
-          '<td class="td-num">' + fmtDuration(t.actualMs) + '</td>';
+          '<td>' + urlLink(t.docUrl, 'Doc') + '</td>' +
+          '<td>' + urlLink(t.targetUrl, 'Link') + '</td>';
         data.matrixDays.forEach(function (d) {
           var cell = t.perDay[d.date] || { loggedMs: 0, state: 'empty' };
           html += '<td class="day-cell ' + cell.state + (d.isToday ? ' today-col' : '') + '">' + fmtDuration(cell.loggedMs) + '</td>';
@@ -776,7 +782,7 @@
       });
     });
 
-    html += '<tr class="total-row"><td colspan="4">Total &nbsp; ' +
+    html += '<tr class="total-row"><td colspan="5">Total &nbsp; ' +
       '<span class="grp-badge">' + data.grandTotal.taskCount + ' task' + (data.grandTotal.taskCount === 1 ? '' : 's') + '</span></td>';
     data.matrixDays.forEach(function (d) {
       html += '<td class="td-num">' + fmtDuration(data.grandTotal.perDayMs[d.date]) + '</td>';
@@ -799,7 +805,7 @@
     document.querySelectorAll('tr.grp-row').forEach(function (row) {
       row.addEventListener('click', function () {
         var gid = row.getAttribute('data-target');
-        var client = row.querySelector('td').textContent.trim();
+        var client = row.getAttribute('data-client');
         var collapsed = !collapsedGroups[client];
         collapsedGroups[client] = collapsed;
         row.querySelector('.grp-chevron').classList.toggle('collapsed', collapsed);
@@ -813,14 +819,14 @@
   /* ── Export CSV ── */
   window.exportCSV = function () {
     if (!lastData || !lastData.groups.length) return;
-    var header = ['Client', 'Issue Key', 'Summary', 'Status', 'Actual time taken'];
+    var header = ['Client', 'Issue Key', 'Summary', 'Status', 'Doc URL', 'Target URL'];
     lastData.matrixDays.forEach(function (d) { header.push(d.label); });
     header.push('Logged Total', 'Est Total');
 
     var rows = [header];
     lastData.groups.forEach(function (g) {
       g.tasks.forEach(function (t) {
-        var row = [g.client, t.id, t.title, t.status, msToHM(t.actualMs)];
+        var row = [g.client, t.id, t.title, t.status, t.docUrl || '', t.targetUrl || ''];
         lastData.matrixDays.forEach(function (d) { row.push(msToHM((t.perDay[d.date] || { loggedMs: 0 }).loggedMs)); });
         row.push(msToHM(t.totalLoggedMs), msToHM(t.estMs));
         rows.push(row);
@@ -861,6 +867,12 @@
   function fmtOverrun(ms) {
     if (!ms || ms <= 0) return '0m';
     return '+' + fmtDuration(ms);
+  }
+
+  function urlLink(url, label) {
+    var u = String(url || '').trim();
+    if (!/^https?:\/\//i.test(u)) return '<span style="color:#cbd5e1">—</span>';
+    return '<a href="' + esc(u) + '" target="_blank" rel="noopener" class="td-url">' + esc(label) + ' ↗</a>';
   }
 
   function statusBadge(status) {

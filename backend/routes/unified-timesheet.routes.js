@@ -212,6 +212,8 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
             id: c.task.id,
             title: c.task.title,
             status: c.task.executionState,
+            docUrl: c.task.docUrl || '',
+            targetUrl: c.task.targetUrl || '',
             estMs: c.estMs,
             actualMs: c.actualRangeMs,
             perDay: c.perDay,
