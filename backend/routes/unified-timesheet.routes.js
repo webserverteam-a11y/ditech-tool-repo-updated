@@ -41,6 +41,8 @@ import { rowToTask } from '../utils/taskMapping.js';
 import {
   HOUR_MS,
   TEAM_ROLES,
+  ALL_TEAMS_VALUE,
+  ALL_TEAMS_LABEL,
   filterEventsForOwner,
   filterEventsInWindow,
   loggedMsFromEvents,
@@ -275,8 +277,11 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
  * (today|yesterday|week|month|custom), customFrom/customTo, client[]/status[]
  * (optional task filters, same semantics as the single-stakeholder endpoint).
  */
-const VALID_TEAMS = new Set(TEAM_ROLES.map(t => t.value));
-const TEAM_LABEL = Object.fromEntries(TEAM_ROLES.map(t => [t.value, t.label]));
+const VALID_TEAMS = new Set([...TEAM_ROLES.map(t => t.value), ALL_TEAMS_VALUE]);
+const TEAM_LABEL = Object.assign(
+  Object.fromEntries(TEAM_ROLES.map(t => [t.value, t.label])),
+  { [ALL_TEAMS_VALUE]: ALL_TEAMS_LABEL }
+);
 
 unifiedTimesheetRouter.get('/team', async (req, res) => {
   try {
@@ -302,8 +307,10 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
     const { fromStr: rangeFromStr, toStr: rangeToStr } = rangeWindow(date, range, customFrom, customTo);
     const matrixDaysOut = matrixDays.map(d => ({ date: d, label: dayLabel(d), isToday: d === todayStr, isSelected: d === date }));
 
-    // ── Roster: everyone with this role ──
-    const [rosterRows] = await pool.query('SELECT name FROM users WHERE role = ? ORDER BY name', [team]);
+    // ── Roster: everyone with this role, or every non-admin user for "all" ──
+    const [rosterRows] = team === ALL_TEAMS_VALUE
+      ? await pool.query('SELECT name FROM users WHERE role <> ? ORDER BY name', ['admin'])
+      : await pool.query('SELECT name FROM users WHERE role = ? ORDER BY name', [team]);
     const roster = rosterRows.map(r => r.name).filter(Boolean);
 
     if (roster.length === 0) {

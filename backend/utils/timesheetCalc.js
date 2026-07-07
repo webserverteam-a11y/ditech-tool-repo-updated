@@ -282,6 +282,10 @@ const TEAM_ROLES = [
   { value: 'webdev', label: 'Web Dev' },
 ];
 
+/** Sentinel `team` value meaning "every non-admin user, across all roles combined". */
+const ALL_TEAMS_VALUE = 'all';
+const ALL_TEAMS_LABEL = 'All Teams';
+
 /**
  * Port of the bundle's daily target-hours rule (byte ~617314: `po=8`, then
  * `leaveType==='full'||'holiday' ? 0 : leaveType==='half' ? po/2 : po`).
@@ -315,6 +319,8 @@ export {
   MAX_CUSTOM_RANGE_DAYS,
   DEPT_OWNER_FIELD,
   TEAM_ROLES,
+  ALL_TEAMS_VALUE,
+  ALL_TEAMS_LABEL,
   filterEventsForOwner,
   filterEventsInWindow,
   loggedMsFromEvents,

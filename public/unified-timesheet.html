@@ -1097,8 +1097,10 @@
      existing state/loadData() through their normal public surface.
      ══════════════════════════════════════════════════════════════════ */
 
-  // Mirrors backend/utils/timesheetCalc.js's TEAM_ROLES — keep in sync.
+  // Mirrors backend/utils/timesheetCalc.js's TEAM_ROLES + ALL_TEAMS_VALUE/LABEL — keep in sync.
+  // "All Teams" is listed first, so it's also the default when the tab first opens.
   var TEAM_ROLES = [
+    { value: 'all', label: 'All Teams' },
     { value: 'seo', label: 'SEO' },
     { value: 'content', label: 'Content' },
     { value: 'web', label: 'Web' },
