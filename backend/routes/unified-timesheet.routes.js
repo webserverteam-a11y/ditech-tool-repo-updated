@@ -3,7 +3,9 @@
  *
  * A brand-new, standalone read-only report. Does not modify the existing
  * (bundle-only) Timesheet tab or any of its data — it only reads the
- * existing `tasks` and `task_time_events` tables.
+ * existing `tasks` and `task_time_events` tables, and its math is a
+ * faithful port of the original Timesheet's calculation functions
+ * (see backend/utils/timesheetCalc.js for the mapping).
  *
  * GET /api/unified-timesheet
  *   Query params:
@@ -37,13 +39,16 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { rowToTask } from '../utils/taskMapping.js';
 import {
-  pairEvents,
-  sumOverlapMs,
-  primaryDept,
-  estMsForDept,
+  HOUR_MS,
+  filterEventsForOwner,
+  filterEventsInWindow,
+  loggedMsFromEvents,
+  reworkMsFromEvents,
+  grossMsFromEvents,
+  estHoursForOwner,
   productiveMs,
   overrunMs,
-  rangeBounds,
+  rangeWindow,
   matrixDaysForRange,
 } from '../utils/timesheetCalc.js';
 
@@ -84,10 +89,9 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       }
     }
 
-    const nowMs = Date.now();
-    const todayStr = new Date(nowMs).toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
     const { matrixStart, matrixEnd, days: matrixDays } = matrixDaysForRange(date, range, customFrom, customTo);
-    const { from: rangeFrom, to: rangeTo } = rangeBounds(date, range, customFrom, customTo);
+    const { fromStr: rangeFromStr, toStr: rangeToStr } = rangeWindow(date, range, customFrom, customTo);
 
     // ── Fetch in-scope tasks (owner match + optional client/status filters) ──
     const whereParts = ['(seo_owner = ? OR content_owner = ? OR web_owner = ? OR assigned_to = ?)'];
@@ -111,38 +115,46 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       return res.json(emptyResponse(stakeholder, range, date, matrixStart, matrixEnd, matrixDays));
     }
 
+    // All events for these tasks, in insertion order (ORDER BY id), exactly
+    // like the GET /api/tasks payload the original Timesheet consumes.
+    // Owner/department matching happens per-event in JS (filterEventsForOwner),
+    // NOT in SQL — events recorded with an empty owner but a department must
+    // still match via the task's department-owner field.
     const taskIds = taskRows.map(r => r.id);
     const [eventRows] = await pool.query(
-      `SELECT task_id, event_type, timestamp FROM task_time_events
-       WHERE task_id IN (${taskIds.map(() => '?').join(',')}) AND owner = ?
-       ORDER BY task_id, timestamp`,
-      [...taskIds, stakeholder]
+      `SELECT task_id, event_type, timestamp, department, owner FROM task_time_events
+       WHERE task_id IN (${taskIds.map(() => '?').join(',')})
+       ORDER BY id`,
+      taskIds
     );
 
     const eventsByTask = {};
     for (const row of eventRows) {
-      (eventsByTask[row.task_id] = eventsByTask[row.task_id] || []).push(row);
+      (eventsByTask[row.task_id] = eventsByTask[row.task_id] || []).push({
+        type: row.event_type,
+        timestamp: row.timestamp,
+        department: row.department,
+        owner: row.owner,
+      });
     }
 
-    // ── Per-task computation ──
+    // ── Per-task computation (windows are inclusive date-strings, matching
+    //    the original panel: filter events to the window first, then pair) ──
     const computed = taskRows.map(row => {
       const task = rowToTask(row);
-      const dept = primaryDept(task, stakeholder);
-      const estMs = estMsForDept(task, dept);
-      const { sessions, netIntervals } = pairEvents(eventsByTask[task.id] || []);
+      const estMs = (Number(estHoursForOwner(task, stakeholder)) || 0) * HOUR_MS;
+      const events = eventsByTask[task.id] || [];
 
-      const actualRangeMs = sumOverlapMs(sessions, rangeFrom, rangeTo);
-      const loggedRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo);
-      const reworkRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo, 'rework');
+      const rangeEvents = filterEventsForOwner(task, events, stakeholder, rangeFromStr, rangeToStr);
+      const loggedRangeMs = loggedMsFromEvents(rangeEvents);
+      const actualRangeMs = grossMsFromEvents(rangeEvents);
+      const reworkRangeMs = reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr));
 
       const perDay = {};
       let totalMatrixLoggedMs = 0;
       for (const d of matrixDays) {
-        const [y, m, dd] = d.split('-').map(Number);
-        const dayFrom = Date.UTC(y, m - 1, dd);
-        const dayTo = dayFrom + 86400000;
-        const dayLoggedMs = sumOverlapMs(netIntervals, dayFrom, dayTo);
-        const cumulativeToDateMs = sumOverlapMs(netIntervals, null, dayTo);
+        const dayLoggedMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, d, d));
+        const cumulativeToDateMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, null, d));
         perDay[d] = {
           loggedMs: dayLoggedMs,
           state: dayLoggedMs === 0 ? 'empty' : (estMs <= 0 || cumulativeToDateMs <= estMs ? 'within' : 'overrun'),
@@ -152,7 +164,6 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
 
       return {
         task,
-        dept,
         estMs,
         actualRangeMs,
         loggedRangeMs,

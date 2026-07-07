@@ -1,142 +1,176 @@
 /**
  * timesheetCalc.js — Pure time-math helpers for the Unified Timesheet panel.
  *
- * Reimplements (server-side, from scratch) the same event-pairing semantics
- * the existing (bundle-only) Timesheet tab uses, so Logged/Productive/Overrun
- * figures stay consistent with it. Only consumed by
- * backend/routes/unified-timesheet.routes.js — does not touch any existing
- * route or table.
+ * FAITHFUL PORT of the original (bundle-only) Timesheet tab's calculation
+ * functions, extracted verbatim from dist/assets/index-xUiSJVv5.js:
  *
- * Two related-but-different durations are computed per task:
- *   - "gross" (session) time — wall-clock elapsed from a `start` event to its
- *     matching `end` event, including any `pause` gaps in between. Shown as
- *     "Actual time taken".
- *   - "net" (active) time — sum of `start|resume|rework_start` → next
- *     `pause|end` sub-intervals, i.e. time actually worked. Shown as
- *     "Logged", and used for Productive/Overrun/Rework math, matching the
- *     existing Timesheet's definitions.
+ *   $n (byte ~289084) → loggedMsFromEvents()
+ *   kr (byte ~289305) → filterEventsForOwner() + loggedMsFromEvents()
+ *   Cr (byte ~289705) → productiveMs()
+ *   ca (byte ~289809) → overrunMs()
+ *   W0 (byte ~289991) → reworkMsFromEvents()
+ *   Pn (byte ~288775) → estHoursForOwner()
+ *
+ * The two load-bearing semantics that MUST match the original exactly
+ * (getting either wrong produced wildly inflated numbers):
+ *
+ * 1. Events are filtered to the date window FIRST (by the calendar-date part
+ *    of the ISO timestamp, string-compared inclusively), and only then
+ *    paired. A work interval that starts one day and closes days later
+ *    contributes ZERO to every day in between — on any given day, either the
+ *    opening or the closing event is missing from the window, so there is
+ *    nothing to pair. Intervals are never split/prorated across days.
+ *
+ * 2. Pairing walks events in order keeping a single pending-open timestamp:
+ *    an opening event (start/resume/rework_start) OVERWRITES the pending
+ *    open; a closing event (pause/end) adds (t - pending) and clears it.
+ *    A dangling open (no close in window) contributes zero.
+ *
+ * Only consumed by backend/routes/unified-timesheet.routes.js — does not
+ * touch any existing route or table.
  */
 
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 
-function parseTs(ts) {
-  const n = Date.parse(ts);
-  return Number.isNaN(n) ? null : n;
+/** Event department → task owner-field, mirroring kr()'s DEPT_OWNER map. */
+const DEPT_OWNER_FIELD = {
+  SEO: 'seoOwner',
+  Content: 'contentOwner',
+  Web: 'webOwner',
+  Ads: 'adsOwner',
+  Design: 'designOwner',
+  Social: 'socialOwner',
+  Webdev: 'webdevOwner',
+};
+
+/** Calendar-date part of an ISO timestamp, as the bundle does: split('T')[0]. */
+function eventDay(timestamp) {
+  return String(timestamp || '').split('T')[0];
 }
 
 /**
- * Pairs a task's time events (already filtered to one owner, any order) into
- * gross sessions and net active intervals.
- *
- * A trailing `start`/`resume`/`rework_start` with no matching `pause`/`end`
- * is intentionally DROPPED rather than extrapolated forward to "now". Tasks
- * are sometimes moved out of an active state (e.g. to "Ended") through a
- * path that never emits a matching closing time event, leaving a dangling
- * open interval that can be arbitrarily old; counting it as "still running"
- * inflated logged time by however long the task had been dormant (matches
- * the original Timesheet's formula, which only ever sums a
- * `(pause|end) - (start|resume|rework_start)` pair — an unclosed start has
- * nothing to subtract from, so it contributes zero).
- *
- * @param {{event_type:string, timestamp:string}[]} events
- * @returns {{ sessions: {startMs:number, endMs:number}[],
- *             netIntervals: {startMs:number, endMs:number, kind:'work'|'rework'}[] }}
+ * Port of kr()'s filter step: keep events whose calendar date falls inside
+ * [fromStr, toStr] (inclusive, string compare; either bound may be null for
+ * unbounded) AND that belong to this stakeholder — matched by the event's
+ * own `owner`, or, when owner is empty, by mapping the event's `department`
+ * to the task's corresponding owner field.
  */
-function pairEvents(events) {
-  const sorted = events
-    .map(e => ({ type: e.event_type, ts: parseTs(e.timestamp) }))
-    .filter(e => e.ts !== null)
-    .sort((a, b) => a.ts - b.ts);
-
-  const sessions = [];
-  const netIntervals = [];
-  let sessionStart = null;
-  let netStart = null;
-  let netKind = null;
-
-  for (const ev of sorted) {
-    const t = ev.ts;
-    if (ev.type === 'start' || ev.type === 'resume' || ev.type === 'rework_start') {
-      if (sessionStart === null) sessionStart = t;
-      if (netStart === null) {
-        netStart = t;
-        netKind = ev.type === 'rework_start' ? 'rework' : 'work';
-      }
-    } else if (ev.type === 'pause') {
-      if (netStart !== null) {
-        netIntervals.push({ startMs: netStart, endMs: t, kind: netKind });
-        netStart = null;
-        netKind = null;
-      }
-      // Gross session stays open across a pause — it only ends on `end`.
-    } else if (ev.type === 'end') {
-      if (netStart !== null) {
-        netIntervals.push({ startMs: netStart, endMs: t, kind: netKind });
-        netStart = null;
-        netKind = null;
-      }
-      if (sessionStart !== null) {
-        sessions.push({ startMs: sessionStart, endMs: t });
-        sessionStart = null;
-      }
+function filterEventsForOwner(task, events, stakeholder, fromStr, toStr) {
+  return (events || []).filter(e => {
+    const day = eventDay(e.timestamp);
+    if (!day) return false;
+    if (fromStr && day < fromStr) return false;
+    if (toStr && day > toStr) return false;
+    if (e.owner) return e.owner === stakeholder;
+    if (e.department) {
+      const field = DEPT_OWNER_FIELD[e.department];
+      return field ? task[field] === stakeholder : false;
     }
-  }
+    return false;
+  });
+}
 
-  // Any still-open session/interval (no closing event observed) is dropped —
-  // see function doc comment above.
-  return { sessions, netIntervals };
+/** Date-window-only filter (no owner check) — W0 filters rework events this way. */
+function filterEventsInWindow(events, fromStr, toStr) {
+  return (events || []).filter(e => {
+    const day = eventDay(e.timestamp);
+    if (!day) return false;
+    if (fromStr && day < fromStr) return false;
+    if (toStr && day > toStr) return false;
+    return true;
+  });
 }
 
 /**
- * Sums the overlap of a set of {startMs, endMs} intervals with a
- * [fromMs, toMs] window. `fromMs`/`toMs` may each be null for "unbounded".
+ * Port of $n(): net logged ms from an (already filtered) event list.
+ * Opening events overwrite the pending start; pause/end closes it.
  */
-function sumOverlapMs(intervals, fromMs, toMs, kindFilter) {
+function loggedMsFromEvents(events) {
   let total = 0;
-  for (const iv of intervals) {
-    if (kindFilter && iv.kind !== kindFilter) continue;
-    const effFrom = fromMs === null || fromMs === undefined ? iv.startMs : Math.max(iv.startMs, fromMs);
-    const effTo = toMs === null || toMs === undefined ? iv.endMs : Math.min(iv.endMs, toMs);
-    if (effTo > effFrom) total += effTo - effFrom;
+  let open = null;
+  for (const e of events || []) {
+    const t = Date.parse(e.timestamp);
+    if (Number.isNaN(t)) continue;
+    if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') {
+      open = t;
+    } else if ((e.type === 'pause' || e.type === 'end') && open) {
+      total += t - open;
+      open = null;
+    }
   }
   return total;
 }
 
-/** Resolves which department's estimate applies to this owner on this task. */
-function primaryDept(task, stakeholder) {
-  if (task.seoOwner === stakeholder) return 'seo';
-  if (task.contentOwner === stakeholder) return 'content';
-  if (task.webOwner === stakeholder) return 'web';
-  return 'generic';
+/**
+ * Port of W0()'s inner loop: rework ms from an (already window-filtered)
+ * event list — pairs rework_start → next pause/end. Returns 0 if the window
+ * contains no rework_start at all (W0's early exit).
+ */
+function reworkMsFromEvents(events) {
+  const list = events || [];
+  if (!list.some(e => e.type === 'rework_start')) return 0;
+  let total = 0;
+  let inRework = false;
+  let open = null;
+  for (const e of list) {
+    const t = Date.parse(e.timestamp);
+    if (Number.isNaN(t)) continue;
+    if (e.type === 'rework_start') {
+      inRework = true;
+      open = t;
+    } else if (inRework && (e.type === 'pause' || e.type === 'end') && open) {
+      total += t - open;
+      inRework = false;
+      open = null;
+    }
+  }
+  return total;
 }
 
-function estMsForDept(task, dept) {
-  const hours =
-    dept === 'seo' ? task.estHoursSEO :
-    dept === 'content' ? task.estHoursContent :
-    dept === 'web' ? task.estHoursWeb :
-    task.estHours;
-  return (Number(hours) || 0) * HOUR_MS;
+/**
+ * Gross session ms ("Actual time taken") from an (already filtered) event
+ * list: first opening event → matching `end`, pauses do not close a session.
+ * No bundle equivalent (the original panel has no such column); dangling
+ * sessions contribute zero, consistent with the logged-time rules above.
+ */
+function grossMsFromEvents(events) {
+  let total = 0;
+  let open = null;
+  for (const e of events || []) {
+    const t = Date.parse(e.timestamp);
+    if (Number.isNaN(t)) continue;
+    if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') {
+      if (open === null) open = t;
+    } else if (e.type === 'end' && open !== null) {
+      total += t - open;
+      open = null;
+    }
+  }
+  return total;
 }
 
-/** No estimate set (estMs <= 0) means there's no budget to cap against — all logged time counts as productive. */
+/**
+ * Port of Pn(): estimate HOURS for this stakeholder on this task.
+ * Note the SEO branch's `|| estHours` fallback — verbatim from the bundle.
+ */
+function estHoursForOwner(task, stakeholder) {
+  return task.seoOwner === stakeholder ? (task.estHoursSEO || task.estHours || 0)
+    : task.contentOwner === stakeholder ? (task.estHoursContent || 0)
+    : task.webOwner === stakeholder ? (task.estHoursWeb || 0)
+    : (task.assignedTo === stakeholder && task.estHours) || 0;
+}
+
+/** Port of Cr()'s cap rule: no estimate (<=0) means all logged time is productive. */
 function productiveMs(loggedMs, estMs) {
   if (estMs <= 0) return loggedMs;
   return Math.min(loggedMs, estMs);
 }
 
-/** No estimate set (estMs <= 0) means there's nothing to overrun. */
+/** Port of ca()'s rule: no estimate (<=0) means nothing can overrun. */
 function overrunMs(loggedMs, estMs) {
   if (estMs <= 0) return 0;
   return Math.max(0, loggedMs - estMs);
-}
-
-/** UTC calendar-day bounds in ms for a 'YYYY-MM-DD' string. */
-function dayBoundsMs(dateStr) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const from = Date.UTC(y, m - 1, d);
-  return { from, to: from + DAY_MS };
 }
 
 /** Monday–Sunday week (as 7 'YYYY-MM-DD' strings) containing dateStr. */
@@ -186,35 +220,30 @@ function customDays(fromStr, toStr) {
   return { rangeStart: days[0], rangeEnd: days[days.length - 1], days };
 }
 
-/** Aggregation window (ms) for a range pill, anchored at dateStr. */
-function rangeBounds(dateStr, range, customFrom, customTo) {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dayFrom = Date.UTC(y, m - 1, d);
-
+/**
+ * Stat-card aggregation window as inclusive 'YYYY-MM-DD' date strings,
+ * matching the original panel's date-string windows. 'yesterday' equals
+ * 'today' here because the page already anchors `date` to the previous day
+ * before calling the API.
+ */
+function rangeWindow(dateStr, range, customFrom, customTo) {
   switch (range) {
-    case 'today':
-      return { from: dayFrom, to: dayFrom + DAY_MS };
-    case 'yesterday':
-      return { from: dayFrom - DAY_MS, to: dayFrom };
     case 'week': {
-      const { weekStart } = weekBounds(dateStr);
-      const [wy, wm, wd] = weekStart.split('-').map(Number);
-      const from = Date.UTC(wy, wm - 1, wd);
-      return { from, to: from + 7 * DAY_MS };
+      const { weekStart, weekEnd } = weekBounds(dateStr);
+      return { fromStr: weekStart, toStr: weekEnd };
     }
     case 'month': {
-      const from = Date.UTC(y, m - 1, 1);
-      const to = Date.UTC(y, m, 1);
-      return { from, to };
+      const { monthStart, monthEnd } = monthDays(dateStr);
+      return { fromStr: monthStart, toStr: monthEnd };
     }
     case 'custom': {
       const { rangeStart, rangeEnd } = customDays(customFrom, customTo);
-      const [sy, sm, sd] = rangeStart.split('-').map(Number);
-      const [ey, em, ed] = rangeEnd.split('-').map(Number);
-      return { from: Date.UTC(sy, sm - 1, sd), to: Date.UTC(ey, em - 1, ed) + DAY_MS };
+      return { fromStr: rangeStart, toStr: rangeEnd };
     }
+    case 'today':
+    case 'yesterday':
     default:
-      return { from: dayFrom, to: dayFrom + DAY_MS };
+      return { fromStr: dateStr, toStr: dateStr };
   }
 }
 
@@ -241,17 +270,18 @@ export {
   HOUR_MS,
   DAY_MS,
   MAX_CUSTOM_RANGE_DAYS,
-  parseTs,
-  pairEvents,
-  sumOverlapMs,
-  primaryDept,
-  estMsForDept,
+  DEPT_OWNER_FIELD,
+  filterEventsForOwner,
+  filterEventsInWindow,
+  loggedMsFromEvents,
+  reworkMsFromEvents,
+  grossMsFromEvents,
+  estHoursForOwner,
   productiveMs,
   overrunMs,
-  dayBoundsMs,
   weekBounds,
   monthDays,
   customDays,
-  rangeBounds,
+  rangeWindow,
   matrixDaysForRange,
 };
