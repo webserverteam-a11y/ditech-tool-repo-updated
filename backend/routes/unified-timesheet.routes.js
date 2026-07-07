@@ -9,19 +9,23 @@
  *   Query params:
  *     stakeholder (required) — owner name, matched against seo_owner /
  *                               content_owner / web_owner / assigned_to
- *     date        (required) — 'YYYY-MM-DD', the navigated day
- *     range       (optional, default 'today') — today|yesterday|week|month|entire
+ *     date        (required) — 'YYYY-MM-DD', the navigated day (anchors
+ *                               today/yesterday/week/month)
+ *     range       (optional, default 'today') — today|yesterday|week|month|custom
  *                               Controls the aggregation window for the 6
- *                               stat cards only. The table's day-by-day
- *                               matrix always shows the Monday–Sunday week
- *                               containing `date`, regardless of `range`.
+ *                               stat cards. It also controls how many day
+ *                               columns the table shows:
+ *                                 - 'month'  → every day in that calendar month
+ *                                 - 'custom' → every day between customFrom/customTo
+ *                                 - anything else → the Monday-Sunday week containing `date`
+ *     customFrom, customTo (required when range=custom) — 'YYYY-MM-DD' each
  *     client      (optional, repeatable) — filter to specific client/project names
  *     status      (optional, repeatable) — filter to specific execution_state values
  *
  *   Response shape:
  *     {
- *       stakeholder, range, selectedDate, weekStart, weekEnd,
- *       weekDays: [{date,label,isToday,isSelected}, ...7],
+ *       stakeholder, range, selectedDate, matrixStart, matrixEnd,
+ *       matrixDays: [{date,label,isToday,isSelected}, ...],
  *       stats: { totalTasks, actualMs, loggedMs, productiveMs, overrunMs, reworkTaskCount },
  *       groups: [{ client, taskCount, rollup:{actualMs,loggedMs,perDayMs}, tasks:[...] }],
  *       grandTotal: { taskCount, actualMs, loggedMs, estMs, perDayMs }
@@ -39,14 +43,14 @@ import {
   estMsForDept,
   productiveMs,
   overrunMs,
-  weekBounds,
   rangeBounds,
+  matrixDaysForRange,
 } from '../utils/timesheetCalc.js';
 
 export const unifiedTimesheetRouter = Router();
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_RANGES = new Set(['today', 'yesterday', 'week', 'month', 'entire']);
+const VALID_RANGES = new Set(['today', 'yesterday', 'week', 'month', 'custom']);
 
 function toArray(v) {
   if (v === undefined) return [];
@@ -66,17 +70,24 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
     const stakeholder = (req.query.stakeholder || '').trim();
     const date = (req.query.date || '').trim();
     const range = (req.query.range || 'today').trim();
+    const customFrom = (req.query.customFrom || '').trim();
+    const customTo = (req.query.customTo || '').trim();
     const clientFilter = toArray(req.query.client).filter(Boolean);
     const statusFilter = toArray(req.query.status).filter(Boolean);
 
     if (!stakeholder) return res.status(400).json({ error: 'stakeholder param required' });
     if (!DATE_RE.test(date)) return res.status(400).json({ error: 'date param required as YYYY-MM-DD' });
     if (!VALID_RANGES.has(range)) return res.status(400).json({ error: `range must be one of ${[...VALID_RANGES].join('|')}` });
+    if (range === 'custom') {
+      if (!DATE_RE.test(customFrom) || !DATE_RE.test(customTo)) {
+        return res.status(400).json({ error: 'customFrom and customTo are required as YYYY-MM-DD when range=custom' });
+      }
+    }
 
     const nowMs = Date.now();
     const todayStr = new Date(nowMs).toISOString().slice(0, 10);
-    const { weekStart, weekEnd, days: weekDays } = weekBounds(date);
-    const { from: rangeFrom, to: rangeTo } = rangeBounds(date, range);
+    const { matrixStart, matrixEnd, days: matrixDays } = matrixDaysForRange(date, range, customFrom, customTo);
+    const { from: rangeFrom, to: rangeTo } = rangeBounds(date, range, customFrom, customTo);
 
     // ── Fetch in-scope tasks (owner match + optional client/status filters) ──
     const whereParts = ['(seo_owner = ? OR content_owner = ? OR web_owner = ? OR assigned_to = ?)'];
@@ -97,7 +108,7 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
     );
 
     if (taskRows.length === 0) {
-      return res.json(emptyResponse(stakeholder, range, date, weekStart, weekEnd, weekDays));
+      return res.json(emptyResponse(stakeholder, range, date, matrixStart, matrixEnd, matrixDays));
     }
 
     const taskIds = taskRows.map(r => r.id);
@@ -125,8 +136,8 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       const reworkRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo, nowMs, 'rework');
 
       const perDay = {};
-      let totalWeekLoggedMs = 0;
-      for (const d of weekDays) {
+      let totalMatrixLoggedMs = 0;
+      for (const d of matrixDays) {
         const [y, m, dd] = d.split('-').map(Number);
         const dayFrom = Date.UTC(y, m - 1, dd);
         const dayTo = dayFrom + 86400000;
@@ -136,7 +147,7 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
           loggedMs: dayLoggedMs,
           state: dayLoggedMs === 0 ? 'empty' : (cumulativeToDateMs <= estMs ? 'within' : 'overrun'),
         };
-        totalWeekLoggedMs += dayLoggedMs;
+        totalMatrixLoggedMs += dayLoggedMs;
       }
 
       return {
@@ -147,7 +158,7 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
         loggedRangeMs,
         reworkRangeMs,
         perDay,
-        totalWeekLoggedMs,
+        totalMatrixLoggedMs,
       };
     });
 
@@ -162,11 +173,11 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       reworkTaskCount: computed.filter(c => c.reworkRangeMs > 0).length,
     };
 
-    // ── Table: only tasks with activity somewhere in the displayed week ──
-    const weekTasks = computed.filter(c => c.totalWeekLoggedMs > 0);
+    // ── Table: only tasks with activity somewhere in the displayed matrix ──
+    const matrixTasks = computed.filter(c => c.totalMatrixLoggedMs > 0);
 
     const groupMap = new Map();
-    for (const c of weekTasks) {
+    for (const c of matrixTasks) {
       const clientName = c.task.client || 'Unassigned';
       if (!groupMap.has(clientName)) groupMap.set(clientName, []);
       groupMap.get(clientName).push(c);
@@ -176,14 +187,14 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       .sort((a, b) => (a[0] === 'Unassigned' ? 1 : b[0] === 'Unassigned' ? -1 : a[0].localeCompare(b[0])))
       .map(([clientName, members]) => {
         const perDayMs = {};
-        for (const d of weekDays) perDayMs[d] = members.reduce((s, c) => s + c.perDay[d].loggedMs, 0);
+        for (const d of matrixDays) perDayMs[d] = members.reduce((s, c) => s + c.perDay[d].loggedMs, 0);
 
         return {
           client: clientName,
           taskCount: members.length,
           rollup: {
             actualMs: sumField(members, 'actualRangeMs'),
-            loggedMs: sumField(members, 'totalWeekLoggedMs'),
+            loggedMs: sumField(members, 'totalMatrixLoggedMs'),
             perDayMs,
           },
           tasks: members.map(c => ({
@@ -193,19 +204,19 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
             estMs: c.estMs,
             actualMs: c.actualRangeMs,
             perDay: c.perDay,
-            totalLoggedMs: c.totalWeekLoggedMs,
+            totalLoggedMs: c.totalMatrixLoggedMs,
           })),
         };
       });
 
     const grandPerDayMs = {};
-    for (const d of weekDays) grandPerDayMs[d] = weekTasks.reduce((s, c) => s + c.perDay[d].loggedMs, 0);
+    for (const d of matrixDays) grandPerDayMs[d] = matrixTasks.reduce((s, c) => s + c.perDay[d].loggedMs, 0);
 
     const grandTotal = {
-      taskCount: weekTasks.length,
-      actualMs: sumField(weekTasks, 'actualRangeMs'),
-      loggedMs: sumField(weekTasks, 'totalWeekLoggedMs'),
-      estMs: sumField(weekTasks, 'estMs'),
+      taskCount: matrixTasks.length,
+      actualMs: sumField(matrixTasks, 'actualRangeMs'),
+      loggedMs: sumField(matrixTasks, 'totalMatrixLoggedMs'),
+      estMs: sumField(matrixTasks, 'estMs'),
       perDayMs: grandPerDayMs,
     };
 
@@ -214,9 +225,9 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       range,
       selectedDate: date,
       isToday: date === todayStr,
-      weekStart,
-      weekEnd,
-      weekDays: weekDays.map(d => ({
+      matrixStart,
+      matrixEnd,
+      matrixDays: matrixDays.map(d => ({
         date: d,
         label: dayLabel(d),
         isToday: d === todayStr,
@@ -236,18 +247,18 @@ function sumField(list, field) {
   return list.reduce((s, c) => s + c[field], 0);
 }
 
-function emptyResponse(stakeholder, range, date, weekStart, weekEnd, weekDays) {
+function emptyResponse(stakeholder, range, date, matrixStart, matrixEnd, matrixDays) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const perDayMs = {};
-  for (const d of weekDays) perDayMs[d] = 0;
+  for (const d of matrixDays) perDayMs[d] = 0;
   return {
     stakeholder,
     range,
     selectedDate: date,
     isToday: date === todayStr,
-    weekStart,
-    weekEnd,
-    weekDays: weekDays.map(d => ({
+    matrixStart,
+    matrixEnd,
+    matrixDays: matrixDays.map(d => ({
       date: d,
       label: dayLabel(d),
       isToday: d === todayStr,

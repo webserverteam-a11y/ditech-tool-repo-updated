@@ -146,8 +146,39 @@ function weekBounds(dateStr) {
   return { weekStart: days[0], weekEnd: days[6], days };
 }
 
-/** Aggregation window (ms) for a range pill, anchored at dateStr. `to: null` means unbounded ("now"). */
-function rangeBounds(dateStr, range) {
+/** All days (as 'YYYY-MM-DD' strings) in the calendar month containing dateStr. */
+function monthDays(dateStr) {
+  const [y, m] = dateStr.split('-').map(Number);
+  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const days = [];
+  for (let day = 1; day <= daysInMonth; day++) {
+    days.push(new Date(Date.UTC(y, m - 1, day)).toISOString().slice(0, 10));
+  }
+  return { monthStart: days[0], monthEnd: days[days.length - 1], days };
+}
+
+const MAX_CUSTOM_RANGE_DAYS = 186; // ~6 months, keeps the table from growing unbounded
+
+/** Inclusive list of 'YYYY-MM-DD' strings between fromStr and toStr (capped). */
+function customDays(fromStr, toStr) {
+  const [fy, fm, fd] = fromStr.split('-').map(Number);
+  const [ty, tm, td] = toStr.split('-').map(Number);
+  let fromMs = Date.UTC(fy, fm - 1, fd);
+  let toMs = Date.UTC(ty, tm - 1, td);
+  if (fromMs > toMs) [fromMs, toMs] = [toMs, fromMs];
+
+  const maxToMs = fromMs + (MAX_CUSTOM_RANGE_DAYS - 1) * DAY_MS;
+  if (toMs > maxToMs) toMs = maxToMs;
+
+  const days = [];
+  for (let t = fromMs; t <= toMs; t += DAY_MS) {
+    days.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return { rangeStart: days[0], rangeEnd: days[days.length - 1], days };
+}
+
+/** Aggregation window (ms) for a range pill, anchored at dateStr. */
+function rangeBounds(dateStr, range, customFrom, customTo) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dayFrom = Date.UTC(y, m - 1, d);
 
@@ -167,15 +198,40 @@ function rangeBounds(dateStr, range) {
       const to = Date.UTC(y, m, 1);
       return { from, to };
     }
-    case 'entire':
+    case 'custom': {
+      const { rangeStart, rangeEnd } = customDays(customFrom, customTo);
+      const [sy, sm, sd] = rangeStart.split('-').map(Number);
+      const [ey, em, ed] = rangeEnd.split('-').map(Number);
+      return { from: Date.UTC(sy, sm - 1, sd), to: Date.UTC(ey, em - 1, ed) + DAY_MS };
+    }
     default:
-      return { from: null, to: null };
+      return { from: dayFrom, to: dayFrom + DAY_MS };
   }
+}
+
+/**
+ * Which days the table's day-by-day matrix should show, per range:
+ *  - 'month'  → every day in that calendar month (scrollable)
+ *  - 'custom' → every day in the user-picked from/to range (scrollable, capped)
+ *  - anything else (today/yesterday/week) → the Monday-Sunday week containing dateStr
+ */
+function matrixDaysForRange(dateStr, range, customFrom, customTo) {
+  if (range === 'month') {
+    const { monthStart, monthEnd, days } = monthDays(dateStr);
+    return { matrixStart: monthStart, matrixEnd: monthEnd, days };
+  }
+  if (range === 'custom' && customFrom && customTo) {
+    const { rangeStart, rangeEnd, days } = customDays(customFrom, customTo);
+    return { matrixStart: rangeStart, matrixEnd: rangeEnd, days };
+  }
+  const { weekStart, weekEnd, days } = weekBounds(dateStr);
+  return { matrixStart: weekStart, matrixEnd: weekEnd, days };
 }
 
 export {
   HOUR_MS,
   DAY_MS,
+  MAX_CUSTOM_RANGE_DAYS,
   parseTs,
   pairEvents,
   sumOverlapMs,
@@ -185,5 +241,8 @@ export {
   overrunMs,
   dayBoundsMs,
   weekBounds,
+  monthDays,
+  customDays,
   rangeBounds,
+  matrixDaysForRange,
 };

@@ -243,6 +243,7 @@
     }
     thead th.day-col-header.today { background: #eff6ff; border-left: 2px solid #4f6ef7; border-right: 2px solid #4f6ef7; color: #2563eb; }
     thead th.td-num { text-align: right; }
+    th.day-col-header, td.day-cell { min-width: 68px; }
     tbody tr.task-row { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
     tbody tr.task-row:hover { background: #f8fafc; }
     td { padding: 7px 10px; vertical-align: middle; color: #334155; }
@@ -364,7 +365,6 @@
       <button class="range-pill" data-range="yesterday">Yesterday</button>
       <button class="range-pill" data-range="week">Week</button>
       <button class="range-pill" data-range="month">Month</button>
-      <button class="range-pill" data-range="entire">Entire</button>
     </div>
   </div>
 
@@ -393,6 +393,13 @@
       <span class="filter-count-badge" id="filterCountBadge" style="display:none">0</span>
     </button>
     <div class="filters-popover" id="filtersPopover">
+      <div class="filter-section" style="max-height:none">
+        <div class="filter-section-title">Custom Date Range</div>
+        <div style="display:flex;gap:8px;">
+          <input type="date" class="ctrl-input" id="customFromInput" style="min-width:0;flex:1;padding:6px 8px;font-size:0.82rem" />
+          <input type="date" class="ctrl-input" id="customToInput" style="min-width:0;flex:1;padding:6px 8px;font-size:0.82rem" />
+        </div>
+      </div>
       <div class="filter-section">
         <div class="filter-section-title">Client / Project</div>
         <div id="clientCheckList"></div>
@@ -432,6 +439,8 @@
     range: 'today',
     clients: [],
     statuses: [],
+    customFrom: '',
+    customTo: '',
   };
 
   var allClients = [];
@@ -469,7 +478,7 @@
       var users = results[0] || [];
       var adminOptions = results[1] || {};
       var names = new Set();
-      users.forEach(function (u) { if (u.name) names.add(u.name); });
+      users.forEach(function (u) { if (u.name && u.role !== 'admin') names.add(u.name); });
       ['seoOwners', 'contentOwners', 'webOwners', 'adsOwners', 'designOwners', 'socialOwners', 'webdevOwners'].forEach(function (key) {
         (adminOptions[key] || []).forEach(function (n) { if (n) names.add(n); });
       });
@@ -534,9 +543,14 @@
   window.onRangeChange = onRangeChange;
   function onRangeChange(range) {
     state.range = range;
+    state.customFrom = '';
+    state.customTo = '';
+    document.getElementById('customFromInput').value = '';
+    document.getElementById('customToInput').value = '';
     if (range === 'today') state.date = todayStr();
     if (range === 'yesterday') state.date = shiftDateStr(todayStr(), -1, 'day');
     highlightRangePill();
+    updateDateNavEnabled();
     if (state.stakeholder) loadData();
   }
 
@@ -546,7 +560,13 @@
     });
   }
 
+  function updateDateNavEnabled() {
+    var isCustom = state.range === 'custom';
+    document.querySelectorAll('.date-nav-btn').forEach(function (btn) { btn.disabled = isCustom; btn.style.opacity = isCustom ? '0.4' : '1'; btn.style.cursor = isCustom ? 'not-allowed' : 'pointer'; });
+  }
+
   window.stepDate = function (dir) {
+    if (state.range === 'custom') return;
     var unit = state.range === 'week' ? 'week' : state.range === 'month' ? 'month' : 'day';
     state.date = shiftDateStr(state.date, dir, unit);
     if (state.stakeholder) loadData();
@@ -568,6 +588,26 @@
   window.applyFilters = function () {
     state.clients = Array.from(document.querySelectorAll('input[data-kind="client"]:checked')).map(function (el) { return el.value; });
     state.statuses = Array.from(document.querySelectorAll('input[data-kind="status"]:checked')).map(function (el) { return el.value; });
+
+    var fromVal = document.getElementById('customFromInput').value;
+    var toVal = document.getElementById('customToInput').value;
+    if (fromVal && toVal) {
+      state.range = 'custom';
+      state.customFrom = fromVal;
+      state.customTo = toVal;
+      state.date = toVal;
+      highlightRangePill();
+      updateDateNavEnabled();
+    } else if (state.range === 'custom') {
+      // Custom fields were cleared — fall back to Today.
+      state.range = 'today';
+      state.customFrom = '';
+      state.customTo = '';
+      state.date = todayStr();
+      highlightRangePill();
+      updateDateNavEnabled();
+    }
+
     updateFilterBadge();
     document.getElementById('filtersPopover').classList.remove('open');
     if (state.stakeholder) loadData();
@@ -575,14 +615,24 @@
 
   window.clearFilters = function () {
     document.querySelectorAll('.filters-popover input[type="checkbox"]').forEach(function (el) { el.checked = false; });
+    document.getElementById('customFromInput').value = '';
+    document.getElementById('customToInput').value = '';
     state.clients = [];
     state.statuses = [];
+    if (state.range === 'custom') {
+      state.range = 'today';
+      state.customFrom = '';
+      state.customTo = '';
+      state.date = todayStr();
+      highlightRangePill();
+      updateDateNavEnabled();
+    }
     updateFilterBadge();
     if (state.stakeholder) loadData();
   };
 
   function updateFilterBadge() {
-    var count = state.clients.length + state.statuses.length;
+    var count = state.clients.length + state.statuses.length + (state.range === 'custom' ? 1 : 0);
     var badge = document.getElementById('filterCountBadge');
     badge.style.display = count > 0 ? 'inline-flex' : 'none';
     badge.textContent = count;
@@ -595,7 +645,8 @@
       '&date=' + encodeURIComponent(state.date) +
       '&range=' + encodeURIComponent(state.range) +
       state.clients.map(function (c) { return '&client=' + encodeURIComponent(c); }).join('') +
-      state.statuses.map(function (s) { return '&status=' + encodeURIComponent(s); }).join('');
+      state.statuses.map(function (s) { return '&status=' + encodeURIComponent(s); }).join('') +
+      (state.range === 'custom' ? '&customFrom=' + encodeURIComponent(state.customFrom) + '&customTo=' + encodeURIComponent(state.customTo) : '');
 
     fetch(url)
       .then(function (r) {
@@ -615,10 +666,20 @@
   }
 
   function updateDateDisplay(data) {
+    if (state.range === 'custom') {
+      document.getElementById('dateDisplayText').textContent = fmtShortDate(data.matrixStart) + ' – ' + fmtShortDate(data.matrixEnd);
+      document.getElementById('todayBadge').style.display = 'none';
+      return;
+    }
     var d = new Date(data.selectedDate + 'T00:00:00Z');
     var label = d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     document.getElementById('dateDisplayText').textContent = label;
     document.getElementById('todayBadge').style.display = data.isToday ? 'inline-block' : 'none';
+  }
+
+  function fmtShortDate(dateStr) {
+    var d = new Date(dateStr + 'T00:00:00Z');
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   }
 
   /* ── Render: loading / empty / error ── */
@@ -641,13 +702,15 @@
 
   /* ── Render: full page (overview + stats + table) ── */
   function renderPage(data) {
-    var dateLabel = data.isToday ? 'Today' : (new Date(data.selectedDate + 'T00:00:00Z')).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    var subtitle = data.range === 'custom'
+      ? fmtShortDate(data.matrixStart) + ' – ' + fmtShortDate(data.matrixEnd)
+      : (new Date(data.selectedDate + 'T00:00:00Z')).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
     var html = '<div class="content">';
     html += '<div class="overview-heading">' +
       '<h2>Overview for ' + esc(data.stakeholder) + '</h2>' +
-      '<p>' + esc((new Date(data.selectedDate + 'T00:00:00Z')).toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })) +
-      (data.isToday ? ' <span class="today-tag">(Today)</span>' : '') + '</p>' +
+      '<p>' + esc(subtitle) +
+      (data.isToday && data.range !== 'custom' ? ' <span class="today-tag">(Today)</span>' : '') + '</p>' +
       '</div>';
 
     html += renderStats(data.stats);
@@ -687,7 +750,7 @@
 
     var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
       '<th>Issue Key</th><th>Summary</th><th>Status</th><th class="td-num">Actual time taken</th>';
-    data.weekDays.forEach(function (d) {
+    data.matrixDays.forEach(function (d) {
       html += '<th class="day-col-header' + (d.isToday ? ' today' : '') + ' td-num">' + esc(d.label) + (d.isToday ? '<br><span style="font-weight:400">Today</span>' : '') + '</th>';
     });
     html += '<th class="td-num">Total</th></tr></thead><tbody>';
@@ -698,7 +761,7 @@
       html += '<tr class="grp-row" data-target="' + gid + '">' +
         '<td colspan="4"><span class="grp-chevron' + (collapsed ? ' collapsed' : '') + '">▾</span>' + esc(g.client) +
         '<span class="grp-badge">' + g.taskCount + ' task' + (g.taskCount === 1 ? '' : 's') + '</span></td>';
-      data.weekDays.forEach(function (d) {
+      data.matrixDays.forEach(function (d) {
         html += '<td class="td-num">' + fmtDuration(g.rollup.perDayMs[d.date]) + '</td>';
       });
       html += '<td class="td-num">' + fmtDuration(g.rollup.loggedMs) + '</td></tr>';
@@ -709,7 +772,7 @@
           '<td class="td-title">' + esc(t.title) + '</td>' +
           '<td>' + statusBadge(t.status) + '</td>' +
           '<td class="td-num">' + fmtDuration(t.actualMs) + '</td>';
-        data.weekDays.forEach(function (d) {
+        data.matrixDays.forEach(function (d) {
           var cell = t.perDay[d.date] || { loggedMs: 0, state: 'empty' };
           html += '<td class="day-cell ' + cell.state + (d.isToday ? ' today-col' : '') + '">' + fmtDuration(cell.loggedMs) + '</td>';
         });
@@ -720,7 +783,7 @@
 
     html += '<tr class="total-row"><td colspan="4">Total &nbsp; ' +
       '<span class="grp-badge">' + data.grandTotal.taskCount + ' task' + (data.grandTotal.taskCount === 1 ? '' : 's') + '</span></td>';
-    data.weekDays.forEach(function (d) {
+    data.matrixDays.forEach(function (d) {
       html += '<td class="td-num">' + fmtDuration(data.grandTotal.perDayMs[d.date]) + '</td>';
     });
     html += '<td class="td-num">' + fmtDuration(data.grandTotal.loggedMs) + ' / ' + fmtDuration(data.grandTotal.estMs) + '</td></tr>';
@@ -756,14 +819,14 @@
   window.exportCSV = function () {
     if (!lastData || !lastData.groups.length) return;
     var header = ['Client', 'Issue Key', 'Summary', 'Status', 'Actual time taken'];
-    lastData.weekDays.forEach(function (d) { header.push(d.label); });
+    lastData.matrixDays.forEach(function (d) { header.push(d.label); });
     header.push('Logged Total', 'Est Total');
 
     var rows = [header];
     lastData.groups.forEach(function (g) {
       g.tasks.forEach(function (t) {
         var row = [g.client, t.id, t.title, t.status, msToHM(t.actualMs)];
-        lastData.weekDays.forEach(function (d) { row.push(msToHM((t.perDay[d.date] || { loggedMs: 0 }).loggedMs)); });
+        lastData.matrixDays.forEach(function (d) { row.push(msToHM((t.perDay[d.date] || { loggedMs: 0 }).loggedMs)); });
         row.push(msToHM(t.totalLoggedMs), msToHM(t.estMs));
         rows.push(row);
       });
