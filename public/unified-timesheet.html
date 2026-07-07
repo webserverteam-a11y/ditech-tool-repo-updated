@@ -365,6 +365,15 @@
       <button class="range-pill" data-range="yesterday">Yesterday</button>
       <button class="range-pill" data-range="week">Week</button>
       <button class="range-pill" data-range="month">Month</button>
+      <button class="range-pill" data-range="custom">Custom</button>
+    </div>
+  </div>
+
+  <div class="ctrl-group" id="customRangeGroup" style="display:none">
+    <label class="ctrl-label">From — To</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="date" class="ctrl-input" id="customFromInput" style="min-width:130px" onchange="onCustomDateChange()" />
+      <input type="date" class="ctrl-input" id="customToInput" style="min-width:130px" onchange="onCustomDateChange()" />
     </div>
   </div>
 
@@ -393,13 +402,6 @@
       <span class="filter-count-badge" id="filterCountBadge" style="display:none">0</span>
     </button>
     <div class="filters-popover" id="filtersPopover">
-      <div class="filter-section" style="max-height:none">
-        <div class="filter-section-title">Custom Date Range</div>
-        <div style="display:flex;gap:8px;">
-          <input type="date" class="ctrl-input" id="customFromInput" style="min-width:0;flex:1;padding:6px 8px;font-size:0.82rem" />
-          <input type="date" class="ctrl-input" id="customToInput" style="min-width:0;flex:1;padding:6px 8px;font-size:0.82rem" />
-        </div>
-      </div>
       <div class="filter-section">
         <div class="filter-section-title">Client / Project</div>
         <div id="clientCheckList"></div>
@@ -543,6 +545,19 @@
   window.onRangeChange = onRangeChange;
   function onRangeChange(range) {
     state.range = range;
+    var customGroup = document.getElementById('customRangeGroup');
+
+    if (range === 'custom') {
+      customGroup.style.display = '';
+      highlightRangePill();
+      updateDateNavEnabled();
+      // Fetch only once both dates are picked (onCustomDateChange handles it);
+      // if a previous custom range is still filled in, reuse it immediately.
+      if (state.customFrom && state.customTo && state.stakeholder) loadData();
+      return;
+    }
+
+    customGroup.style.display = 'none';
     state.customFrom = '';
     state.customTo = '';
     document.getElementById('customFromInput').value = '';
@@ -553,6 +568,16 @@
     updateDateNavEnabled();
     if (state.stakeholder) loadData();
   }
+
+  window.onCustomDateChange = function () {
+    var fromVal = document.getElementById('customFromInput').value;
+    var toVal = document.getElementById('customToInput').value;
+    if (!fromVal || !toVal) return; // wait for both
+    state.customFrom = fromVal;
+    state.customTo = toVal;
+    state.date = toVal;
+    if (state.stakeholder) loadData();
+  };
 
   function highlightRangePill() {
     document.querySelectorAll('.range-pill').forEach(function (btn) {
@@ -588,26 +613,6 @@
   window.applyFilters = function () {
     state.clients = Array.from(document.querySelectorAll('input[data-kind="client"]:checked')).map(function (el) { return el.value; });
     state.statuses = Array.from(document.querySelectorAll('input[data-kind="status"]:checked')).map(function (el) { return el.value; });
-
-    var fromVal = document.getElementById('customFromInput').value;
-    var toVal = document.getElementById('customToInput').value;
-    if (fromVal && toVal) {
-      state.range = 'custom';
-      state.customFrom = fromVal;
-      state.customTo = toVal;
-      state.date = toVal;
-      highlightRangePill();
-      updateDateNavEnabled();
-    } else if (state.range === 'custom') {
-      // Custom fields were cleared — fall back to Today.
-      state.range = 'today';
-      state.customFrom = '';
-      state.customTo = '';
-      state.date = todayStr();
-      highlightRangePill();
-      updateDateNavEnabled();
-    }
-
     updateFilterBadge();
     document.getElementById('filtersPopover').classList.remove('open');
     if (state.stakeholder) loadData();
@@ -615,24 +620,14 @@
 
   window.clearFilters = function () {
     document.querySelectorAll('.filters-popover input[type="checkbox"]').forEach(function (el) { el.checked = false; });
-    document.getElementById('customFromInput').value = '';
-    document.getElementById('customToInput').value = '';
     state.clients = [];
     state.statuses = [];
-    if (state.range === 'custom') {
-      state.range = 'today';
-      state.customFrom = '';
-      state.customTo = '';
-      state.date = todayStr();
-      highlightRangePill();
-      updateDateNavEnabled();
-    }
     updateFilterBadge();
     if (state.stakeholder) loadData();
   };
 
   function updateFilterBadge() {
-    var count = state.clients.length + state.statuses.length + (state.range === 'custom' ? 1 : 0);
+    var count = state.clients.length + state.statuses.length;
     var badge = document.getElementById('filterCountBadge');
     badge.style.display = count > 0 ? 'inline-flex' : 'none';
     badge.textContent = count;
