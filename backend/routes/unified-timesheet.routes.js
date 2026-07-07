@@ -263,9 +263,10 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
  * GET /api/unified-timesheet/team — Team Timesheet view.
  *
  * Same panel, a different lens: instead of one stakeholder's tasks grouped
- * by client, this groups a whole role/"team" roster's ACTUAL hours (gross
- * session time, matching the mock's "Total (Actual)" column) against a
- * per-person 8h/day target — halved/zeroed on approved leave — with a
+ * by client, this groups a whole role/"team" roster's worked hours (net
+ * logged time — start/resume→pause/end pairing, the same figure as the
+ * individual view's "Logged" column; the mock labels it "Actual") against
+ * a per-person 8h/day target — halved/zeroed on approved leave — with a
  * four-way utilization classification (leave/empty/underutilized/within/
  * overrun). Entirely additive: reuses the same timesheetCalc.js helpers as
  * the handler above, but never touches it.
@@ -371,8 +372,14 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
     // rangeDays, rather than recomputing from scratch.
     const rangeDaySet = new Set(matrixDays.filter(d => d >= rangeFromStr && d <= rangeToStr));
 
-    // ── Per member: gross ACTUAL ms per matrix day against a leave-adjusted
-    //    8h/day target, computed once and reused for every rollup below ──
+    // ── Per member: NET LOGGED ms per matrix day against a leave-adjusted
+    //    8h/day target, computed once and reused for every rollup below.
+    //    Uses loggedMsFromEvents (start/resume→pause/end pairing, breaks
+    //    excluded) — the same figure the individual view's "Logged" column
+    //    shows — NOT gross session time: gross both over-counted (a 9am
+    //    start ended at 11pm counted 14h wall-clock including breaks) and
+    //    under-counted (tasks still Paused/In-progress at day end have no
+    //    `end` event, so their real worked hours contributed zero). ──
     const members = roster.map(name => {
       const memberTasks = tasks.filter(t => t.seoOwner === name || t.contentOwner === name || t.webOwner === name || t.assignedTo === name);
 
@@ -380,7 +387,7 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
       for (const d of matrixDays) {
         const actualMs = memberTasks.reduce((sum, task) => {
           const events = eventsByTask[task.id] || [];
-          return sum + grossMsFromEvents(filterEventsForOwner(task, events, name, d, d));
+          return sum + loggedMsFromEvents(filterEventsForOwner(task, events, name, d, d));
         }, 0);
         const leaveType = (leaveByUserDate[name] || {})[d];
         const targetMs = dailyTargetMs(leaveType);
