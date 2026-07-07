@@ -131,9 +131,9 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       const estMs = estMsForDept(task, dept);
       const { sessions, netIntervals } = pairEvents(eventsByTask[task.id] || []);
 
-      const actualRangeMs = sumOverlapMs(sessions, rangeFrom, rangeTo, nowMs);
-      const loggedRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo, nowMs);
-      const reworkRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo, nowMs, 'rework');
+      const actualRangeMs = sumOverlapMs(sessions, rangeFrom, rangeTo);
+      const loggedRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo);
+      const reworkRangeMs = sumOverlapMs(netIntervals, rangeFrom, rangeTo, 'rework');
 
       const perDay = {};
       let totalMatrixLoggedMs = 0;
@@ -141,11 +141,11 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
         const [y, m, dd] = d.split('-').map(Number);
         const dayFrom = Date.UTC(y, m - 1, dd);
         const dayTo = dayFrom + 86400000;
-        const dayLoggedMs = sumOverlapMs(netIntervals, dayFrom, dayTo, nowMs);
-        const cumulativeToDateMs = sumOverlapMs(netIntervals, null, dayTo, nowMs);
+        const dayLoggedMs = sumOverlapMs(netIntervals, dayFrom, dayTo);
+        const cumulativeToDateMs = sumOverlapMs(netIntervals, null, dayTo);
         perDay[d] = {
           loggedMs: dayLoggedMs,
-          state: dayLoggedMs === 0 ? 'empty' : (cumulativeToDateMs <= estMs ? 'within' : 'overrun'),
+          state: dayLoggedMs === 0 ? 'empty' : (estMs <= 0 || cumulativeToDateMs <= estMs ? 'within' : 'overrun'),
         };
         totalMatrixLoggedMs += dayLoggedMs;
       }

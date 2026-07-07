@@ -29,9 +29,19 @@ function parseTs(ts) {
  * Pairs a task's time events (already filtered to one owner, any order) into
  * gross sessions and net active intervals.
  *
+ * A trailing `start`/`resume`/`rework_start` with no matching `pause`/`end`
+ * is intentionally DROPPED rather than extrapolated forward to "now". Tasks
+ * are sometimes moved out of an active state (e.g. to "Ended") through a
+ * path that never emits a matching closing time event, leaving a dangling
+ * open interval that can be arbitrarily old; counting it as "still running"
+ * inflated logged time by however long the task had been dormant (matches
+ * the original Timesheet's formula, which only ever sums a
+ * `(pause|end) - (start|resume|rework_start)` pair — an unclosed start has
+ * nothing to subtract from, so it contributes zero).
+ *
  * @param {{event_type:string, timestamp:string}[]} events
- * @returns {{ sessions: {startMs:number, endMs:number|null}[],
- *             netIntervals: {startMs:number, endMs:number|null, kind:'work'|'rework'}[] }}
+ * @returns {{ sessions: {startMs:number, endMs:number}[],
+ *             netIntervals: {startMs:number, endMs:number, kind:'work'|'rework'}[] }}
  */
 function pairEvents(events) {
   const sorted = events
@@ -73,26 +83,21 @@ function pairEvents(events) {
     }
   }
 
-  // Trailing open state — task/session still running. Leave endMs null;
-  // callers clip this to "now" (or the query window) when summing.
-  if (netStart !== null) netIntervals.push({ startMs: netStart, endMs: null, kind: netKind });
-  if (sessionStart !== null) sessions.push({ startMs: sessionStart, endMs: null });
-
+  // Any still-open session/interval (no closing event observed) is dropped —
+  // see function doc comment above.
   return { sessions, netIntervals };
 }
 
 /**
- * Sums the overlap of a set of {startMs, endMs|null} intervals with a
+ * Sums the overlap of a set of {startMs, endMs} intervals with a
  * [fromMs, toMs] window. `fromMs`/`toMs` may each be null for "unbounded".
- * An open-ended interval (endMs === null) is clipped to `nowMs`.
  */
-function sumOverlapMs(intervals, fromMs, toMs, nowMs, kindFilter) {
+function sumOverlapMs(intervals, fromMs, toMs, kindFilter) {
   let total = 0;
   for (const iv of intervals) {
     if (kindFilter && iv.kind !== kindFilter) continue;
-    const end = iv.endMs === null ? nowMs : iv.endMs;
     const effFrom = fromMs === null || fromMs === undefined ? iv.startMs : Math.max(iv.startMs, fromMs);
-    const effTo = toMs === null || toMs === undefined ? end : Math.min(end, toMs);
+    const effTo = toMs === null || toMs === undefined ? iv.endMs : Math.min(iv.endMs, toMs);
     if (effTo > effFrom) total += effTo - effFrom;
   }
   return total;
@@ -115,11 +120,15 @@ function estMsForDept(task, dept) {
   return (Number(hours) || 0) * HOUR_MS;
 }
 
+/** No estimate set (estMs <= 0) means there's no budget to cap against — all logged time counts as productive. */
 function productiveMs(loggedMs, estMs) {
+  if (estMs <= 0) return loggedMs;
   return Math.min(loggedMs, estMs);
 }
 
+/** No estimate set (estMs <= 0) means there's nothing to overrun. */
 function overrunMs(loggedMs, estMs) {
+  if (estMs <= 0) return 0;
   return Math.max(0, loggedMs - estMs);
 }
 
