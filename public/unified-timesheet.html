@@ -316,6 +316,7 @@
     /* Team Timesheet adds two more utilization buckets to the same day-cell classes */
     td.day-cell.underutilized { background: #fef3c7; color: #92400e; }
     td.day-cell.leave { background: #f1f5f9; color: #94a3b8; font-style: italic; }
+    td.day-cell.weekend { background: #fafafa; color: #cbd5e1; font-style: italic; }
 
     tr.total-row { background: #f8fafc; font-weight: 700; }
     tr.total-row td { padding: 10px; border-top: 2px solid #e2e8f0; border-bottom: none; }
@@ -1407,7 +1408,7 @@
     }
 
     var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
-      '<th>Team Member</th><th>Total (Actual) / Day</th>';
+      '<th>Team Member</th>';
     data.matrixDays.forEach(function (d) {
       html += '<th class="day-col-header' + (d.isToday ? ' today' : '') + ' td-num">' + esc(d.label) + (d.isToday ? '<br><span style="font-weight:400">Today</span>' : '') + '</th>';
     });
@@ -1415,12 +1416,11 @@
 
     data.members.forEach(function (m, mi) {
       html += '<tr class="task-row">' +
-        '<td class="td-title">' + esc(m.name) + '</td>' +
-        '<td>' + utilCell(m.avgPerDayActualMs, m.avgPerDayTargetMs) + '</td>';
+        '<td class="td-title">' + esc(m.name) + '</td>';
       data.matrixDays.forEach(function (d) {
         var cell = m.perDay[d.date] || { actualMs: 0, targetMs: 0, state: 'empty' };
-        html += '<td class="day-cell ' + cell.state + (d.isToday ? ' today-col' : '') + '">' +
-          (cell.state === 'leave' ? 'Leave' : fmtDuration(cell.actualMs)) + '</td>';
+        var cellText = cell.state === 'leave' ? 'Leave' : cell.state === 'weekend' ? 'Weekend' : fmtDuration(cell.actualMs);
+        html += '<td class="day-cell ' + cell.state + (d.isToday ? ' today-col' : '') + '">' + cellText + '</td>';
       });
       html += '<td>' + utilCell(m.matrixActualMs, m.matrixTargetMs) + '</td>';
       html += '<td class="row-menu-wrap">' +
@@ -1432,7 +1432,7 @@
     });
 
     var grandPct = data.grandTotal.targetMs > 0 ? Math.round((data.grandTotal.actualMs / data.grandTotal.targetMs) * 100) : 0;
-    html += '<tr class="total-row"><td colspan="2">Total &nbsp; ' +
+    html += '<tr class="total-row"><td>Total &nbsp; ' +
       '<span class="grp-badge">' + data.grandTotal.memberCount + ' member' + (data.grandTotal.memberCount === 1 ? '' : 's') + '</span></td>';
     data.matrixDays.forEach(function (d) {
       html += '<td class="td-num">' + fmtDuration(data.grandTotal.perDayMs[d.date]) + '</td>';
@@ -1485,16 +1485,16 @@
   /* ── Export CSV ── */
   window.exportTeamCSV = function () {
     if (!teamLastData || !teamLastData.members.length) return;
-    var header = ['Team Member', 'Avg Actual/Day', 'Avg Target/Day'];
+    var header = ['Team Member'];
     teamLastData.matrixDays.forEach(function (d) { header.push(d.label); });
-    header.push('Total Actual (Range)', 'Total Target (Range)');
+    header.push('Total Actual', 'Total Target');
 
     var rows = [header];
     teamLastData.members.forEach(function (m) {
-      var row = [m.name, msToHM(m.avgPerDayActualMs), msToHM(m.avgPerDayTargetMs)];
+      var row = [m.name];
       teamLastData.matrixDays.forEach(function (d) {
-        var cell = m.perDay[d.date] || { actualMs: 0 };
-        row.push(cell.state === 'leave' ? 'Leave' : msToHM(cell.actualMs));
+        var cell = m.perDay[d.date] || { actualMs: 0, state: 'empty' };
+        row.push(cell.state === 'leave' ? 'Leave' : cell.state === 'weekend' ? 'Weekend' : msToHM(cell.actualMs));
       });
       row.push(msToHM(m.matrixActualMs), msToHM(m.matrixTargetMs));
       rows.push(row);

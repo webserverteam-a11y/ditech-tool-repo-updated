@@ -52,6 +52,7 @@ import {
   productiveMs,
   overrunMs,
   dailyTargetMs,
+  isWeekend,
   classifyUtilization,
   rangeWindow,
   matrixDaysForRange,
@@ -396,9 +397,12 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
           const events = eventsByTask[task.id] || [];
           return sum + loggedMsFromEvents(filterEventsForOwner(task, events, name, d, d));
         }, 0);
+        // Weekends are never a work-day target, regardless of leave records
+        // (5-working-day week: Sat/Sun always target 0, not the usual 8h).
+        const isWorkday = !isWeekend(d);
         const leaveType = (leaveByUserDate[name] || {})[d];
-        const targetMs = dailyTargetMs(leaveType);
-        perDay[d] = { actualMs, targetMs, state: classifyUtilization(actualMs, targetMs) };
+        const targetMs = isWorkday ? dailyTargetMs(leaveType) : 0;
+        perDay[d] = { actualMs, targetMs, state: classifyUtilization(actualMs, targetMs, isWorkday) };
       }
 
       const rangeReworkMs = memberTasks.reduce((sum, task) => {
@@ -408,7 +412,6 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
 
       const matrixActualMs = sumBy(matrixDays, d => perDay[d].actualMs);
       const matrixTargetMs = sumBy(matrixDays, d => perDay[d].targetMs);
-      const matrixWorkDays = matrixDays.filter(d => perDay[d].targetMs > 0).length;
 
       const rangeDaysForMember = matrixDays.filter(d => rangeDaySet.has(d));
       const rangeActualMs = sumBy(rangeDaysForMember, d => perDay[d].actualMs);
@@ -421,8 +424,6 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
         perDay,
         matrixActualMs,
         matrixTargetMs,
-        avgPerDayActualMs: matrixWorkDays > 0 ? matrixActualMs / matrixWorkDays : 0,
-        avgPerDayTargetMs: matrixWorkDays > 0 ? matrixTargetMs / matrixWorkDays : 0,
         rangeActualMs,
         rangeTargetMs,
         rangeProductiveMs,
@@ -457,8 +458,6 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
       members: members.map(m => ({
         name: m.name,
         perDay: m.perDay,
-        avgPerDayActualMs: m.avgPerDayActualMs,
-        avgPerDayTargetMs: m.avgPerDayTargetMs,
         matrixActualMs: m.matrixActualMs,
         matrixTargetMs: m.matrixTargetMs,
       })),

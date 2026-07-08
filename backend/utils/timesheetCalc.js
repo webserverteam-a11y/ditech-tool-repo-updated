@@ -290,6 +290,7 @@ const ALL_TEAMS_LABEL = 'All Teams';
  * Port of the bundle's daily target-hours rule (byte ~617314: `po=8`, then
  * `leaveType==='full'||'holiday' ? 0 : leaveType==='half' ? po/2 : po`).
  * `leaveType` is undefined/null when there's no leave record for that day.
+ * Does not account for weekends — callers combine this with `isWeekend()`.
  */
 function dailyTargetMs(leaveType) {
   if (leaveType === 'full' || leaveType === 'holiday') return 0;
@@ -297,15 +298,27 @@ function dailyTargetMs(leaveType) {
   return 8 * HOUR_MS;
 }
 
+/** True for Saturday/Sunday — used to exclude weekends from work-day targets. */
+function isWeekend(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return dow === 0 || dow === 6;
+}
+
 /**
  * Utilization bucket for one person-day, matching the Team Timesheet
  * legend: Underutilized <80%, Within Estimate 80-100%, Overrun >100%.
- * `targetMs<=0` means a full-day leave/holiday — 'leave' if nothing was
- * logged (the expected case), otherwise it still counts as overrun (any
- * logged time against a zero budget).
+ * `targetMs<=0` means either a full-day leave/holiday or a weekend (callers
+ * zero the target for both) — 'leave'/'weekend' if nothing was logged (the
+ * expected case, `isWorkday=false` selects 'weekend' over the 'leave'
+ * default), otherwise it still counts as overrun (any logged time against
+ * a zero budget).
  */
-function classifyUtilization(actualMs, targetMs) {
-  if (targetMs <= 0) return actualMs > 0 ? 'overrun' : 'leave';
+function classifyUtilization(actualMs, targetMs, isWorkday) {
+  if (targetMs <= 0) {
+    if (actualMs > 0) return 'overrun';
+    return isWorkday === false ? 'weekend' : 'leave';
+  }
   if (actualMs === 0) return 'empty';
   const pct = actualMs / targetMs;
   if (pct < 0.8) return 'underutilized';
@@ -330,6 +343,7 @@ export {
   productiveMs,
   overrunMs,
   dailyTargetMs,
+  isWeekend,
   classifyUtilization,
   weekBounds,
   monthDays,
