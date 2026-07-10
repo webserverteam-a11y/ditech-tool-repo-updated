@@ -311,6 +311,7 @@
     .idx-indexed     { background: #dcfce7; color: #15803d; }
     .idx-nonindexed  { background: #fee2e2; color: #b91c1c; }
     .idx-notchecked  { background: #f1f5f9; color: #64748b; }
+    .idx-inprogress  { background: #fef9c3; color: #a16207; }
     .idx-empty       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
 
     /* ── Inline row status dropdown ── */
@@ -713,6 +714,7 @@
                      '<option value="Indexed"' + (t.indexStatus === 'Indexed' ? ' selected' : '') + '>Indexed</option>' +
                      '<option value="Non-Indexed"' + (t.indexStatus === 'Non-Indexed' ? ' selected' : '') + '>Non-Indexed</option>' +
                      '<option value="Not Checked"' + (t.indexStatus === 'Not Checked' ? ' selected' : '') + '>Not Checked</option>' +
+                     '<option value="In Progress"' + (t.indexStatus === 'In Progress' ? ' selected' : '') + '>In Progress</option>' +
                    '</select></td>';
       tableHtml += '</tr>';
     });
@@ -928,6 +930,7 @@
     if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
     if (status === 'Non-Indexed') return '<span class="idx-badge idx-nonindexed">✗ Non-Indexed</span>';
     if (status === 'Not Checked') return '<span class="idx-badge idx-notchecked">· Not Checked</span>';
+    if (status === 'In Progress') return '<span class="idx-badge idx-inprogress">… In Progress</span>';
     return '<span class="idx-badge idx-empty">' + esc(status) + '</span>';
   }
 
