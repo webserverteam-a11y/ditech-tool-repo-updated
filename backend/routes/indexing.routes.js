@@ -6,7 +6,7 @@
  *   target_url, index_status) for the given client + date range.
  *
  * PATCH /api/indexing/bulk
- *   Body: { ids: string[], status: 'Indexed' | 'Non-Indexed' | 'Not Checked' }
+ *   Body: { ids: string[], status: 'Indexed' | 'Non-Indexed' | 'Not Checked' | 'In Progress' }
  *   Bulk-updates index_status for the supplied task IDs.
  */
 
@@ -15,7 +15,7 @@ import pool from '../config/db.js';
 
 export const indexingRouter = Router();
 
-const ALLOWED_STATUSES = ['Indexed', 'Non-Indexed', 'Not Checked'];
+const ALLOWED_STATUSES = ['Indexed', 'Non-Indexed', 'Not Checked', 'In Progress'];
 
 // ── GET /api/indexing ──────────────────────────────────────────────────────
 indexingRouter.get('/', async (req, res) => {
