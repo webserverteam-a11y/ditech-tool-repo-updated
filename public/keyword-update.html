@@ -433,7 +433,7 @@
   var isSaving = false;
 
   var NUM_FIELDS = ['volume', 'was', 'now'];
-  var CELL_INDEX = { keyword: 4, volume: 5, was: 6, now: 7 }; // <td> index within a row
+  var CELL_INDEX = { keyword: 6, volume: 7, was: 8, now: 9 }; // <td> index within a row
 
   /* ── Init ── */
   window.addEventListener('DOMContentLoaded', function () {
@@ -684,6 +684,8 @@
         '<th>Task</th>' +
         '<th>Owner</th>' +
         '<th>Content Owner</th>' +
+        '<th>Doc URL</th>' +
+        '<th>Target URL</th>' +
         '<th>Keyword</th>' +
         '<th class="td-num">Vol</th>' +
         '<th class="td-num">Was</th>' +
@@ -699,6 +701,8 @@
       tableHtml += '<td class="td-title"><span title="' + esc(t.title) + '">' + esc(truncate(t.title, 42)) + '</span></td>';
       tableHtml += '<td>' + esc(t.owner || '—') + '</td>';
       tableHtml += '<td>' + esc(t.contentOwner || '—') + '</td>';
+      tableHtml += '<td>' + urlLink(t.docUrl) + '</td>';
+      tableHtml += '<td>' + urlLink(t.targetUrl) + '</td>';
       tableHtml += '<td class="cell-td"><input class="cell-input cell-keyword" type="text" data-id="' + esc(t.id) + '" data-field="keyword" value="' + esc(cellValue(t, 'keyword')) + '" oninput="onCellInput(this)" /></td>';
       tableHtml += '<td class="cell-td cell-td-num"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="volume" value="' + esc(cellValue(t, 'volume')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
       tableHtml += '<td class="cell-td cell-td-num"><input class="cell-input cell-num" type="number" min="0" data-id="' + esc(t.id) + '" data-field="was" value="' + esc(cellValue(t, 'was')) + '" oninput="onCellInput(this)" onblur="onNumCellBlur(this)" /></td>';
@@ -787,7 +791,7 @@
         if (task) task.indexStatus = status;
         var row = document.getElementById('row-' + id);
         if (row) {
-          var badgeTd = row.querySelectorAll('td')[8];
+          var badgeTd = row.querySelectorAll('td')[10];
           if (badgeTd) badgeTd.innerHTML = idxBadge(status);
         }
         showToast('Updated ' + id + ' → ' + status, 'success');
@@ -883,11 +887,13 @@
   /* ── Export CSV ── */
   window.exportCSV = function () {
     if (!allTasks.length) return;
-    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Keyword', 'Vol', 'Was', 'Now', 'Index Status']];
+    var rows = [['Task ID', 'Task', 'Owner', 'Content Owner', 'Doc URL', 'Target URL', 'Keyword', 'Vol', 'Was', 'Now', 'Index Status']];
     allTasks.forEach(function (t) {
       rows.push([
         t.id, t.title, t.owner || '',
         t.contentOwner || '',
+        t.docUrl || '',
+        t.targetUrl || '',
         t.keyword || '',
         t.volume || 0,
         t.was || 0,
@@ -912,6 +918,11 @@
   };
 
   /* ── Helpers ── */
+  function urlLink(url) {
+    if (!url) return '—';
+    return '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="color:#2563eb;word-break:break-all">' + esc(url) + '</a>';
+  }
+
   function idxBadge(status) {
     if (!status) return '<span class="idx-badge idx-empty">Not Set</span>';
     if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
