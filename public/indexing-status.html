@@ -226,6 +226,7 @@
     .stat-val.red    { color: #dc2626; }
     .stat-val.gray   { color: #64748b; }
     .stat-val.blue   { color: #2563eb; }
+    .stat-val.yellow { color: #a16207; }
     .stat-label {
       font-size: 0.67rem;
       font-weight: 600;
@@ -304,6 +305,7 @@
     .idx-indexed     { background: #dcfce7; color: #15803d; }
     .idx-nonindexed  { background: #fee2e2; color: #b91c1c; }
     .idx-notchecked  { background: #f1f5f9; color: #64748b; }
+    .idx-inprogress  { background: #fef9c3; color: #a16207; }
     .idx-empty       { background: #f1f5f9; color: #94a3b8; font-style: italic; }
 
     /* ── Inline row dropdown ── */
@@ -386,6 +388,7 @@
       <option value="Indexed">Indexed</option>
       <option value="Non-Indexed">Non-Indexed</option>
       <option value="Not Checked">Not Checked</option>
+      <option value="In Progress">In Progress</option>
       <option value="">Not Set</option>
     </select>
   </div>
@@ -399,6 +402,7 @@
     <option value="Indexed">Indexed</option>
     <option value="Non-Indexed">Non-Indexed</option>
     <option value="Not Checked">Not Checked</option>
+    <option value="In Progress">In Progress</option>
   </select>
   <button class="btn btn-success" onclick="applyBulkUpdate()">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -611,11 +615,12 @@
     }
 
     // Count stats
-    var indexed = 0, nonIndexed = 0, notChecked = 0, notSet = 0;
+    var indexed = 0, nonIndexed = 0, notChecked = 0, inProgress = 0, notSet = 0;
     allTasks.forEach(function (t) {
       if (t.indexStatus === 'Indexed')     indexed++;
       else if (t.indexStatus === 'Non-Indexed') nonIndexed++;
       else if (t.indexStatus === 'Not Checked') notChecked++;
+      else if (t.indexStatus === 'In Progress') inProgress++;
       else notSet++;
     });
 
@@ -626,6 +631,7 @@
         statItem(indexed,    'Indexed',     'green') +
         statItem(nonIndexed, 'Non-Indexed', 'red') +
         statItem(notChecked, 'Not Checked', 'gray') +
+        statItem(inProgress, 'In Progress', 'yellow') +
         statItem(notSet,     'Not Set',     'gray') +
       '</div>';
 
@@ -658,6 +664,7 @@
                      '<option value="Indexed"' + (t.indexStatus === 'Indexed' ? ' selected' : '') + '>Indexed</option>' +
                      '<option value="Non-Indexed"' + (t.indexStatus === 'Non-Indexed' ? ' selected' : '') + '>Non-Indexed</option>' +
                      '<option value="Not Checked"' + (t.indexStatus === 'Not Checked' ? ' selected' : '') + '>Not Checked</option>' +
+                     '<option value="In Progress"' + (t.indexStatus === 'In Progress' ? ' selected' : '') + '>In Progress</option>' +
                    '</select></td>';
       tableHtml += '</tr>';
     });
@@ -810,6 +817,7 @@
     if (status === 'Indexed')     return '<span class="idx-badge idx-indexed">✓ Indexed</span>';
     if (status === 'Non-Indexed') return '<span class="idx-badge idx-nonindexed">✗ Non-Indexed</span>';
     if (status === 'Not Checked') return '<span class="idx-badge idx-notchecked">· Not Checked</span>';
+    if (status === 'In Progress') return '<span class="idx-badge idx-inprogress">… In Progress</span>';
     return '<span class="idx-badge idx-empty">' + esc(status) + '</span>';
   }
 
