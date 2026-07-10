@@ -3,7 +3,8 @@
  *
  * GET  /api/keyword-update?client=X&from=YYYY-MM-DD&to=YYYY-MM-DD
  *   Returns lightweight task rows (id, title, owner, contentOwner,
- *   keyword, volume, was, now, indexStatus) for the given client + date range.
+ *   keyword, volume, was, now, indexStatus, docUrl, targetUrl) for the
+ *   given client + date range.
  *
  * PATCH /api/keyword-update/bulk
  *   Body: { updates: [{ id, keyword?, volume?, was?, now? }, ...] }
@@ -35,7 +36,7 @@ keywordUpdateRouter.get('/', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      `SELECT id, title, seo_owner, content_owner, focused_kw, volume, mar_rank, current_rank, index_status
+      `SELECT id, title, seo_owner, content_owner, focused_kw, volume, mar_rank, current_rank, index_status, doc_url, target_url
        FROM tasks
        WHERE client = ?
          AND intake_date >= ?
@@ -54,6 +55,8 @@ keywordUpdateRouter.get('/', async (req, res) => {
       was:          r.mar_rank      ?? 0,
       now:          r.current_rank  ?? 0,
       indexStatus:  r.index_status  || '',
+      docUrl:       r.doc_url       || '',
+      targetUrl:    r.target_url    || '',
     })));
   } catch (e) {
     console.error('GET /api/keyword-update error:', e.message);
