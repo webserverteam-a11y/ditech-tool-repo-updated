@@ -477,26 +477,28 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
 /**
  * GET /api/unified-timesheet/client-coverage — Client Coverage view.
  *
- * Monthly client × SEO-stage task-count matrix: for the given calendar month,
- * how many tasks each client has in each seo_stage. Read-only and entirely
- * additive — shares nothing with the two timesheet handlers above except the
- * pool and this router.
+ * Client × SEO-stage task-count matrix for a date range: how many tasks each
+ * client has in each seo_stage, bucketed on intake_date. Read-only and
+ * entirely additive — shares nothing with the two timesheet handlers above
+ * except the pool, this router, and timesheetCalc's rangeWindow().
  *
  * Data sources (all existing tables, no schema changes):
  *   - `clients` table          → full roster, so clients with 0 tasks still get a row
  *   - `app_config` admin_options.seoStages → stage column set + order
  *   - `tasks`                  → counts grouped by client/seo_stage/seo_owner,
- *                                month-bucketed on intake_date (same
- *                                `intake_date LIKE 'YYYY-MM%'` convention as
+ *                                filtered on intake_date between the range
+ *                                bounds (same string-compare convention as
  *                                the SEO scorecard report)
  *
- * Query params:
- *   month (required) — 'YYYY-MM'
+ * Query params (same range semantics as the two endpoints above):
+ *   date  (required) — 'YYYY-MM-DD', anchors today/yesterday/week/month
+ *   range (optional, default 'month') — today|yesterday|week|month|custom
+ *   customFrom, customTo (required when range=custom) — 'YYYY-MM-DD' each
  *   owner (optional) — filter counts to one seo_owner
  *
  * Response:
  *   {
- *     month, owner,
+ *     range, selectedDate, from, to, owner,
  *     owners: [...],                        // seo_owner values for the filter dropdown
  *     stages: [...],                        // column order: configured stages, then
  *                                           // any extra values found in data, then
@@ -506,7 +508,6 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
  *     stats: { clientCount, totalTasks, topStage, zeroTaskClients }
  *   }
  */
-const MONTH_RE = /^\d{4}-\d{2}$/;
 // Mirrors the app's built-in admin_options defaults — only used when the
 // admin_options row is missing or has no seoStages array.
 const DEFAULT_SEO_STAGES = ['Blogs', 'Client Call', 'Development', 'On Page', 'Reports', 'Tech. SEO', 'Whatsapp Message'];
@@ -515,9 +516,21 @@ const UNASSIGNED_CLIENT = 'Unassigned';
 
 unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
   try {
-    const month = (req.query.month || '').trim();
+    const date = (req.query.date || '').trim();
+    const range = (req.query.range || 'month').trim();
+    const customFrom = (req.query.customFrom || '').trim();
+    const customTo = (req.query.customTo || '').trim();
     const owner = (req.query.owner || '').trim();
-    if (!MONTH_RE.test(month)) return res.status(400).json({ error: 'month param required as YYYY-MM' });
+
+    if (!DATE_RE.test(date)) return res.status(400).json({ error: 'date param required as YYYY-MM-DD' });
+    if (!VALID_RANGES.has(range)) return res.status(400).json({ error: `range must be one of ${[...VALID_RANGES].join('|')}` });
+    if (range === 'custom') {
+      if (!DATE_RE.test(customFrom) || !DATE_RE.test(customTo)) {
+        return res.status(400).json({ error: 'customFrom and customTo are required as YYYY-MM-DD when range=custom' });
+      }
+    }
+
+    const { fromStr, toStr } = rangeWindow(date, range, customFrom, customTo);
 
     const [cfgRows] = await pool.query('SELECT value FROM app_config WHERE `key` = ?', ['admin_options']);
     let configuredStages = DEFAULT_SEO_STAGES;
@@ -534,19 +547,21 @@ unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
     const [clientRows] = await pool.query('SELECT name FROM clients ORDER BY sort_order, name');
     const roster = clientRows.map(r => r.name).filter(Boolean);
 
-    const countParams = [`${month}%`];
+    // intake_date is a 'YYYY-MM-DD' varchar, so string compare bounds work —
+    // the same convention report.routes.js uses for its from/to filtering.
+    const countParams = [fromStr, toStr];
     let ownerClause = '';
     if (owner) { ownerClause = ' AND seo_owner = ?'; countParams.push(owner); }
     const [countRows] = await pool.query(
       `SELECT client, seo_stage, seo_owner, COUNT(*) AS cnt
        FROM tasks
-       WHERE intake_date LIKE ?${ownerClause}
+       WHERE intake_date >= ? AND intake_date <= ?${ownerClause}
        GROUP BY client, seo_stage, seo_owner`,
       countParams
     );
 
-    // Dropdown options: everyone who has ever owned a task, not just this month,
-    // so switching months never silently drops the active filter's option.
+    // Dropdown options: everyone who has ever owned a task, not just in range,
+    // so switching ranges never silently drops the active filter's option.
     const [ownerRows] = await pool.query(
       `SELECT DISTINCT seo_owner FROM tasks WHERE seo_owner IS NOT NULL AND seo_owner <> '' ORDER BY seo_owner`
     );
@@ -612,7 +627,10 @@ unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
     }
 
     res.json({
-      month,
+      range,
+      selectedDate: date,
+      from: fromStr,
+      to: toStr,
       owner,
       owners: ownerRows.map(r => r.seo_owner),
       stages,

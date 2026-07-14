@@ -178,6 +178,13 @@
        Team view's — the individual/team views query .range-pill /
        .date-nav-btn / .team-date-nav-btn unscoped, so Coverage gets its
        own cov-* names to stay out of their querySelectorAll reach. ── */
+    .cov-range-pill {
+      padding: 7px 14px; border-radius: 7px; border: 1.5px solid #cbd5e1; background: #fff;
+      font-size: 0.82rem; font-weight: 600; color: #475569; cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .cov-range-pill:hover { background: #f8fafc; }
+    .cov-range-pill.active { background: #4f6ef7; color: #fff; border-color: #4f6ef7; }
     .cov-nav-btn {
       width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #cbd5e1;
       background: #fff; display: flex; align-items: center; justify-content: center;
@@ -661,16 +668,35 @@
 
   <div class="controls">
     <div class="ctrl-group">
-      <label class="ctrl-label">Month</label>
+      <label class="ctrl-label">Date Range</label>
+      <div class="range-pills" id="covRangePills">
+        <button class="cov-range-pill" data-range="today">Today</button>
+        <button class="cov-range-pill" data-range="yesterday">Yesterday</button>
+        <button class="cov-range-pill" data-range="week">Week</button>
+        <button class="cov-range-pill" data-range="month">Month</button>
+        <button class="cov-range-pill" data-range="custom">Custom</button>
+      </div>
+    </div>
+
+    <div class="ctrl-group" id="covCustomRangeGroup" style="display:none">
+      <label class="ctrl-label">From — To</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" class="ctrl-input" id="covCustomFromInput" style="min-width:130px" onchange="onCovCustomDateChange()" />
+        <input type="date" class="ctrl-input" id="covCustomToInput" style="min-width:130px" onchange="onCovCustomDateChange()" />
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label">&nbsp;</label>
       <div class="date-nav">
-        <button class="cov-nav-btn" onclick="stepCoverageMonth(-1)" title="Previous month">
+        <button class="cov-nav-btn" onclick="stepCoverageDate(-1)" title="Previous">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
         <div class="date-display">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-          <span id="covMonthLabel">—</span>
+          <span id="covDateLabel">—</span>
         </div>
-        <button class="cov-nav-btn" onclick="stepCoverageMonth(1)" title="Next month">
+        <button class="cov-nav-btn" onclick="stepCoverageDate(1)" title="Next">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
@@ -1625,7 +1651,10 @@
   var COVERAGE_PER_PAGE = 20;
 
   var coverageState = {
-    month: new Date().toISOString().slice(0, 7), // 'YYYY-MM'
+    date: todayStr(),
+    range: 'month', // coverage is a monthly report by nature, so Month is the default pill
+    customFrom: '',
+    customTo: '',
     owner: '',
     search: '',
     page: 0,
@@ -1634,21 +1663,90 @@
 
   var coverageLastData = null;
 
+  /* ── Init (own listener; doesn't touch the other views' DOMContentLoaded) ── */
+  window.addEventListener('DOMContentLoaded', function () {
+    highlightCovRangePill();
+    document.getElementById('covRangePills').addEventListener('click', function (e) {
+      var btn = e.target.closest('.cov-range-pill');
+      if (!btn) return;
+      onCovRangeChange(btn.getAttribute('data-range'));
+    });
+  });
+
   function fmtMonthLabel(monthStr) {
     var p = monthStr.split('-').map(Number);
     var d = new Date(Date.UTC(p[0], p[1] - 1, 1));
     return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   }
 
-  function shiftMonthStr(monthStr, dir) {
-    var p = monthStr.split('-').map(Number);
-    var d = new Date(Date.UTC(p[0], p[1] - 1 + dir, 1));
-    return d.toISOString().slice(0, 7);
+  function covDateLabelText(range, from, to, selectedDate) {
+    if (range === 'month') return fmtMonthLabel(from.slice(0, 7));
+    if (range === 'today' || range === 'yesterday') {
+      var d = new Date(selectedDate + 'T00:00:00Z');
+      return d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    }
+    return fmtShortDate(from) + ' – ' + fmtShortDate(to); // week / custom
   }
 
   /* ── Controls ── */
-  window.stepCoverageMonth = function (dir) {
-    coverageState.month = shiftMonthStr(coverageState.month, dir);
+  window.onCovRangeChange = onCovRangeChange;
+  function onCovRangeChange(range) {
+    coverageState.range = range;
+    coverageState.page = 0;
+    var customGroup = document.getElementById('covCustomRangeGroup');
+
+    if (range === 'custom') {
+      customGroup.style.display = '';
+      highlightCovRangePill();
+      updateCovDateNavEnabled();
+      // Fetch only once both dates are picked (onCovCustomDateChange handles
+      // it); if a previous custom range is still filled in, reuse it now.
+      if (coverageState.customFrom && coverageState.customTo) loadCoverageData();
+      return;
+    }
+
+    customGroup.style.display = 'none';
+    coverageState.customFrom = '';
+    coverageState.customTo = '';
+    document.getElementById('covCustomFromInput').value = '';
+    document.getElementById('covCustomToInput').value = '';
+    if (range === 'today') coverageState.date = todayStr();
+    if (range === 'yesterday') coverageState.date = shiftDateStr(todayStr(), -1, 'day');
+    highlightCovRangePill();
+    updateCovDateNavEnabled();
+    loadCoverageData();
+  }
+
+  window.onCovCustomDateChange = function () {
+    var fromVal = document.getElementById('covCustomFromInput').value;
+    var toVal = document.getElementById('covCustomToInput').value;
+    if (!fromVal || !toVal) return; // wait for both
+    coverageState.customFrom = fromVal;
+    coverageState.customTo = toVal;
+    coverageState.date = toVal;
+    coverageState.page = 0;
+    loadCoverageData();
+  };
+
+  function highlightCovRangePill() {
+    document.querySelectorAll('.cov-range-pill').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-range') === coverageState.range);
+    });
+  }
+
+  function updateCovDateNavEnabled() {
+    var isCustom = coverageState.range === 'custom';
+    document.querySelectorAll('.cov-nav-btn').forEach(function (btn) {
+      btn.disabled = isCustom; btn.style.opacity = isCustom ? '0.4' : '1'; btn.style.cursor = isCustom ? 'not-allowed' : 'pointer';
+    });
+  }
+
+  window.stepCoverageDate = function (dir) {
+    if (coverageState.range === 'custom') return;
+    var unit = coverageState.range === 'week' ? 'week' : coverageState.range === 'month' ? 'month' : 'day';
+    // Anchor month stepping to the 1st so e.g. Jan 31 → Feb, not skipping to March
+    if (unit === 'month') coverageState.date = coverageState.date.slice(0, 7) + '-01';
+    coverageState.date = shiftDateStr(coverageState.date, dir, unit);
     coverageState.page = 0;
     loadCoverageData();
   };
@@ -1668,8 +1766,9 @@
   /* ── Load data ── */
   function loadCoverageData() {
     renderCoverageLoading();
-    document.getElementById('covMonthLabel').textContent = fmtMonthLabel(coverageState.month);
-    var url = '/api/unified-timesheet/client-coverage?month=' + encodeURIComponent(coverageState.month) +
+    var url = '/api/unified-timesheet/client-coverage?date=' + encodeURIComponent(coverageState.date) +
+      '&range=' + encodeURIComponent(coverageState.range) +
+      (coverageState.range === 'custom' ? '&customFrom=' + encodeURIComponent(coverageState.customFrom) + '&customTo=' + encodeURIComponent(coverageState.customTo) : '') +
       (coverageState.owner ? '&owner=' + encodeURIComponent(coverageState.owner) : '');
 
     fetch(url)
@@ -1681,6 +1780,7 @@
         coverageLastData = data;
         coverageState.loaded = true;
         document.getElementById('covExportBtn').disabled = false;
+        document.getElementById('covDateLabel').textContent = covDateLabelText(data.range, data.from, data.to, data.selectedDate);
         populateCoverageOwnerSelect(data.owners || []);
         renderCoveragePage(data);
       })
@@ -1726,7 +1826,7 @@
     var html = '<div class="content">';
     html += '<div class="overview-heading">' +
       '<h2>Client Coverage</h2>' +
-      '<p>' + esc(fmtMonthLabel(data.month)) +
+      '<p>' + esc(covDateLabelText(data.range, data.from, data.to, data.selectedDate)) +
       (data.owner ? ' · ' + esc(data.owner) : '') +
       ' · task counts by SEO stage (from intake date)</p>' +
       '</div>';
@@ -1865,7 +1965,7 @@
     var blob = new Blob([csv], { type: 'text/csv' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'client-coverage-' + coverageState.month + (coverageState.owner ? '-' + coverageState.owner : '') + '.csv';
+    a.download = 'client-coverage-' + data.from + '_' + data.to + (coverageState.owner ? '-' + coverageState.owner : '') + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
