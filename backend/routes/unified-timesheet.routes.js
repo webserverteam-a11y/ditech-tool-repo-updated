@@ -474,6 +474,163 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/unified-timesheet/client-coverage — Client Coverage view.
+ *
+ * Monthly client × SEO-stage task-count matrix: for the given calendar month,
+ * how many tasks each client has in each seo_stage. Read-only and entirely
+ * additive — shares nothing with the two timesheet handlers above except the
+ * pool and this router.
+ *
+ * Data sources (all existing tables, no schema changes):
+ *   - `clients` table          → full roster, so clients with 0 tasks still get a row
+ *   - `app_config` admin_options.seoStages → stage column set + order
+ *   - `tasks`                  → counts grouped by client/seo_stage/seo_owner,
+ *                                month-bucketed on intake_date (same
+ *                                `intake_date LIKE 'YYYY-MM%'` convention as
+ *                                the SEO scorecard report)
+ *
+ * Query params:
+ *   month (required) — 'YYYY-MM'
+ *   owner (optional) — filter counts to one seo_owner
+ *
+ * Response:
+ *   {
+ *     month, owner,
+ *     owners: [...],                        // seo_owner values for the filter dropdown
+ *     stages: [...],                        // column order: configured stages, then
+ *                                           // any extra values found in data, then
+ *                                           // 'Unspecified' if blank stages exist
+ *     clients: [{ name, owner, counts: {stage: n}, total }],
+ *     totals: { perStage: {stage: n}, grand },
+ *     stats: { clientCount, totalTasks, topStage, zeroTaskClients }
+ *   }
+ */
+const MONTH_RE = /^\d{4}-\d{2}$/;
+// Mirrors the app's built-in admin_options defaults — only used when the
+// admin_options row is missing or has no seoStages array.
+const DEFAULT_SEO_STAGES = ['Blogs', 'Client Call', 'Development', 'On Page', 'Reports', 'Tech. SEO', 'Whatsapp Message'];
+const UNSPECIFIED_STAGE = 'Unspecified';
+const UNASSIGNED_CLIENT = 'Unassigned';
+
+unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
+  try {
+    const month = (req.query.month || '').trim();
+    const owner = (req.query.owner || '').trim();
+    if (!MONTH_RE.test(month)) return res.status(400).json({ error: 'month param required as YYYY-MM' });
+
+    const [cfgRows] = await pool.query('SELECT value FROM app_config WHERE `key` = ?', ['admin_options']);
+    let configuredStages = DEFAULT_SEO_STAGES;
+    if (cfgRows.length > 0) {
+      try {
+        const val = cfgRows[0].value;
+        const cfg = typeof val === 'string' ? JSON.parse(val) : val;
+        if (Array.isArray(cfg.seoStages) && cfg.seoStages.length > 0) {
+          configuredStages = cfg.seoStages.filter(Boolean);
+        }
+      } catch { /* unparsable config → keep defaults */ }
+    }
+
+    const [clientRows] = await pool.query('SELECT name FROM clients ORDER BY sort_order, name');
+    const roster = clientRows.map(r => r.name).filter(Boolean);
+
+    const countParams = [`${month}%`];
+    let ownerClause = '';
+    if (owner) { ownerClause = ' AND seo_owner = ?'; countParams.push(owner); }
+    const [countRows] = await pool.query(
+      `SELECT client, seo_stage, seo_owner, COUNT(*) AS cnt
+       FROM tasks
+       WHERE intake_date LIKE ?${ownerClause}
+       GROUP BY client, seo_stage, seo_owner`,
+      countParams
+    );
+
+    // Dropdown options: everyone who has ever owned a task, not just this month,
+    // so switching months never silently drops the active filter's option.
+    const [ownerRows] = await pool.query(
+      `SELECT DISTINCT seo_owner FROM tasks WHERE seo_owner IS NOT NULL AND seo_owner <> '' ORDER BY seo_owner`
+    );
+
+    // Columns: configured order first (stable across months, even at 0 tasks),
+    // then any ad-hoc stage values found in the data, 'Unspecified' last.
+    const stageSet = new Set(configuredStages);
+    const stages = [...configuredStages];
+    let hasUnspecified = false;
+    for (const row of countRows) {
+      const stage = (row.seo_stage || '').trim();
+      if (!stage) { hasUnspecified = true; continue; }
+      if (!stageSet.has(stage)) { stageSet.add(stage); stages.push(stage); }
+    }
+    if (hasUnspecified) stages.push(UNSPECIFIED_STAGE);
+
+    const byClient = new Map();
+    const ensureClient = name => {
+      if (!byClient.has(name)) byClient.set(name, { counts: {}, ownerCounts: {}, total: 0 });
+      return byClient.get(name);
+    };
+    for (const row of countRows) {
+      const clientName = (row.client || '').trim() || UNASSIGNED_CLIENT;
+      const stage = (row.seo_stage || '').trim() || UNSPECIFIED_STAGE;
+      const entry = ensureClient(clientName);
+      const n = Number(row.cnt) || 0;
+      entry.counts[stage] = (entry.counts[stage] || 0) + n;
+      entry.total += n;
+      const ownerName = (row.seo_owner || '').trim();
+      if (ownerName) entry.ownerCounts[ownerName] = (entry.ownerCounts[ownerName] || 0) + n;
+    }
+
+    // Rows: roster order, then clients that only exist on tasks (e.g. renamed/
+    // removed from the clients table), 'Unassigned' always last.
+    const rosterSet = new Set(roster);
+    const extraClients = [...byClient.keys()]
+      .filter(c => !rosterSet.has(c))
+      .sort((a, b) => (a === UNASSIGNED_CLIENT ? 1 : b === UNASSIGNED_CLIENT ? -1 : a.localeCompare(b)));
+    const clientNames = [...roster, ...extraClients];
+
+    const clients = clientNames.map(name => {
+      const entry = byClient.get(name) || { counts: {}, ownerCounts: {}, total: 0 };
+      // Sub-label: the owner who logged the most of this client's tasks this
+      // month (there is no client→owner mapping in the DB to read instead).
+      let topOwner = '';
+      let topOwnerCnt = 0;
+      for (const [o, c] of Object.entries(entry.ownerCounts)) {
+        if (c > topOwnerCnt) { topOwner = o; topOwnerCnt = c; }
+      }
+      const counts = {};
+      for (const s of stages) counts[s] = entry.counts[s] || 0;
+      return { name, owner: topOwner, counts, total: entry.total };
+    });
+
+    const perStage = {};
+    for (const s of stages) perStage[s] = clients.reduce((sum, c) => sum + c.counts[s], 0);
+    const grand = clients.reduce((sum, c) => sum + c.total, 0);
+
+    let topStage = '';
+    let topStageCnt = 0;
+    for (const s of stages) {
+      if (perStage[s] > topStageCnt) { topStage = s; topStageCnt = perStage[s]; }
+    }
+
+    res.json({
+      month,
+      owner,
+      owners: ownerRows.map(r => r.seo_owner),
+      stages,
+      clients,
+      totals: { perStage, grand },
+      stats: {
+        clientCount: clients.length,
+        totalTasks: grand,
+        topStage,
+        zeroTaskClients: clients.filter(c => c.total === 0).length,
+      },
+    });
+  } catch (e) {
+    console.error('GET /api/unified-timesheet/client-coverage error:', e.code, e.message);
+    res.status(500).json({ error: 'Failed to load client coverage data' });
+  }
+});
+
 function sumBy(list, fn) {
   return list.reduce((s, item) => s + fn(item), 0);
 }

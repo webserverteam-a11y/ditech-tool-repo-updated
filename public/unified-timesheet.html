@@ -174,6 +174,44 @@
     }
     .team-date-nav-btn:hover { background: #f8fafc; }
 
+    /* ── Client Coverage: own prefixed classes for the same reason as the
+       Team view's — the individual/team views query .range-pill /
+       .date-nav-btn / .team-date-nav-btn unscoped, so Coverage gets its
+       own cov-* names to stay out of their querySelectorAll reach. ── */
+    .cov-nav-btn {
+      width: 30px; height: 30px; border-radius: 7px; border: 1.5px solid #cbd5e1;
+      background: #fff; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: #475569;
+    }
+    .cov-nav-btn:hover { background: #f8fafc; }
+    .cov-search {
+      padding: 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px;
+      font-size: 0.88rem; font-weight: 500; color: #1e293b; background: #f8fafc;
+      min-width: 190px; transition: border-color 0.15s;
+    }
+    .cov-search:focus { outline: none; border-color: #4f6ef7; }
+    .cov-pill {
+      display: inline-block; min-width: 36px; padding: 4px 7px; border-radius: 6px;
+      font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
+    }
+    .cov-low  { background: #e6f1fb; color: #0c447c; }
+    .cov-mid  { background: #b5d4f4; color: #0c447c; }
+    .cov-high { background: #85b7eb; color: #042c53; }
+    .cov-zero { color: #cbd5e1; font-weight: 400; }
+    th.cov-sticky, td.cov-sticky { position: sticky; left: 0; background: #fff; }
+    thead th.cov-sticky { background: #f8fafc; z-index: 6; }
+    tr.total-row td.cov-sticky { background: #f8fafc; }
+    .cov-owner-sub { font-size: 0.7rem; color: #94a3b8; font-weight: 400; }
+    .cov-pager {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px; border-top: 1px solid #e2e8f0;
+      font-size: 0.82rem; color: #475569; flex-wrap: wrap; gap: 8px;
+    }
+    .cov-pager-controls { display: flex; align-items: center; gap: 8px; }
+    .legend-cov-low  { background: #e6f1fb; }
+    .legend-cov-mid  { background: #b5d4f4; }
+    .legend-cov-high { background: #85b7eb; }
+
     /* ── Date navigator ── */
     .date-nav { display: flex; align-items: center; gap: 8px; }
     .date-nav-btn {
@@ -436,6 +474,7 @@
 <div class="view-tabs">
   <button class="view-tab active" id="tabIndividualBtn" onclick="showView('individual')">Timesheet</button>
   <button class="view-tab" id="tabTeamBtn" onclick="showView('team')">Team Timesheet</button>
+  <button class="view-tab" id="tabCoverageBtn" onclick="showView('coverage')">Client Coverage</button>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════
@@ -612,6 +651,60 @@
   </div>
 
 </div><!-- /teamViewRoot -->
+
+<!-- ══════════════════════════════════════════════════════════════════
+     Client Coverage view — brand new, entirely separate ids/state/JS.
+     Monthly client × SEO-stage task-count matrix, all counts from the
+     DB via /api/unified-timesheet/client-coverage.
+     ══════════════════════════════════════════════════════════════════ -->
+<div id="coverageViewRoot" style="display:none">
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <label class="ctrl-label">Month</label>
+      <div class="date-nav">
+        <button class="cov-nav-btn" onclick="stepCoverageMonth(-1)" title="Previous month">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div class="date-display">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+          <span id="covMonthLabel">—</span>
+        </div>
+        <button class="cov-nav-btn" onclick="stepCoverageMonth(1)" title="Next month">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="covOwnerSel">Owner</label>
+      <select class="ctrl-select" id="covOwnerSel" onchange="onCoverageOwnerChange()">
+        <option value="">All Owners</option>
+      </select>
+    </div>
+
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="covSearchInput">Search</label>
+      <input type="text" class="cov-search" id="covSearchInput" placeholder="Search client…" oninput="onCoverageSearch()" />
+    </div>
+
+    <div class="ctrl-group" style="margin-left:auto">
+      <label class="ctrl-label">&nbsp;</label>
+      <button class="btn btn-primary" id="covExportBtn" onclick="exportCoverageCSV()" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export CSV
+      </button>
+    </div>
+  </div>
+
+  <div id="coverageMainArea">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <p>Loading…</p>
+    </div>
+  </div>
+
+</div><!-- /coverageViewRoot -->
 
 <!-- ── Toast ── -->
 <div class="toast" id="toast"></div>
@@ -1148,13 +1241,21 @@
     });
   });
 
-  /* ── View switching ── */
+  /* ── View switching (3-way: individual / team / coverage) ── */
   window.showView = function (view) {
     var isTeam = view === 'team';
-    document.getElementById('individualViewRoot').style.display = isTeam ? 'none' : '';
+    var isCoverage = view === 'coverage';
+    document.getElementById('individualViewRoot').style.display = (isTeam || isCoverage) ? 'none' : '';
     document.getElementById('teamViewRoot').style.display = isTeam ? '' : 'none';
-    document.getElementById('tabIndividualBtn').classList.toggle('active', !isTeam);
+    document.getElementById('coverageViewRoot').style.display = isCoverage ? '' : 'none';
+    document.getElementById('tabIndividualBtn').classList.toggle('active', !isTeam && !isCoverage);
     document.getElementById('tabTeamBtn').classList.toggle('active', isTeam);
+    document.getElementById('tabCoverageBtn').classList.toggle('active', isCoverage);
+
+    if (isCoverage && !coverageState.loaded) {
+      // First open only — after that the tab keeps its last-fetched data.
+      loadCoverageData();
+    }
 
     if (isTeam) {
       // Reuse the individual view's already-fetched client list/status set —
@@ -1508,6 +1609,263 @@
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'team-timesheet-' + teamState.team + '-' + teamState.date + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ══════════════════════════════════════════════════════════════════
+     Client Coverage — entirely new state/functions below. Nothing above
+     this point was modified to add it except showView(), which only
+     gained the third-tab toggling. Counts come from the DB via
+     GET /api/unified-timesheet/client-coverage.
+     ══════════════════════════════════════════════════════════════════ */
+
+  var COVERAGE_PER_PAGE = 20;
+
+  var coverageState = {
+    month: new Date().toISOString().slice(0, 7), // 'YYYY-MM'
+    owner: '',
+    search: '',
+    page: 0,
+    loaded: false, // first successful fetch done (used by showView's lazy load)
+  };
+
+  var coverageLastData = null;
+
+  function fmtMonthLabel(monthStr) {
+    var p = monthStr.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, 1));
+    return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  }
+
+  function shiftMonthStr(monthStr, dir) {
+    var p = monthStr.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1 + dir, 1));
+    return d.toISOString().slice(0, 7);
+  }
+
+  /* ── Controls ── */
+  window.stepCoverageMonth = function (dir) {
+    coverageState.month = shiftMonthStr(coverageState.month, dir);
+    coverageState.page = 0;
+    loadCoverageData();
+  };
+
+  window.onCoverageOwnerChange = function () {
+    coverageState.owner = document.getElementById('covOwnerSel').value;
+    coverageState.page = 0;
+    loadCoverageData(); // owner is a server-side filter — counts change
+  };
+
+  window.onCoverageSearch = function () {
+    coverageState.search = document.getElementById('covSearchInput').value;
+    coverageState.page = 0;
+    if (coverageLastData) renderCoverageTableOnly();
+  };
+
+  /* ── Load data ── */
+  function loadCoverageData() {
+    renderCoverageLoading();
+    document.getElementById('covMonthLabel').textContent = fmtMonthLabel(coverageState.month);
+    var url = '/api/unified-timesheet/client-coverage?month=' + encodeURIComponent(coverageState.month) +
+      (coverageState.owner ? '&owner=' + encodeURIComponent(coverageState.owner) : '');
+
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || ('HTTP ' + r.status)); });
+        return r.json();
+      })
+      .then(function (data) {
+        coverageLastData = data;
+        coverageState.loaded = true;
+        document.getElementById('covExportBtn').disabled = false;
+        populateCoverageOwnerSelect(data.owners || []);
+        renderCoveragePage(data);
+      })
+      .catch(function (e) {
+        document.getElementById('covExportBtn').disabled = true;
+        renderCoverageError(e.message);
+      });
+  }
+
+  function populateCoverageOwnerSelect(owners) {
+    var sel = document.getElementById('covOwnerSel');
+    var current = coverageState.owner;
+    sel.innerHTML = '<option value="">All Owners</option>';
+    owners.forEach(function (o) {
+      var opt = document.createElement('option');
+      opt.value = o; opt.textContent = o;
+      sel.appendChild(opt);
+    });
+    // Keep the active filter selected even if that owner has no tasks this month
+    if (current && owners.indexOf(current) === -1) {
+      var extra = document.createElement('option');
+      extra.value = current; extra.textContent = current;
+      sel.appendChild(extra);
+    }
+    sel.value = current;
+  }
+
+  /* ── Render: loading / error ── */
+  function renderCoverageLoading() {
+    document.getElementById('coverageMainArea').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><p>Loading client coverage…</p></div>';
+  }
+
+  function renderCoverageError(msg) {
+    document.getElementById('coverageMainArea').innerHTML =
+      '<div class="state-box">' +
+      '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+      '<p style="color:#ef4444">' + esc(msg) + '</p></div>';
+  }
+
+  /* ── Render: full page (heading + stats + table + legend) ── */
+  function renderCoveragePage(data) {
+    var html = '<div class="content">';
+    html += '<div class="overview-heading">' +
+      '<h2>Client Coverage</h2>' +
+      '<p>' + esc(fmtMonthLabel(data.month)) +
+      (data.owner ? ' · ' + esc(data.owner) : '') +
+      ' · task counts by SEO stage (from intake date)</p>' +
+      '</div>';
+    html += renderCoverageStats(data.stats);
+    html += '<div id="covTableSlot"></div>';
+    html += renderCoverageLegend();
+    html += '</div>';
+    document.getElementById('coverageMainArea').innerHTML = html;
+    renderCoverageTableOnly();
+  }
+
+  function renderCoverageStats(stats) {
+    return '<div class="stats-grid">' +
+      statCard('blue', iconUsers(), stats.clientCount, 'Clients') +
+      statCard('cyan', iconClipboard(), stats.totalTasks, 'Total Tasks', 'This month') +
+      statCard('green', iconTrend(), stats.topStage || '—', 'Top Stage', '', 'green') +
+      statCard('red', iconAlert(), stats.zeroTaskClients, 'Clients with 0 Tasks', '', stats.zeroTaskClients > 0 ? 'red' : '') +
+      '</div>';
+  }
+
+  function coverageFilteredClients() {
+    var q = coverageState.search.trim().toLowerCase();
+    var clients = (coverageLastData && coverageLastData.clients) || [];
+    if (!q) return clients;
+    return clients.filter(function (c) { return c.name.toLowerCase().indexOf(q) !== -1; });
+  }
+
+  function covCountCell(v) {
+    if (!v) return '<span class="cov-pill cov-zero">–</span>';
+    var cls = v <= 5 ? 'cov-low' : v <= 15 ? 'cov-mid' : 'cov-high';
+    return '<span class="cov-pill ' + cls + '">' + v + '</span>';
+  }
+
+  /* Re-renders only the table card (search / page changes) without
+     re-fetching or touching the stat cards. */
+  function renderCoverageTableOnly() {
+    var slot = document.getElementById('covTableSlot');
+    if (!slot || !coverageLastData) return;
+    var data = coverageLastData;
+    var filtered = coverageFilteredClients();
+
+    if (filtered.length === 0) {
+      slot.innerHTML = '<div class="tbl-card"><div class="state-box" style="padding:40px 20px">' +
+        '<p>' + (coverageState.search ? 'No clients match your search.' : 'No clients configured yet.') + '</p></div></div>';
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(filtered.length / COVERAGE_PER_PAGE));
+    if (coverageState.page >= pages) coverageState.page = pages - 1;
+    var start = coverageState.page * COVERAGE_PER_PAGE;
+    var pageRows = filtered.slice(start, start + COVERAGE_PER_PAGE);
+
+    var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
+      '<th class="cov-sticky">Client</th>';
+    data.stages.forEach(function (s) {
+      html += '<th style="text-align:center">' + esc(s) + '</th>';
+    });
+    html += '<th class="td-num">Total</th></tr></thead><tbody>';
+
+    pageRows.forEach(function (c) {
+      html += '<tr class="task-row">' +
+        '<td class="cov-sticky"><span class="td-title">' + esc(c.name) + '</span>' +
+        (c.owner ? '<br><span class="cov-owner-sub">' + esc(c.owner) + '</span>' : '') + '</td>';
+      data.stages.forEach(function (s) {
+        html += '<td style="text-align:center">' + covCountCell(c.counts[s] || 0) + '</td>';
+      });
+      html += '<td class="td-num" style="font-weight:700">' + (c.total || '–') + '</td></tr>';
+    });
+
+    // Footer totals over the FILTERED set (matches the search), like the mock
+    var grand = 0;
+    html += '<tr class="total-row"><td class="cov-sticky">Total' +
+      '<span class="grp-badge">' + filtered.length + ' client' + (filtered.length === 1 ? '' : 's') + '</span></td>';
+    data.stages.forEach(function (s) {
+      var t = filtered.reduce(function (sum, c) { return sum + (c.counts[s] || 0); }, 0);
+      grand += t;
+      html += '<td style="text-align:center">' + t.toLocaleString() + '</td>';
+    });
+    html += '<td class="td-num">' + grand.toLocaleString() + '</td></tr>';
+
+    html += '</tbody></table></div>';
+
+    html += '<div class="cov-pager">' +
+      '<span>Showing ' + (start + 1) + '–' + Math.min(start + COVERAGE_PER_PAGE, filtered.length) + ' of ' + filtered.length + ' clients</span>' +
+      '<div class="cov-pager-controls">' +
+      '<button class="btn btn-light" onclick="covPrevPage()"' + (coverageState.page === 0 ? ' disabled' : '') + '>‹ Prev</button>' +
+      '<span>Page ' + (coverageState.page + 1) + ' of ' + pages + '</span>' +
+      '<button class="btn btn-light" onclick="covNextPage()"' + (coverageState.page >= pages - 1 ? ' disabled' : '') + '>Next ›</button>' +
+      '</div></div>';
+
+    html += '</div>';
+    slot.innerHTML = html;
+  }
+
+  window.covPrevPage = function () {
+    if (coverageState.page > 0) { coverageState.page--; renderCoverageTableOnly(); }
+  };
+
+  window.covNextPage = function () {
+    var pages = Math.max(1, Math.ceil(coverageFilteredClients().length / COVERAGE_PER_PAGE));
+    if (coverageState.page < pages - 1) { coverageState.page++; renderCoverageTableOnly(); }
+  };
+
+  function renderCoverageLegend() {
+    return '<div class="legend">' +
+      '<span><span class="legend-swatch legend-cov-low"></span>Low (1–5)</span>' +
+      '<span><span class="legend-swatch legend-cov-mid"></span>Medium (6–15)</span>' +
+      '<span><span class="legend-swatch legend-cov-high"></span>High (16+)</span>' +
+      '<span><span class="legend-swatch legend-empty"></span>No tasks</span>' +
+      '</div>';
+  }
+
+  function iconUsers() { return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'; }
+
+  /* ── Export CSV (full data set — ignores search/pagination) ── */
+  window.exportCoverageCSV = function () {
+    if (!coverageLastData || !coverageLastData.clients.length) return;
+    var data = coverageLastData;
+    var header = ['Client', 'Owner'].concat(data.stages).concat(['Total']);
+    var rows = [header];
+    data.clients.forEach(function (c) {
+      var row = [c.name, c.owner || ''];
+      data.stages.forEach(function (s) { row.push(c.counts[s] || 0); });
+      row.push(c.total);
+      rows.push(row);
+    });
+    var totalRow = ['Total (' + data.clients.length + ' clients)', ''];
+    data.stages.forEach(function (s) { totalRow.push(data.totals.perStage[s] || 0); });
+    totalRow.push(data.totals.grand);
+    rows.push(totalRow);
+
+    var csv = rows.map(function (r) {
+      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'client-coverage-' + coverageState.month + (coverageState.owner ? '-' + coverageState.owner : '') + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
