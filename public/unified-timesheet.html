@@ -201,9 +201,11 @@
       display: inline-block; min-width: 36px; padding: 4px 7px; border-radius: 6px;
       font-weight: 600; font-variant-numeric: tabular-nums; text-align: center;
     }
-    .cov-low  { background: #e6f1fb; color: #0c447c; }
-    .cov-mid  { background: #b5d4f4; color: #0c447c; }
-    .cov-high { background: #85b7eb; color: #042c53; }
+    /* Heat scale: green → amber → red (same hues as the timesheet's
+       within/underutilized/overrun buckets, so the page stays coherent) */
+    .cov-low  { background: #dcfce7; color: #15803d; }
+    .cov-mid  { background: #fef3c7; color: #b45309; }
+    .cov-high { background: #fee2e2; color: #b91c1c; }
     .cov-zero { color: #cbd5e1; font-weight: 400; }
     th.cov-sticky, td.cov-sticky { position: sticky; left: 0; background: #fff; }
     thead th.cov-sticky { background: #f8fafc; z-index: 6; }
@@ -215,9 +217,9 @@
       font-size: 0.82rem; color: #475569; flex-wrap: wrap; gap: 8px;
     }
     .cov-pager-controls { display: flex; align-items: center; gap: 8px; }
-    .legend-cov-low  { background: #e6f1fb; }
-    .legend-cov-mid  { background: #b5d4f4; }
-    .legend-cov-high { background: #85b7eb; }
+    .legend-cov-low  { background: #dcfce7; }
+    .legend-cov-mid  { background: #fef3c7; }
+    .legend-cov-high { background: #fee2e2; }
 
     /* ── Date navigator ── */
     .date-nav { display: flex; align-items: center; gap: 8px; }
@@ -1880,32 +1882,36 @@
     var pageRows = filtered.slice(start, start + COVERAGE_PER_PAGE);
 
     var html = '<div class="tbl-card"><div class="tbl-wrap"><table><thead><tr>' +
-      '<th class="cov-sticky">Client</th>';
+      '<th class="cov-sticky">Client</th>' +
+      '<th style="text-align:center">Total</th>';
     data.stages.forEach(function (s) {
       html += '<th style="text-align:center">' + esc(s) + '</th>';
     });
-    html += '<th class="td-num">Total</th></tr></thead><tbody>';
+    html += '</tr></thead><tbody>';
 
     pageRows.forEach(function (c) {
       html += '<tr class="task-row">' +
         '<td class="cov-sticky"><span class="td-title">' + esc(c.name) + '</span>' +
-        (c.owner ? '<br><span class="cov-owner-sub">' + esc(c.owner) + '</span>' : '') + '</td>';
+        (c.owner ? '<br><span class="cov-owner-sub">' + esc(c.owner) + '</span>' : '') + '</td>' +
+        '<td style="text-align:center;font-weight:700">' + (c.total || '<span class="cov-zero">–</span>') + '</td>';
       data.stages.forEach(function (s) {
         html += '<td style="text-align:center">' + covCountCell(c.counts[s] || 0) + '</td>';
       });
-      html += '<td class="td-num" style="font-weight:700">' + (c.total || '–') + '</td></tr>';
+      html += '</tr>';
     });
 
     // Footer totals over the FILTERED set (matches the search), like the mock
-    var grand = 0;
+    var stageTotals = data.stages.map(function (s) {
+      return filtered.reduce(function (sum, c) { return sum + (c.counts[s] || 0); }, 0);
+    });
+    var grand = stageTotals.reduce(function (a, b) { return a + b; }, 0);
     html += '<tr class="total-row"><td class="cov-sticky">Total' +
-      '<span class="grp-badge">' + filtered.length + ' client' + (filtered.length === 1 ? '' : 's') + '</span></td>';
-    data.stages.forEach(function (s) {
-      var t = filtered.reduce(function (sum, c) { return sum + (c.counts[s] || 0); }, 0);
-      grand += t;
+      '<span class="grp-badge">' + filtered.length + ' client' + (filtered.length === 1 ? '' : 's') + '</span></td>' +
+      '<td style="text-align:center">' + grand.toLocaleString() + '</td>';
+    stageTotals.forEach(function (t) {
       html += '<td style="text-align:center">' + t.toLocaleString() + '</td>';
     });
-    html += '<td class="td-num">' + grand.toLocaleString() + '</td></tr>';
+    html += '</tr>';
 
     html += '</tbody></table></div>';
 
@@ -1945,17 +1951,15 @@
   window.exportCoverageCSV = function () {
     if (!coverageLastData || !coverageLastData.clients.length) return;
     var data = coverageLastData;
-    var header = ['Client', 'Owner'].concat(data.stages).concat(['Total']);
+    var header = ['Client', 'Owner', 'Total'].concat(data.stages);
     var rows = [header];
     data.clients.forEach(function (c) {
-      var row = [c.name, c.owner || ''];
+      var row = [c.name, c.owner || '', c.total];
       data.stages.forEach(function (s) { row.push(c.counts[s] || 0); });
-      row.push(c.total);
       rows.push(row);
     });
-    var totalRow = ['Total (' + data.clients.length + ' clients)', ''];
+    var totalRow = ['Total (' + data.clients.length + ' clients)', '', data.totals.grand];
     data.stages.forEach(function (s) { totalRow.push(data.totals.perStage[s] || 0); });
-    totalRow.push(data.totals.grand);
     rows.push(totalRow);
 
     var csv = rows.map(function (r) {

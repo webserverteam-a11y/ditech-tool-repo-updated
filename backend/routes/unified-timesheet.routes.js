@@ -513,6 +513,9 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
 const DEFAULT_SEO_STAGES = ['Blogs', 'Client Call', 'Development', 'On Page', 'Reports', 'Tech. SEO', 'Whatsapp Message'];
 const UNSPECIFIED_STAGE = 'Unspecified';
 const UNASSIGNED_CLIENT = 'Unassigned';
+// Requested column order for the key stages; any other stage follows after.
+const PREFERRED_STAGE_ORDER = ['On Page', 'New Page', 'Blogs', 'Strategy', 'Tech. SEO', 'Client Call'];
+const stageKey = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
   try {
@@ -566,16 +569,30 @@ unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
       `SELECT DISTINCT seo_owner FROM tasks WHERE seo_owner IS NOT NULL AND seo_owner <> '' ORDER BY seo_owner`
     );
 
-    // Columns: configured order first (stable across months, even at 0 tasks),
-    // then any ad-hoc stage values found in the data, 'Unspecified' last.
+    // Columns: configured stages (stable across ranges, even at 0 tasks) plus
+    // any ad-hoc stage values found in the data...
     const stageSet = new Set(configuredStages);
-    const stages = [...configuredStages];
+    const collected = [...configuredStages];
     let hasUnspecified = false;
     for (const row of countRows) {
       const stage = (row.seo_stage || '').trim();
       if (!stage) { hasUnspecified = true; continue; }
-      if (!stageSet.has(stage)) { stageSet.add(stage); stages.push(stage); }
+      if (!stageSet.has(stage)) { stageSet.add(stage); collected.push(stage); }
     }
+
+    // ...ordered with the requested key stages first, everything else after
+    // (keeping its original relative order), 'Unspecified' always last.
+    // Matching is case/punctuation-insensitive so 'Tech SEO' / 'Tech. SEO'
+    // and similar admin-config spelling variants all hit.
+    const preferredKeys = PREFERRED_STAGE_ORDER.map(stageKey);
+    const preferred = [];
+    const rest = [];
+    for (const s of collected) {
+      const idx = preferredKeys.indexOf(stageKey(s));
+      if (idx !== -1) preferred.push({ idx, s }); else rest.push(s);
+    }
+    preferred.sort((a, b) => a.idx - b.idx);
+    const stages = [...preferred.map(p => p.s), ...rest];
     if (hasUnspecified) stages.push(UNSPECIFIED_STAGE);
 
     const byClient = new Map();
