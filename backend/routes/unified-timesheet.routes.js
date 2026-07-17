@@ -548,7 +548,25 @@ unifiedTimesheetRouter.get('/client-coverage', async (req, res) => {
     }
 
     const [clientRows] = await pool.query('SELECT name FROM clients ORDER BY sort_order, name');
-    const roster = clientRows.map(r => r.name).filter(Boolean);
+    let roster = clientRows.map(r => r.name).filter(Boolean);
+
+    // When filtering by owner, the roster (which is org-wide) must be narrowed
+    // to clients that owner is actually associated with — otherwise every
+    // client in the system still gets a row, just with all-blank stage
+    // columns for the ones that owner never touched. There's no client→owner
+    // assignment table, so "associated with" means "has ever logged a task
+    // for this client" (lifetime, not just the current date range) — that
+    // way a client the owner covers but had zero tasks this month still
+    // shows up as a zero row instead of disappearing.
+    let ownedClientSet = null;
+    if (owner) {
+      const [ownedRows] = await pool.query(
+        'SELECT DISTINCT client FROM tasks WHERE seo_owner = ? AND client IS NOT NULL AND client <> \'\'',
+        [owner]
+      );
+      ownedClientSet = new Set(ownedRows.map(r => r.client));
+      roster = roster.filter(name => ownedClientSet.has(name));
+    }
 
     // intake_date is a 'YYYY-MM-DD' varchar, so string compare bounds work —
     // the same convention report.routes.js uses for its from/to filtering.
