@@ -117,6 +117,27 @@ const TABLE_DDL = [
     sort_order INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
+  // ── Client Reports panel (SEO performance tracker) ────────────────────────
+  // Reuses the `clients` table above as the shared name roster (read-only);
+  // these two tables only hold the extra profile fields + monthly metrics
+  // history that panel needs. `client` is a plain string key everywhere else
+  // in this schema (see client_config), so no FK is added here either.
+  ['client_reports_profiles', `CREATE TABLE IF NOT EXISTS client_reports_profiles (
+    client VARCHAR(255) PRIMARY KEY,
+    domain VARCHAR(255) DEFAULT '', industry VARCHAR(255) DEFAULT '',
+    tier VARCHAR(50) DEFAULT 'Growth', account_manager VARCHAR(255) DEFAULT '',
+    target_traffic INT DEFAULT 0, target_leads INT DEFAULT 0,
+    start_date VARCHAR(50) DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`],
+  ['client_reports_metrics', `CREATE TABLE IF NOT EXISTS client_reports_metrics (
+    client VARCHAR(255) NOT NULL, month VARCHAR(7) NOT NULL,
+    organic_traffic INT DEFAULT 0, organic_clicks INT DEFAULT 0,
+    impressions INT DEFAULT 0, ctr DECIMAL(6,2) DEFAULT 0,
+    leads INT DEFAULT 0, notes TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (client, month))`],
 ];
 
 const MIGRATIONS = [

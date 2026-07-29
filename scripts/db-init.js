@@ -212,6 +212,37 @@ async function initDatabase() {
         INDEX idx_remark_task (task_id),
         INDEX idx_remark_user (user_name)
       )`
+    },
+    {
+      name: 'client_reports_profiles',
+      sql: `CREATE TABLE IF NOT EXISTS client_reports_profiles (
+        client VARCHAR(255) PRIMARY KEY,
+        domain VARCHAR(255) DEFAULT '',
+        industry VARCHAR(255) DEFAULT '',
+        tier VARCHAR(50) DEFAULT 'Growth',
+        account_manager VARCHAR(255) DEFAULT '',
+        target_traffic INT DEFAULT 0,
+        target_leads INT DEFAULT 0,
+        start_date VARCHAR(50) DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`
+    },
+    {
+      name: 'client_reports_metrics',
+      sql: `CREATE TABLE IF NOT EXISTS client_reports_metrics (
+        client VARCHAR(255) NOT NULL,
+        month VARCHAR(7) NOT NULL,
+        organic_traffic INT DEFAULT 0,
+        organic_clicks INT DEFAULT 0,
+        impressions INT DEFAULT 0,
+        ctr DECIMAL(6,2) DEFAULT 0,
+        leads INT DEFAULT 0,
+        notes TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (client, month)
+      )`
     }
   ];
 

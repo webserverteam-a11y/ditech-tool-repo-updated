@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client Reports — DiTech CDM</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    .cr-header {
+      background: #1e2d5a;
+      color: #fff;
+      padding: 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .cr-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .cr-brand-sub {
+      font-size: 0.85rem;
+      opacity: 0.65;
+      font-weight: 400;
+      margin-left: 6px;
+    }
+    .cr-back-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: rgba(255,255,255,0.75); text-decoration: none;
+      font-size: 0.82rem; font-weight: 600; padding: 5px 10px;
+      border: 1.5px solid rgba(255,255,255,0.25); border-radius: 6px;
+      margin-right: 10px; transition: background 0.15s;
+    }
+    .cr-back-link:hover { background: rgba(255,255,255,0.1); }
+    .cr-header-actions { display: flex; gap: 8px; align-items: center; }
+
+    .cr-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;
+      font-size: 0.84rem; font-weight: 600; transition: background 0.15s, opacity 0.15s;
+      font-family: inherit;
+    }
+    .cr-btn-outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.35); color: #fff; }
+    .cr-btn-outline:hover { background: rgba(255,255,255,0.1); }
+    .cr-btn-primary { background: #4f6ef7; color: #fff; }
+    .cr-btn-primary:hover { background: #3b5be0; }
+    .cr-btn-primary:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .cr-btn-light { background: #f1f5f9; color: #334155; border: 1.5px solid #cbd5e1; }
+    .cr-btn-light:hover { background: #e2e8f0; }
+    .cr-btn-danger { background: #fff; color: #b91c1c; border: 1.5px solid #fecaca; }
+    .cr-btn-danger:hover { background: #fef2f2; }
+
+    /* ── Tabs ─────────────────────────────────────────────────── */
+    .cr-tabs {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 0 28px; display: flex; gap: 4px;
+    }
+    .cr-tab-btn {
+      padding: 12px 16px; font-size: 0.85rem; font-weight: 700;
+      color: #64748b; background: transparent; border: none; cursor: pointer;
+      border-bottom: 2.5px solid transparent; margin-bottom: -1px;
+      font-family: inherit; transition: color 0.15s, border-color 0.15s;
+    }
+    .cr-tab-btn:hover { color: #1e2d5a; }
+    .cr-tab-btn.active { color: #1e2d5a; border-bottom-color: #4f6ef7; }
+
+    /* ── Controls Bar ─────────────────────────────────────────── */
+    .cr-controls {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 12px 28px; display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap;
+    }
+    .cr-ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+    .cr-ctrl-label {
+      font-size: 0.72rem; font-weight: 700; color: #64748b;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .cr-select, .cr-input {
+      padding: 7px 32px 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px;
+      font-size: 0.86rem; font-weight: 500; color: #1e293b; background: #f8fafc;
+      cursor: pointer; min-width: 160px; font-family: inherit;
+    }
+    .cr-select:focus, .cr-input:focus { outline: none; border-color: #4f6ef7; }
+    .cr-input { padding: 7px 10px; cursor: text; min-width: 220px; }
+
+    /* ── Report body ──────────────────────────────────────────── */
+    .cr-body { padding: 20px 28px 40px; }
+    .cr-view { display: none; }
+    .cr-view.active { display: block; }
+
+    /* ── KPI cards ────────────────────────────────────────────── */
+    .cr-kpi-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px;
+    }
+    @media (max-width: 1100px) { .cr-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .cr-kpi-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .cr-kpi-top { display: flex; align-items: center; justify-content: space-between; color: #64748b; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
+    .cr-kpi-val { font-size: 1.5rem; font-weight: 800; color: #1e293b; margin-top: 8px; }
+    .cr-kpi-diff { font-size: 0.74rem; font-weight: 700; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; gap: 4px; }
+    .cr-kpi-diff.pos { color: #16a34a; }
+    .cr-kpi-diff.neg { color: #dc2626; }
+
+    /* ── Sections / cards ─────────────────────────────────────── */
+    .cr-grid-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .cr-grid-2b { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 1000px) { .cr-grid-2, .cr-grid-2b { grid-template-columns: 1fr; } }
+    .cr-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden;
+    }
+    .cr-card-hd { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .cr-card-hd h3 { font-size: 0.88rem; font-weight: 700; color: #1e293b; }
+    .cr-card-hd p { font-size: 0.74rem; color: #94a3b8; margin-top: 2px; }
+    .cr-card-body { padding: 14px 16px; }
+
+    /* ── Trend chart ──────────────────────────────────────────── */
+    .cr-legend { display: flex; gap: 14px; font-size: 0.72rem; font-weight: 700; }
+    .cr-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .cr-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .cr-chart-labels { display: flex; margin-top: 4px; }
+    .cr-chart-labels span { flex: 1; text-align: center; font-size: 0.68rem; color: #94a3b8; font-weight: 600; }
+
+    /* ── Health status rows ───────────────────────────────────── */
+    .cr-health-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; border: 1px solid;
+    }
+    .cr-health-row.good { background: #f0fdf4; border-color: #bbf7d0; }
+    .cr-health-row.bad { background: #fef2f2; border-color: #fecaca; }
+    .cr-health-row.flat { background: #f8fafc; border-color: #e2e8f0; }
+    .cr-health-label { font-size: 0.82rem; font-weight: 700; color: #1e293b; }
+    .cr-health-sub { font-size: 0.7rem; font-weight: 600; }
+    .cr-health-val { font-size: 1.25rem; font-weight: 800; }
+
+    /* ── Leaderboard rows ─────────────────────────────────────── */
+    .cr-lb-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer;
+    }
+    .cr-lb-row:hover { background: #f8fafc; }
+    .cr-lb-row:last-child { border-bottom: none; }
+    .cr-lb-name { font-size: 0.82rem; font-weight: 700; color: #1e293b; }
+    .cr-lb-sub { font-size: 0.7rem; color: #94a3b8; }
+    .cr-empty-note { padding: 18px 8px; text-align: center; color: #94a3b8; font-size: 0.8rem; font-style: italic; }
+
+    /* ── Table ────────────────────────────────────────────────── */
+    .cr-tbl-wrap { overflow-x: auto; }
+    table.cr-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .cr-table thead tr { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
+    .cr-table thead th {
+      padding: 8px 10px; text-align: left; font-weight: 700; color: #64748b;
+      white-space: nowrap; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.4px;
+      cursor: pointer; user-select: none;
+    }
+    .cr-table thead th:hover { color: #1e293b; }
+    .cr-table thead th.num, .cr-table td.num { text-align: right; }
+    .cr-table thead th.ctr, .cr-table td.ctr { text-align: center; }
+    .cr-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+    .cr-table tbody tr:hover { background: #f8fafc; cursor: pointer; }
+    .cr-table tbody tr:last-child { border-bottom: none; }
+    .cr-table td { padding: 8px 10px; vertical-align: middle; color: #334155; }
+    .cr-name-cell { font-weight: 800; color: #1e293b; }
+    .cr-sub-cell { font-size: 0.72rem; color: #94a3b8; margin-top: 1px; }
+
+    .cr-tier-badge { font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; border: 1px solid; margin-left: 6px; }
+    .cr-tier-Enterprise { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+    .cr-tier-Growth { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .cr-tier-Starter { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+
+    .cr-badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+    .cr-badge.pos { background: #dcfce7; color: #15803d; }
+    .cr-badge.neg { background: #fee2e2; color: #b91c1c; }
+    .cr-badge.flat { background: #f1f5f9; color: #475569; }
+
+    .cr-progress-track { width: 70px; height: 6px; background: #f1f5f9; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0; margin-left: auto; margin-top: 3px; }
+    .cr-progress-fill { height: 100%; background: #4f6ef7; }
+    .cr-progress-fill.done { background: #16a34a; }
+
+    /* Bulk entry inputs */
+    .cr-cell-input {
+      width: 100%; min-width: 78px; padding: 6px 6px; border: 1px solid #cbd5e1; border-radius: 5px;
+      text-align: center; font-size: 0.8rem; font-weight: 700; color: #1e293b; background: #f8fafc; font-family: inherit;
+    }
+    .cr-cell-input:focus { outline: none; border-color: #4f6ef7; background: #fff; }
+    .cr-prev-hint { display: block; text-align: center; font-size: 0.65rem; color: #94a3b8; margin-top: 3px; }
+    .cr-notes-input { width: 100%; min-width: 160px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.78rem; font-family: inherit; }
+    .cr-ctr-readout { display: block; text-align: center; font-weight: 800; color: #c2410c; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 5px; }
+    tr.cr-row-dirty { background: #fffbeb; }
+    .cr-dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block; margin-left: 5px; }
+
+    /* ── Filters row ──────────────────────────────────────────── */
+    .cr-filters-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; }
+    .cr-quick-filters { display: inline-flex; gap: 2px; background: #f1f5f9; padding: 3px; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .cr-quick-filters button {
+      padding: 5px 12px; border-radius: 6px; border: none; background: transparent; cursor: pointer;
+      font-size: 0.76rem; font-weight: 700; color: #64748b; font-family: inherit;
+    }
+    .cr-quick-filters button.active { background: #4f6ef7; color: #fff; }
+    .cr-quick-filters button.active.growing { background: #16a34a; }
+    .cr-quick-filters button.active.falling { background: #dc2626; }
+
+    /* ── State box ────────────────────────────────────────────── */
+    .cr-state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 50px 20px; color: #94a3b8; font-size: 0.85rem; }
+
+    /* ── Toast ────────────────────────────────────────────────── */
+    .cr-toast {
+      position: fixed; bottom: 20px; right: 20px; background: #16a34a; color: #fff;
+      padding: 11px 18px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2); z-index: 500; display: none;
+    }
+    .cr-toast.error { background: #dc2626; }
+
+    /* ── Modals ───────────────────────────────────────────────── */
+    .cr-modal-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none;
+      align-items: flex-start; justify-content: center; z-index: 300; padding: 30px 16px; overflow-y: auto;
+    }
+    .cr-modal-overlay.open { display: flex; }
+    .cr-modal {
+      background: #fff; border-radius: 12px; width: 100%; max-width: 560px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3); overflow: hidden;
+    }
+    .cr-modal.wide { max-width: 920px; }
+    .cr-modal-hd { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .cr-modal-hd h3 { font-size: 1.02rem; font-weight: 800; color: #1e293b; }
+    .cr-modal-hd .cr-modal-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.3rem; line-height: 1; padding: 4px; }
+    .cr-modal-hd .cr-modal-close:hover { color: #1e293b; }
+    .cr-modal-body { padding: 18px 20px; max-height: 74vh; overflow-y: auto; }
+    .cr-modal-ft { padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 10px; }
+
+    .cr-form-row { margin-bottom: 12px; }
+    .cr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .cr-form-row label { display: block; font-size: 0.74rem; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .cr-form-row input, .cr-form-row select {
+      width: 100%; padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px;
+      font-size: 0.86rem; color: #1e293b; font-family: inherit; background: #f8fafc;
+    }
+    .cr-form-row input:focus, .cr-form-row select:focus { outline: none; border-color: #4f6ef7; background: #fff; }
+
+    .cr-detail-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+    @media (max-width: 700px) { .cr-detail-kpis { grid-template-columns: repeat(2, 1fr); } }
+    .cr-detail-kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+    .cr-detail-kpi span.lbl { font-size: 0.65rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; display: block; }
+    .cr-detail-kpi span.val { font-size: 1.1rem; font-weight: 800; color: #1e293b; display: block; margin-top: 3px; }
+    .cr-detail-kpi span.diff { font-size: 0.68rem; font-weight: 700; display: block; margin-top: 3px; }
+
+    textarea.cr-csv-area {
+      width: 100%; padding: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px;
+      font-family: 'Consolas', monospace; font-size: 0.75rem; color: #334155; resize: vertical;
+    }
+
+    @media (max-width: 900px) {
+      .cr-controls, .cr-body, .cr-header, .cr-tabs { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────── -->
+<div class="cr-header">
+  <div class="cr-brand">
+    <a href="/" class="cr-back-link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    DiTech CDM
+    <span class="cr-brand-sub">/ Client Reports</span>
+  </div>
+  <div class="cr-header-actions">
+    <button class="cr-btn cr-btn-outline" id="cr-btn-export" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export / Import
+    </button>
+    <button class="cr-btn cr-btn-primary" id="cr-btn-add-client" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Client
+    </button>
+  </div>
+</div>
+
+<!-- ── Tabs ────────────────────────────────────────────────────── -->
+<div class="cr-tabs">
+  <button class="cr-tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
+  <button class="cr-tab-btn" data-tab="clients" type="button">Clients</button>
+  <button class="cr-tab-btn" data-tab="bulk" type="button">Bulk Entry</button>
+</div>
+
+<!-- ── Controls ────────────────────────────────────────────────── -->
+<div class="cr-controls">
+  <div class="cr-ctrl-group">
+    <label class="cr-ctrl-label" for="cr-month-select">Reporting Month</label>
+    <select class="cr-select" id="cr-month-select"></select>
+  </div>
+  <div class="cr-ctrl-group" style="justify-content:flex-end">
+    <span style="font-size:0.75rem;color:#94a3b8" id="cr-summary-hint"></span>
+  </div>
+</div>
+
+<!-- ── Body ────────────────────────────────────────────────────── -->
+<div class="cr-body">
+
+  <!-- Dashboard tab -->
+  <div class="cr-view active" id="cr-view-dashboard"></div>
+
+  <!-- Clients tab -->
+  <div class="cr-view" id="cr-view-clients"></div>
+
+  <!-- Bulk entry tab -->
+  <div class="cr-view" id="cr-view-bulk"></div>
+
+</div>
+
+<!-- ── Client Detail Modal ─────────────────────────────────────── -->
+<div class="cr-modal-overlay" id="cr-modal-detail">
+  <div class="cr-modal wide" id="cr-modal-detail-content"></div>
+</div>
+
+<!-- ── Add / Edit Client Modal ─────────────────────────────────── -->
+<div class="cr-modal-overlay" id="cr-modal-client">
+  <div class="cr-modal" id="cr-modal-client-content"></div>
+</div>
+
+<!-- ── Export / Import Modal ───────────────────────────────────── -->
+<div class="cr-modal-overlay" id="cr-modal-export">
+  <div class="cr-modal" id="cr-modal-export-content"></div>
+</div>
+
+<div class="cr-toast" id="cr-toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Namespaced state ─────────────────────────────────────────── */
+  var STATE = {
+    clients: [],            // profile objects: {client, domain, industry, tier, accountManager, targetTraffic, targetLeads, startDate}
+    metrics: {},            // { clientName: { monthKey: metricObj } }
+    month: currentMonthKey(),
+    tab: 'dashboard',
+    search: '',
+    filters: { manager: 'All Managers', tier: 'All Tiers', industry: 'All Industries', growth: 'all' },
+    sortBy: 'traffic', sortDir: 'desc',
+    bulkDraft: {},
+    bulkDirty: {},
+    detailClient: null,
+    editingClientName: null, // non-null while Add/Edit modal targets an existing client
+    loaded: false,
+  };
+
+  /* ── Date / month helpers ─────────────────────────────────────── */
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function currentMonthKey() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1);
+  }
+  function prevMonthKey(mKey) {
+    var parts = mKey.split('-');
+    var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+    m -= 1; if (m < 1) { m = 12; y -= 1; }
+    return y + '-' + pad2(m);
+  }
+  function monthsList(count) {
+    var d = new Date();
+    var out = [];
+    for (var i = 0; i < count; i++) {
+      var y = d.getFullYear(), m = d.getMonth() + 1 - i;
+      while (m < 1) { m += 12; y -= 1; }
+      out.push(y + '-' + pad2(m));
+    }
+    return out;
+  }
+  var MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function formatMonthName(mKey) {
+    var p = mKey.split('-'); if (p.length < 2) return mKey;
+    return MONTH_NAMES[parseInt(p[1], 10) - 1] + ' ' + p[0];
+  }
+  function formatShortMonth(mKey) {
+    var p = mKey.split('-'); if (p.length < 2) return mKey;
+    return MONTH_SHORT[parseInt(p[1], 10) - 1] + " '" + p[0].slice(2);
+  }
+
+  /* ── Number / metric helpers ─────────────────────────────────── */
+  function formatNumber(n) { if (n === undefined || n === null || isNaN(n)) return '0'; return Number(n).toLocaleString('en-US'); }
+  function formatPercent(v) { if (v === undefined || v === null || isNaN(v)) return '0%'; var p = v > 0 ? '+' : ''; return p + v.toFixed(1) + '%'; }
+  function calcCTR(clicks, impressions) { if (!impressions || impressions <= 0) return 0; return Math.round((clicks / impressions) * 10000) / 100; }
+  function diffCalc(cur, prev) {
+    cur = cur || 0; prev = prev || 0;
+    var diff = cur - prev;
+    var pct = prev > 0 ? ((cur - prev) / prev) * 100 : (cur > 0 ? 100 : 0);
+    return { current: cur, previous: prev, diff: diff, percentChange: Math.round(pct * 10) / 10 };
+  }
+  function zeroMetric(client, month) { return { client: client, month: month, organicTraffic: 0, organicClicks: 0, impressions: 0, ctr: 0, leads: 0, notes: '' }; }
+  function metricFor(client, month) {
+    var byMonth = STATE.metrics[client];
+    return (byMonth && byMonth[month]) ? byMonth[month] : zeroMetric(client, month);
+  }
+  function buildComparison(client, month) {
+    var cur = metricFor(client, month);
+    var prev = metricFor(client, prevMonthKey(month));
+    return {
+      client: client, cur: cur, prev: prev,
+      traffic: diffCalc(cur.organicTraffic, prev.organicTraffic),
+      clicks: diffCalc(cur.organicClicks, prev.organicClicks),
+      impressions: diffCalc(cur.impressions, prev.impressions),
+      ctr: diffCalc(cur.ctr, prev.ctr),
+      leads: diffCalc(cur.leads, prev.leads),
+    };
+  }
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function clientProfile(name) {
+    for (var i = 0; i < STATE.clients.length; i++) if (STATE.clients[i].client === name) return STATE.clients[i];
+    return { client: name, domain: '', industry: '', tier: 'Growth', accountManager: '', targetTraffic: 0, targetLeads: 0, startDate: '' };
+  }
+
+  /* ── Toast ────────────────────────────────────────────────────── */
+  var toastTimer = null;
+  function showToast(msg, isError) {
+    var el = document.getElementById('cr-toast');
+    el.textContent = msg;
+    el.className = 'cr-toast' + (isError ? ' error' : '');
+    el.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.style.display = 'none'; }, 3200);
+  }
+
+  /* ── API helpers ──────────────────────────────────────────────── */
+  function apiGet(url) {
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+  function apiSend(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+        return data;
+      });
+    });
+  }
+
+  /* ── Load all data ────────────────────────────────────────────── */
+  function loadAll() {
+    return Promise.all([
+      apiGet('/api/client-reports/profiles'),
+      apiGet('/api/client-reports/metrics')
+    ]).then(function (results) {
+      STATE.clients = results[0];
+      var metricsFlat = results[1];
+      var byClient = {};
+      metricsFlat.forEach(function (m) {
+        if (!byClient[m.client]) byClient[m.client] = {};
+        byClient[m.client][m.month] = m;
+      });
+      STATE.metrics = byClient;
+      STATE.loaded = true;
+    });
+  }
+
+  function reloadAndRender() {
+    return loadAll().then(function () {
+      initBulkDraft();
+      renderCurrentTab();
+    }).catch(function (e) {
+      showToast('Failed to load data: ' + e.message, true);
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DASHBOARD TAB
+     ═══════════════════════════════════════════════════════════════ */
+  function renderDashboard() {
+    var el = document.getElementById('cr-view-dashboard');
+    if (STATE.clients.length === 0) {
+      el.innerHTML = '<div class="cr-card"><div class="cr-state-box">No clients yet. Click "Add Client" to start tracking SEO performance.</div></div>';
+      return;
+    }
+
+    var comparisons = STATE.clients.map(function (c) { return buildComparison(c.client, STATE.month); });
+
+    var totTrafficCur = 0, totTrafficPrev = 0, totClicksCur = 0, totClicksPrev = 0,
+        totImprCur = 0, totImprPrev = 0, totLeadsCur = 0, totLeadsPrev = 0;
+    comparisons.forEach(function (c) {
+      totTrafficCur += c.traffic.current; totTrafficPrev += c.traffic.previous;
+      totClicksCur += c.clicks.current; totClicksPrev += c.clicks.previous;
+      totImprCur += c.impressions.current; totImprPrev += c.impressions.previous;
+      totLeadsCur += c.leads.current; totLeadsPrev += c.leads.previous;
+    });
+    var trafficD = diffCalc(totTrafficCur, totTrafficPrev);
+    var clicksD = diffCalc(totClicksCur, totClicksPrev);
+    var imprD = diffCalc(totImprCur, totImprPrev);
+    var leadsD = diffCalc(totLeadsCur, totLeadsPrev);
+    var ctrCur = calcCTR(totClicksCur, totImprCur);
+    var ctrPrev = calcCTR(totClicksPrev, totImprPrev);
+    var ctrPtsDiff = Math.round((ctrCur - ctrPrev) * 100) / 100;
+
+    var growing = comparisons.filter(function (c) { return c.traffic.diff > 0; });
+    var falling = comparisons.filter(function (c) { return c.traffic.diff < 0; });
+    var flat = comparisons.filter(function (c) { return c.traffic.diff === 0; });
+
+    var topGrowth = comparisons.slice().sort(function (a, b) { return b.traffic.percentChange - a.traffic.percentChange; }).slice(0, 5);
+    var topDrops = comparisons.filter(function (c) { return c.traffic.diff < 0; })
+      .sort(function (a, b) { return a.traffic.percentChange - b.traffic.percentChange; }).slice(0, 5);
+
+    var kpiHtml =
+      kpiCard('Total Organic Traffic', formatNumber(trafficD.current), trafficD) +
+      kpiCard('Organic Clicks', formatNumber(clicksD.current), clicksD) +
+      kpiCard('Impressions', formatNumber(imprD.current), imprD, true) +
+      kpiCardCtr(ctrCur, ctrPtsDiff) +
+      kpiCard('Leads Received', formatNumber(leadsD.current), leadsD);
+
+    var months6 = monthsList(6).reverse();
+    var trafficSeries = [], leadsSeries = [];
+    months6.forEach(function (mKey) {
+      var t = 0, l = 0;
+      STATE.clients.forEach(function (c) {
+        var m = STATE.metrics[c.client] && STATE.metrics[c.client][mKey];
+        if (m) { t += m.organicTraffic || 0; l += m.leads || 0; }
+      });
+      trafficSeries.push(t); leadsSeries.push(l);
+    });
+
+    var html = '<div class="cr-kpi-grid">' + kpiHtml + '</div>';
+    html += '<div class="cr-grid-2">';
+
+    html += '<div class="cr-card"><div class="cr-card-hd">' +
+      '<div><h3>Organic Traffic & Leads Trajectory</h3><p>6-month trend across all ' + STATE.clients.length + ' clients</p></div>' +
+      '<div class="cr-legend"><span><span class="cr-dot" style="background:#4f6ef7"></span>Organic Traffic</span>' +
+      '<span><span class="cr-dot" style="background:#16a34a"></span>Leads Received</span></div>' +
+      '</div><div class="cr-card-body">' +
+      renderTrendChart(trafficSeries, leadsSeries) +
+      '<div class="cr-chart-labels">' + months6.map(function (m) { return '<span>' + formatShortMonth(m) + '</span>'; }).join('') + '</div>' +
+      '</div></div>';
+
+    html += '<div class="cr-card"><div class="cr-card-hd"><div><h3>Portfolio Health</h3><p>' + formatMonthName(STATE.month) + ' MoM traffic distribution</p></div></div>' +
+      '<div class="cr-card-body">' +
+      healthRow('good', 'Growing Accounts', 'Positive MoM traffic', growing.length, STATE.clients.length) +
+      healthRow('bad', 'Traffic Drops', 'Needs SEO review', falling.length, STATE.clients.length) +
+      (flat.length > 0 ? healthRow('flat', 'Flat / Unchanged', 'No shift recorded', flat.length, STATE.clients.length) : '') +
+      '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9;font-size:0.76rem;color:#64748b;display:flex;justify-content:space-between">' +
+      '<span>Average leads / client</span><strong style="color:#16a34a">' + Math.round(totLeadsCur / (STATE.clients.length || 1)) + '/mo</strong></div>' +
+      '</div></div>';
+
+    html += '</div>';
+
+    html += '<div class="cr-grid-2b">';
+    html += '<div class="cr-card"><div class="cr-card-hd"><h3>Top MoM Growth Winners</h3></div><div class="cr-card-body">' +
+      (topGrowth.length === 0 ? '<div class="cr-empty-note">No data yet for this month.</div>' :
+        topGrowth.map(function (c) { return lbRow(c, true); }).join('')) +
+      '</div></div>';
+    html += '<div class="cr-card"><div class="cr-card-hd"><h3>Traffic Drops & Attention Required</h3></div><div class="cr-card-body">' +
+      (topDrops.length === 0 ? '<div class="cr-empty-note">No clients dropped this month.</div>' :
+        topDrops.map(function (c) { return lbRow(c, false); }).join('')) +
+      '</div></div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    el.querySelectorAll('[data-open-client]').forEach(function (node) {
+      node.addEventListener('click', function () { openDetailModal(node.getAttribute('data-open-client')); });
+    });
+  }
+
+  function kpiCard(label, valueStr, d, noArrowSign) {
+    var cls = d.diff >= 0 ? 'pos' : 'neg';
+    var arrow = d.diff >= 0 ? '&#9650;' : '&#9660;';
+    return '<div class="cr-kpi-card"><div class="cr-kpi-top">' + esc(label) + '</div>' +
+      '<div class="cr-kpi-val">' + valueStr + '</div>' +
+      '<div class="cr-kpi-diff ' + cls + '">' + arrow + ' ' + formatNumber(Math.abs(d.diff)) + ' (' + formatPercent(d.percentChange) + ')</div>' +
+      '</div>';
+  }
+  function kpiCardCtr(cur, ptsDiff) {
+    var cls = ptsDiff >= 0 ? 'pos' : 'neg';
+    return '<div class="cr-kpi-card"><div class="cr-kpi-top">Avg. CTR</div>' +
+      '<div class="cr-kpi-val">' + cur.toFixed(2) + '%</div>' +
+      '<div class="cr-kpi-diff ' + cls + '">' + (ptsDiff >= 0 ? '+' : '') + ptsDiff.toFixed(2) + ' pts</div></div>';
+  }
+  function healthRow(kind, label, sub, count, total) {
+    var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    var valColor = kind === 'good' ? '#15803d' : kind === 'bad' ? '#b91c1c' : '#475569';
+    return '<div class="cr-health-row ' + kind + '"><div><span class="cr-health-label">' + esc(label) + '</span><br>' +
+      '<span class="cr-health-sub" style="color:' + valColor + '">' + esc(sub) + '</span></div>' +
+      '<div style="text-align:right"><span class="cr-health-val" style="color:' + valColor + '">' + count + '</span><br>' +
+      '<span style="font-size:0.65rem;color:#94a3b8">' + pct + '% of portfolio</span></div></div>';
+  }
+  function lbRow(c, isGrowth) {
+    var badgeCls = isGrowth ? 'pos' : 'neg';
+    return '<div class="cr-lb-row" data-open-client="' + esc(c.client) + '">' +
+      '<div><span class="cr-lb-name">' + esc(c.client) + '</span><br>' +
+      '<span class="cr-lb-sub">' + (isGrowth ? '+' + c.traffic.diff.toLocaleString() : c.traffic.diff.toLocaleString()) + ' sessions &middot; ' + c.leads.current + ' leads</span></div>' +
+      '<span class="cr-badge ' + badgeCls + '">' + formatPercent(c.traffic.percentChange) + '</span>' +
+      '</div>';
+  }
+
+  function renderTrendChart(trafficArr, leadsArr) {
+    var W = 900, H = 200, padL = 6, padR = 6, padT = 10, padB = 10;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var n = trafficArr.length;
+    var maxT = Math.max(1, Math.max.apply(null, trafficArr));
+    var maxL = Math.max(1, Math.max.apply(null, leadsArr));
+    var stepX = n > 1 ? innerW / (n - 1) : 0;
+
+    function ptsFor(arr, max) {
+      var pts = [];
+      for (var i = 0; i < n; i++) {
+        var x = padL + stepX * i;
+        var y = padT + innerH - (arr[i] / max) * innerH;
+        pts.push([x, y]);
+      }
+      return pts;
+    }
+    var tPts = ptsFor(trafficArr, maxT);
+    var lPts = ptsFor(leadsArr, maxL);
+    function pathFor(pts) { return 'M' + pts.map(function (p) { return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' L'); }
+    var trafficLine = pathFor(tPts);
+    var trafficArea = trafficLine + ' L' + (padL + innerW).toFixed(1) + ',' + (padT + innerH) + ' L' + padL + ',' + (padT + innerH) + ' Z';
+    var leadsLine = pathFor(lPts);
+
+    var circles = tPts.map(function (p) { return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="#4f6ef7"/>'; }).join('') +
+      lPts.map(function (p) { return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="#16a34a"/>'; }).join('');
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:200px" preserveAspectRatio="none">' +
+      '<path d="' + trafficArea + '" fill="#4f6ef7" fill-opacity="0.12" stroke="none"/>' +
+      '<path d="' + trafficLine + '" fill="none" stroke="#4f6ef7" stroke-width="2.5" stroke-linejoin="round"/>' +
+      '<path d="' + leadsLine + '" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linejoin="round"/>' +
+      circles + '</svg>';
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     CLIENTS TABLE TAB
+     ═══════════════════════════════════════════════════════════════ */
+  function uniqueSorted(list) {
+    var seen = {}; var out = [];
+    list.forEach(function (v) { if (v && !seen[v]) { seen[v] = true; out.push(v); } });
+    out.sort();
+    return out;
+  }
+
+  function renderClientsTable() {
+    var el = document.getElementById('cr-view-clients');
+    var managers = uniqueSorted(STATE.clients.map(function (c) { return c.accountManager; }));
+    var industries = uniqueSorted(STATE.clients.map(function (c) { return c.industry; }));
+
+    var html = '<div class="cr-card">';
+    html += '<div class="cr-filters-row">';
+    html += '<div class="cr-ctrl-group" style="min-width:220px"><label class="cr-ctrl-label">Search</label>' +
+      '<input class="cr-input" id="cr-cl-search" placeholder="Search client, domain, industry..." value="' + esc(STATE.search) + '"/></div>';
+
+    html += '<div class="cr-quick-filters">' +
+      quickFilterBtn('all', 'All (' + STATE.clients.length + ')') +
+      quickFilterBtn('growing', 'Growing', 'growing') +
+      quickFilterBtn('falling', 'Drops', 'falling') +
+      '</div>';
+
+    html += selectFilter('cr-cl-manager', 'Manager', ['All Managers'].concat(managers), STATE.filters.manager);
+    html += selectFilter('cr-cl-tier', 'Tier', ['All Tiers', 'Enterprise', 'Growth', 'Starter'], STATE.filters.tier);
+    html += selectFilter('cr-cl-industry', 'Industry', ['All Industries'].concat(industries), STATE.filters.industry);
+    html += '</div>';
+
+    var comparisons = STATE.clients.map(function (c) {
+      var comp = buildComparison(c.client, STATE.month);
+      comp.profile = c;
+      return comp;
+    });
+
+    var searchLower = STATE.search.toLowerCase();
+    var filtered = comparisons.filter(function (c) {
+      var p = c.profile;
+      var matchSearch = !searchLower || p.client.toLowerCase().indexOf(searchLower) !== -1 ||
+        (p.domain || '').toLowerCase().indexOf(searchLower) !== -1 ||
+        (p.industry || '').toLowerCase().indexOf(searchLower) !== -1;
+      var matchManager = STATE.filters.manager === 'All Managers' || p.accountManager === STATE.filters.manager;
+      var matchTier = STATE.filters.tier === 'All Tiers' || p.tier === STATE.filters.tier;
+      var matchIndustry = STATE.filters.industry === 'All Industries' || p.industry === STATE.filters.industry;
+      var matchGrowth = STATE.filters.growth === 'all' ||
+        (STATE.filters.growth === 'growing' && c.traffic.diff > 0) ||
+        (STATE.filters.growth === 'falling' && c.traffic.diff < 0);
+      return matchSearch && matchManager && matchTier && matchIndustry && matchGrowth;
+    });
+
+    var dir = STATE.sortDir === 'desc' ? -1 : 1;
+    filtered.sort(function (a, b) {
+      switch (STATE.sortBy) {
+        case 'name': return dir * a.profile.client.localeCompare(b.profile.client);
+        case 'clicks': return dir * (a.clicks.current - b.clicks.current);
+        case 'leads': return dir * (a.leads.current - b.leads.current);
+        case 'growth': return dir * (a.traffic.percentChange - b.traffic.percentChange);
+        case 'tier': return dir * a.profile.tier.localeCompare(b.profile.tier);
+        default: return dir * (a.traffic.current - b.traffic.current);
+      }
+    });
+
+    html += '<div class="cr-tbl-wrap"><table class="cr-table"><thead><tr>' +
+      sortTh('name', 'Client') + '<th>Manager</th>' +
+      sortTh('traffic', 'Organic Traffic', 'num') + sortTh('clicks', 'Clicks', 'num') +
+      '<th class="num">Impressions</th><th class="ctr">CTR</th>' + sortTh('leads', 'Leads', 'num') +
+      sortTh('growth', 'MoM Growth', 'ctr') + '</tr></thead><tbody>';
+
+    if (filtered.length === 0) {
+      html += '<tr><td colspan="8" class="cr-empty-note">No clients match the selected filters.</td></tr>';
+    } else {
+      filtered.forEach(function (c) {
+        var p = c.profile;
+        var leadProgress = Math.min(100, Math.round((c.leads.current / (p.targetLeads || 1)) * 100));
+        var growthCls = c.traffic.percentChange > 0 ? 'pos' : c.traffic.percentChange < 0 ? 'neg' : 'flat';
+        html += '<tr data-open-client="' + esc(p.client) + '">' +
+          '<td><span class="cr-name-cell">' + esc(p.client) + '</span>' +
+          '<span class="cr-tier-badge cr-tier-' + esc(p.tier) + '">' + esc(p.tier) + '</span>' +
+          '<div class="cr-sub-cell">' + esc(p.domain || '&mdash;') + '</div></td>' +
+          '<td>' + esc(p.accountManager || '&mdash;') + '</td>' +
+          '<td class="num">' + formatNumber(c.traffic.current) + '<div class="cr-sub-cell" style="color:' + (c.traffic.diff >= 0 ? '#16a34a' : '#dc2626') + '">' + (c.traffic.diff >= 0 ? '+' : '') + formatNumber(c.traffic.diff) + '</div></td>' +
+          '<td class="num">' + formatNumber(c.clicks.current) + '</td>' +
+          '<td class="num">' + formatNumber(c.impressions.current) + '</td>' +
+          '<td class="ctr">' + c.ctr.current.toFixed(2) + '%</td>' +
+          '<td class="num">' + c.leads.current + '<div class="cr-progress-track"><div class="cr-progress-fill' + (leadProgress >= 100 ? ' done' : '') + '" style="width:' + leadProgress + '%"></div></div></td>' +
+          '<td class="ctr"><span class="cr-badge ' + growthCls + '">' + formatPercent(c.traffic.percentChange) + '</span></td>' +
+          '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    html += '<div style="padding:10px 16px;font-size:0.74rem;color:#64748b;border-top:1px solid #f1f5f9">Showing ' + filtered.length + ' of ' + STATE.clients.length + ' clients</div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    // Wire up interactions
+    var searchInput = document.getElementById('cr-cl-search');
+    searchInput.addEventListener('input', function () { STATE.search = searchInput.value; renderClientsTable(); preserveFocus(searchInput); });
+    document.getElementById('cr-cl-manager').addEventListener('change', function (e) { STATE.filters.manager = e.target.value; renderClientsTable(); });
+    document.getElementById('cr-cl-tier').addEventListener('change', function (e) { STATE.filters.tier = e.target.value; renderClientsTable(); });
+    document.getElementById('cr-cl-industry').addEventListener('change', function (e) { STATE.filters.industry = e.target.value; renderClientsTable(); });
+    el.querySelectorAll('[data-quick-filter]').forEach(function (btn) {
+      btn.addEventListener('click', function () { STATE.filters.growth = btn.getAttribute('data-quick-filter'); renderClientsTable(); });
+    });
+    el.querySelectorAll('th[data-sort]').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var field = th.getAttribute('data-sort');
+        if (STATE.sortBy === field) STATE.sortDir = STATE.sortDir === 'asc' ? 'desc' : 'asc';
+        else { STATE.sortBy = field; STATE.sortDir = 'desc'; }
+        renderClientsTable();
+      });
+    });
+    el.querySelectorAll('tr[data-open-client]').forEach(function (row) {
+      row.addEventListener('click', function () { openDetailModal(row.getAttribute('data-open-client')); });
+    });
+  }
+
+  function preserveFocus(input) {
+    var v = input.value;
+    var pos = v.length;
+    setTimeout(function () {
+      var freshInput = document.getElementById(input.id);
+      if (freshInput) { freshInput.focus(); freshInput.setSelectionRange(pos, pos); }
+    }, 0);
+  }
+  function quickFilterBtn(val, label, cls) {
+    var active = STATE.filters.growth === val;
+    return '<button type="button" data-quick-filter="' + val + '" class="' + (active ? 'active ' + (cls || '') : '') + '">' + label + '</button>';
+  }
+  function selectFilter(id, label, options, current) {
+    return '<div class="cr-ctrl-group"><label class="cr-ctrl-label">' + label + '</label>' +
+      '<select class="cr-select" id="' + id + '">' +
+      options.map(function (o) { return '<option value="' + esc(o) + '"' + (o === current ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
+      '</select></div>';
+  }
+  function sortTh(field, label, extraCls) {
+    var arrow = STATE.sortBy === field ? (STATE.sortDir === 'desc' ? ' &#9660;' : ' &#9650;') : '';
+    return '<th data-sort="' + field + '" class="' + (extraCls || '') + '">' + esc(label) + arrow + '</th>';
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     BULK ENTRY TAB
+     ═══════════════════════════════════════════════════════════════ */
+  function initBulkDraft() {
+    STATE.bulkDraft = {};
+    STATE.bulkDirty = {};
+    var prevKey = prevMonthKey(STATE.month);
+    STATE.clients.forEach(function (c) {
+      var existing = STATE.metrics[c.client] && STATE.metrics[c.client][STATE.month];
+      if (existing) {
+        STATE.bulkDraft[c.client] = clone(existing);
+      } else {
+        var prev = STATE.metrics[c.client] && STATE.metrics[c.client][prevKey];
+        STATE.bulkDraft[c.client] = {
+          client: c.client, month: STATE.month,
+          organicTraffic: prev ? prev.organicTraffic : 0,
+          organicClicks: prev ? prev.organicClicks : 0,
+          impressions: prev ? prev.impressions : 0,
+          ctr: prev ? calcCTR(prev.organicClicks, prev.impressions) : 0,
+          leads: prev ? prev.leads : 0,
+          notes: '',
+        };
+      }
+    });
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function renderBulkEntry() {
+    var el = document.getElementById('cr-view-bulk');
+    var dirtyCount = Object.keys(STATE.bulkDirty).length;
+    var prevKey = prevMonthKey(STATE.month);
+
+    var html = '<div class="cr-card">';
+    html += '<div class="cr-card-hd">' +
+      '<div><h3>Monthly Data Entry &mdash; ' + formatMonthName(STATE.month) + '</h3><p>CTR auto-calculates as you type clicks &amp; impressions. Baseline: ' + formatMonthName(prevKey) + '</p></div>' +
+      '<div style="display:flex;gap:8px">' +
+      '<button class="cr-btn cr-btn-light" id="cr-bulk-copy-baseline" type="button">Copy Last Month</button>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save" type="button" ' + (dirtyCount === 0 ? 'disabled' : '') + '>Save All (' + dirtyCount + ' pending)</button>' +
+      '</div></div>';
+
+    html += '<div class="cr-tbl-wrap"><table class="cr-table"><thead><tr>' +
+      '<th>Client</th><th class="num">Organic Traffic</th><th class="num">Organic Clicks</th>' +
+      '<th class="num">Impressions</th><th class="ctr">CTR</th><th class="num">Leads</th>' +
+      '<th class="ctr">MoM Shift</th><th>Notes</th></tr></thead><tbody>';
+
+    if (STATE.clients.length === 0) {
+      html += '<tr><td colspan="8" class="cr-empty-note">No clients yet.</td></tr>';
+    } else {
+      STATE.clients.forEach(function (c) {
+        var draft = STATE.bulkDraft[c.client] || zeroMetric(c.client, STATE.month);
+        var prevMetric = metricFor(c.client, prevKey);
+        var trafficDiff = diffCalc(draft.organicTraffic, prevMetric.organicTraffic);
+        var isDirty = !!STATE.bulkDirty[c.client];
+        var badgeCls = trafficDiff.diff > 0 ? 'pos' : trafficDiff.diff < 0 ? 'neg' : 'flat';
+
+        html += '<tr class="' + (isDirty ? 'cr-row-dirty' : '') + '" data-client="' + esc(c.client) + '">' +
+          '<td><span class="cr-name-cell">' + esc(c.client) + (isDirty ? '<span class="cr-dirty-dot"></span>' : '') + '</span>' +
+          '<div class="cr-sub-cell">Mgr: ' + esc(c.accountManager || '&mdash;') + '</div></td>' +
+          '<td><input class="cr-cell-input" type="number" min="0" data-field="organicTraffic" value="' + (draft.organicTraffic || '') + '"/>' +
+          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.organicTraffic) + '</span></td>' +
+          '<td><input class="cr-cell-input" type="number" min="0" data-field="organicClicks" value="' + (draft.organicClicks || '') + '"/>' +
+          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.organicClicks) + '</span></td>' +
+          '<td><input class="cr-cell-input" type="number" min="0" data-field="impressions" value="' + (draft.impressions || '') + '"/>' +
+          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.impressions) + '</span></td>' +
+          '<td><span class="cr-ctr-readout" data-ctr-readout>' + (draft.ctr || 0).toFixed(2) + '%</span>' +
+          '<span class="cr-prev-hint">Prev: ' + prevMetric.ctr.toFixed(2) + '%</span></td>' +
+          '<td><input class="cr-cell-input" type="number" min="0" data-field="leads" value="' + (draft.leads || '') + '"/>' +
+          '<span class="cr-prev-hint">Prev: ' + prevMetric.leads + ' / Tgt: ' + c.targetLeads + '</span></td>' +
+          '<td class="ctr"><span class="cr-badge ' + badgeCls + '">' + formatPercent(trafficDiff.percentChange) + '</span></td>' +
+          '<td><input class="cr-notes-input" type="text" data-field="notes" value="' + esc(draft.notes || '') + '" placeholder="Work done this month..."/></td>' +
+          '</tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    html += '<div style="padding:10px 16px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="font-size:0.76rem;color:#64748b">' + dirtyCount + ' client row(s) modified</span>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save-bottom" type="button" ' + (dirtyCount === 0 ? 'disabled' : '') + '>Save All Updates</button>' +
+      '</div></div>';
+
+    el.innerHTML = html;
+
+    el.querySelectorAll('input[data-field]').forEach(function (input) {
+      input.addEventListener('input', function () { handleBulkInputChange(input); });
+    });
+    var copyBtn = document.getElementById('cr-bulk-copy-baseline');
+    if (copyBtn) copyBtn.addEventListener('click', copyLastMonthBaseline);
+    ['cr-bulk-save', 'cr-bulk-save-bottom'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', saveBulkEntry);
+    });
+  }
+
+  function handleBulkInputChange(input) {
+    var row = input.closest('tr');
+    var client = row.getAttribute('data-client');
+    var field = input.getAttribute('data-field');
+    var draft = STATE.bulkDraft[client] || zeroMetric(client, STATE.month);
+
+    if (field === 'notes') {
+      draft.notes = input.value;
+    } else {
+      var numVal = Math.max(0, parseInt(input.value, 10) || 0);
+      draft[field] = numVal;
+      if (field === 'organicClicks' || field === 'impressions') {
+        draft.ctr = calcCTR(draft.organicClicks, draft.impressions);
+        var ctrCell = row.querySelector('[data-ctr-readout]');
+        if (ctrCell) ctrCell.textContent = draft.ctr.toFixed(2) + '%';
+      }
+    }
+    STATE.bulkDraft[client] = draft;
+    STATE.bulkDirty[client] = true;
+
+    // Live-update MoM badge + dirty indicators without a full re-render (keeps focus)
+    var prevMetric = metricFor(client, prevMonthKey(STATE.month));
+    var trafficDiff = diffCalc(draft.organicTraffic, prevMetric.organicTraffic);
+    var badge = row.querySelector('.cr-badge');
+    if (badge && field === 'organicTraffic') {
+      badge.className = 'cr-badge ' + (trafficDiff.diff > 0 ? 'pos' : trafficDiff.diff < 0 ? 'neg' : 'flat');
+      badge.textContent = formatPercent(trafficDiff.percentChange);
+    }
+    row.classList.add('cr-row-dirty');
+    var nameCell = row.querySelector('.cr-name-cell');
+    if (nameCell && !nameCell.querySelector('.cr-dirty-dot')) {
+      var dot = document.createElement('span'); dot.className = 'cr-dirty-dot'; nameCell.appendChild(dot);
+    }
+    updateBulkSaveButtons();
+  }
+
+  function updateBulkSaveButtons() {
+    var count = Object.keys(STATE.bulkDirty).length;
+    ['cr-bulk-save', 'cr-bulk-save-bottom'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (!btn) return;
+      btn.disabled = count === 0;
+      btn.textContent = id === 'cr-bulk-save' ? 'Save All (' + count + ' pending)' : 'Save All Updates';
+    });
+    var counter = document.querySelector('#cr-view-bulk span[style*="color:#64748b"]');
+    if (counter) counter.textContent = count + ' client row(s) modified';
+  }
+
+  function copyLastMonthBaseline() {
+    var prevKey = prevMonthKey(STATE.month);
+    var any = false;
+    STATE.clients.forEach(function (c) {
+      var prev = STATE.metrics[c.client] && STATE.metrics[c.client][prevKey];
+      if (prev) {
+        STATE.bulkDraft[c.client] = {
+          client: c.client, month: STATE.month,
+          organicTraffic: prev.organicTraffic, organicClicks: prev.organicClicks,
+          impressions: prev.impressions, ctr: calcCTR(prev.organicClicks, prev.impressions),
+          leads: prev.leads, notes: prev.notes || '',
+        };
+        STATE.bulkDirty[c.client] = true;
+        any = true;
+      }
+    });
+    if (!any) { showToast('No baseline data found for ' + formatMonthName(prevKey), true); return; }
+    renderBulkEntry();
+  }
+
+  function saveBulkEntry() {
+    var clients = Object.keys(STATE.bulkDirty);
+    if (clients.length === 0) return;
+    var payload = clients.map(function (client) {
+      var d = STATE.bulkDraft[client];
+      return { client: client, month: STATE.month, organicTraffic: d.organicTraffic, organicClicks: d.organicClicks, impressions: d.impressions, leads: d.leads, notes: d.notes || '' };
+    });
+    apiSend('PUT', '/api/client-reports/metrics', payload).then(function (res) {
+      showToast(res.message || 'Saved successfully');
+      return reloadAndRender();
+    }).catch(function (e) {
+      showToast('Save failed: ' + e.message, true);
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     CLIENT DETAIL MODAL
+     ═══════════════════════════════════════════════════════════════ */
+  function openDetailModal(clientName) {
+    STATE.detailClient = clientName;
+    renderDetailModal();
+    document.getElementById('cr-modal-detail').classList.add('open');
+  }
+  function closeDetailModal() {
+    document.getElementById('cr-modal-detail').classList.remove('open');
+    STATE.detailClient = null;
+  }
+
+  function renderDetailModal() {
+    var client = STATE.detailClient;
+    var p = clientProfile(client);
+    var comp = buildComparison(client, STATE.month);
+    var content = document.getElementById('cr-modal-detail-content');
+
+    var monthKeys = Object.keys(STATE.metrics[client] || {}).sort();
+
+    var html = '<div class="cr-modal-hd"><div>' +
+      '<h3>' + esc(client) + ' <span class="cr-tier-badge cr-tier-' + esc(p.tier) + '">' + esc(p.tier) + '</span></h3>' +
+      '<p style="font-size:0.76rem;color:#94a3b8;margin-top:3px">' + esc(p.domain || 'no domain set') + ' &middot; ' + esc(p.industry || 'no industry set') + ' &middot; Mgr: ' + esc(p.accountManager || '&mdash;') + '</p>' +
+      '</div><div style="display:flex;gap:8px;align-items:center">' +
+      '<button class="cr-btn cr-btn-light" id="cr-detail-edit-profile" type="button">Edit Profile</button>' +
+      '<button class="cr-modal-close" id="cr-detail-close" type="button">&times;</button></div></div>';
+
+    html += '<div class="cr-modal-body">';
+
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+      '<strong style="font-size:0.85rem">' + formatMonthName(STATE.month) + ' Snapshot</strong>' +
+      '<button class="cr-btn cr-btn-light" id="cr-detail-toggle-edit" type="button">Edit ' + formatMonthName(STATE.month) + ' Data</button></div>';
+
+    html += '<div id="cr-detail-edit-form"></div>';
+
+    html += '<div class="cr-detail-kpis">' +
+      detailKpi('Organic Traffic', formatNumber(comp.traffic.current), comp.traffic) +
+      detailKpi('Organic Clicks', formatNumber(comp.clicks.current), comp.clicks) +
+      detailKpi('Impressions', formatNumber(comp.impressions.current), comp.impressions) +
+      '<div class="cr-detail-kpi"><span class="lbl">CTR</span><span class="val">' + comp.ctr.current.toFixed(2) + '%</span><span class="diff" style="color:#94a3b8">Prev: ' + comp.ctr.previous.toFixed(2) + '%</span></div>' +
+      '<div class="cr-detail-kpi"><span class="lbl">Leads</span><span class="val">' + comp.leads.current + '</span><span class="diff" style="color:#94a3b8">Target: ' + p.targetLeads + ' (' + Math.round((comp.leads.current / (p.targetLeads || 1)) * 100) + '%)</span></div>' +
+      '</div>';
+
+    if (comp.cur.notes) {
+      html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:0.78rem;color:#334155;margin-bottom:14px"><strong>Notes:</strong> ' + esc(comp.cur.notes) + '</div>';
+    }
+
+    html += '<h4 style="font-size:0.8rem;margin-bottom:8px;color:#1e293b">Historical Performance Log</h4>';
+    html += '<div class="cr-tbl-wrap"><table class="cr-table"><thead><tr>' +
+      '<th>Month</th><th class="num">Traffic</th><th class="ctr">MoM %</th><th class="num">Clicks</th>' +
+      '<th class="num">Impressions</th><th class="ctr">CTR</th><th class="num">Leads</th><th>Notes</th></tr></thead><tbody>';
+    if (monthKeys.length === 0) {
+      html += '<tr><td colspan="8" class="cr-empty-note">No historical data recorded yet.</td></tr>';
+    } else {
+      monthKeys.forEach(function (mKey) {
+        var row = STATE.metrics[client][mKey];
+        var prevRow = STATE.metrics[client][prevMonthKey(mKey)];
+        var pct = prevRow ? diffCalc(row.organicTraffic, prevRow.organicTraffic).percentChange : 0;
+        var pctCls = pct > 0 ? 'pos' : pct < 0 ? 'neg' : 'flat';
+        html += '<tr><td><strong>' + esc(formatMonthName(mKey)) + '</strong></td>' +
+          '<td class="num">' + formatNumber(row.organicTraffic) + '</td>' +
+          '<td class="ctr">' + (prevRow ? '<span class="cr-badge ' + pctCls + '">' + formatPercent(pct) + '</span>' : '&mdash;') + '</td>' +
+          '<td class="num">' + formatNumber(row.organicClicks) + '</td>' +
+          '<td class="num">' + formatNumber(row.impressions) + '</td>' +
+          '<td class="ctr">' + row.ctr.toFixed(2) + '%</td>' +
+          '<td class="num">' + row.leads + '</td>' +
+          '<td style="font-size:0.72rem;color:#64748b;max-width:200px">' + esc(row.notes || '&mdash;') + '</td></tr>';
+      });
+    }
+    html += '</tbody></table></div>';
+    html += '</div>';
+    html += '<div class="cr-modal-ft"><span style="font-size:0.72rem;color:#94a3b8;margin-right:auto">Client: ' + esc(client) + '</span>' +
+      '<button class="cr-btn cr-btn-light" id="cr-detail-close-bottom" type="button">Close</button></div>';
+
+    content.innerHTML = html;
+
+    document.getElementById('cr-detail-close').addEventListener('click', closeDetailModal);
+    document.getElementById('cr-detail-close-bottom').addEventListener('click', closeDetailModal);
+    document.getElementById('cr-detail-edit-profile').addEventListener('click', function () { openClientModal(client); });
+    document.getElementById('cr-detail-toggle-edit').addEventListener('click', function () { toggleDetailEditForm(); });
+  }
+
+  function detailKpi(label, valueStr, d) {
+    var cls = d.diff >= 0 ? '#16a34a' : '#dc2626';
+    return '<div class="cr-detail-kpi"><span class="lbl">' + esc(label) + '</span><span class="val">' + valueStr + '</span>' +
+      '<span class="diff" style="color:' + cls + '">' + (d.diff >= 0 ? '+' : '') + formatNumber(d.diff) + ' (' + formatPercent(d.percentChange) + ')</span></div>';
+  }
+
+  function toggleDetailEditForm() {
+    var container = document.getElementById('cr-detail-edit-form');
+    if (container.innerHTML.trim()) { container.innerHTML = ''; return; }
+    var client = STATE.detailClient;
+    var cur = metricFor(client, STATE.month);
+
+    var html = '<form id="cr-detail-form" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px">' +
+      '<div class="cr-form-grid">' +
+      formField('df-traffic', 'Organic Traffic', 'number', cur.organicTraffic) +
+      formField('df-clicks', 'Organic Clicks', 'number', cur.organicClicks) +
+      formField('df-impressions', 'Impressions', 'number', cur.impressions) +
+      formField('df-leads', 'Leads Received', 'number', cur.leads) +
+      '</div>' +
+      '<div class="cr-form-row" style="margin-top:10px"><label>Notes</label><input id="df-notes" type="text" value="' + esc(cur.notes || '') + '"/></div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">' +
+      '<button type="submit" class="cr-btn cr-btn-primary">Save ' + esc(formatMonthName(STATE.month)) + '</button></div>' +
+      '</form>';
+    container.innerHTML = html;
+
+    document.getElementById('cr-detail-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = {
+        organicTraffic: parseInt(document.getElementById('df-traffic').value, 10) || 0,
+        organicClicks: parseInt(document.getElementById('df-clicks').value, 10) || 0,
+        impressions: parseInt(document.getElementById('df-impressions').value, 10) || 0,
+        leads: parseInt(document.getElementById('df-leads').value, 10) || 0,
+        notes: document.getElementById('df-notes').value,
+      };
+      apiSend('PUT', '/api/client-reports/metrics/' + encodeURIComponent(client) + '/' + STATE.month, body).then(function (res) {
+        showToast(res.message || 'Saved');
+        return reloadAndRender().then(function () { STATE.detailClient = client; renderDetailModal(); });
+      }).catch(function (e2) { showToast('Save failed: ' + e2.message, true); });
+    });
+  }
+  function formField(id, label, type, value) {
+    return '<div class="cr-form-row"><label>' + esc(label) + '</label><input id="' + id + '" type="' + type + '" min="0" value="' + esc(value) + '"/></div>';
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     ADD / EDIT CLIENT MODAL
+     ═══════════════════════════════════════════════════════════════ */
+  function openClientModal(clientName) {
+    STATE.editingClientName = clientName || null;
+    renderClientModal();
+    document.getElementById('cr-modal-client').classList.add('open');
+  }
+  function closeClientModal() {
+    document.getElementById('cr-modal-client').classList.remove('open');
+    STATE.editingClientName = null;
+  }
+
+  function renderClientModal() {
+    var isEditing = !!STATE.editingClientName;
+    var p = isEditing ? clientProfile(STATE.editingClientName) : { client: '', domain: '', industry: '', tier: 'Growth', accountManager: '', targetTraffic: 15000, targetLeads: 100, startDate: '' };
+    var content = document.getElementById('cr-modal-client-content');
+
+    var existingNames = STATE.clients.map(function (c) { return c.client; });
+
+    var html = '<div class="cr-modal-hd"><h3>' + (isEditing ? 'Edit Client &mdash; ' + esc(p.client) : 'Add New Client') + '</h3>' +
+      '<button class="cr-modal-close" id="cr-cm-close" type="button">&times;</button></div>';
+    html += '<form id="cr-client-form"><div class="cr-modal-body">';
+
+    html += '<div class="cr-form-row"><label>Client Name *</label>' +
+      '<input id="cm-name" type="text" required list="cr-existing-clients" placeholder="e.g. Apex Legal Group" value="' + esc(p.client) + '" ' + (isEditing ? 'disabled' : '') + '/>' +
+      '<datalist id="cr-existing-clients">' + existingNames.map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>' +
+      '</div>';
+
+    html += '<div class="cr-form-row"><label>Domain</label><input id="cm-domain" type="text" placeholder="e.g. example.com" value="' + esc(p.domain) + '"/></div>';
+
+    html += '<div class="cr-form-grid">' +
+      '<div class="cr-form-row"><label>Industry</label><input id="cm-industry" type="text" placeholder="e.g. Healthcare" value="' + esc(p.industry) + '"/></div>' +
+      '<div class="cr-form-row"><label>Client Tier</label><select id="cm-tier">' +
+      ['Enterprise', 'Growth', 'Starter'].map(function (t) { return '<option value="' + t + '"' + (t === p.tier ? ' selected' : '') + '>' + t + '</option>'; }).join('') +
+      '</select></div></div>';
+
+    html += '<div class="cr-form-row"><label>Account Manager</label><input id="cm-manager" type="text" placeholder="e.g. Sarah Jenkins" value="' + esc(p.accountManager) + '"/></div>';
+
+    html += '<div class="cr-form-grid">' +
+      '<div class="cr-form-row"><label>Monthly Traffic Target</label><input id="cm-target-traffic" type="number" min="0" value="' + esc(p.targetTraffic) + '"/></div>' +
+      '<div class="cr-form-row"><label>Monthly Lead Goal</label><input id="cm-target-leads" type="number" min="0" value="' + esc(p.targetLeads) + '"/></div>' +
+      '</div>';
+
+    html += '</div><div class="cr-modal-ft">' +
+      '<button type="button" class="cr-btn cr-btn-light" id="cr-cm-cancel">Cancel</button>' +
+      '<button type="submit" class="cr-btn cr-btn-primary">' + (isEditing ? 'Save Changes' : 'Create Client') + '</button>' +
+      '</div></form>';
+
+    content.innerHTML = html;
+
+    document.getElementById('cr-cm-close').addEventListener('click', closeClientModal);
+    document.getElementById('cr-cm-cancel').addEventListener('click', closeClientModal);
+    document.getElementById('cr-client-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var name = (isEditing ? p.client : document.getElementById('cm-name').value).trim();
+      if (!name) return;
+      var body = {
+        domain: document.getElementById('cm-domain').value.trim(),
+        industry: document.getElementById('cm-industry').value.trim(),
+        tier: document.getElementById('cm-tier').value,
+        accountManager: document.getElementById('cm-manager').value.trim(),
+        targetTraffic: parseInt(document.getElementById('cm-target-traffic').value, 10) || 0,
+        targetLeads: parseInt(document.getElementById('cm-target-leads').value, 10) || 0,
+        startDate: p.startDate || new Date().toISOString().split('T')[0],
+      };
+      apiSend('PUT', '/api/client-reports/profiles/' + encodeURIComponent(name), body).then(function (res) {
+        showToast(res.message || 'Client saved');
+        closeClientModal();
+        return reloadAndRender();
+      }).catch(function (e2) { showToast('Save failed: ' + e2.message, true); });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     EXPORT / IMPORT MODAL
+     ═══════════════════════════════════════════════════════════════ */
+  function openExportModal() {
+    renderExportModal();
+    document.getElementById('cr-modal-export').classList.add('open');
+  }
+  function closeExportModal() { document.getElementById('cr-modal-export').classList.remove('open'); }
+
+  function renderExportModal() {
+    var content = document.getElementById('cr-modal-export-content');
+    var html = '<div class="cr-modal-hd"><h3>Export / Import Client Data</h3><button class="cr-modal-close" id="cr-em-close" type="button">&times;</button></div>';
+    html += '<div class="cr-modal-body">';
+
+    html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px">' +
+      '<h4 style="font-size:0.84rem;margin-bottom:6px">Export ' + esc(formatMonthName(STATE.month)) + ' Report</h4>' +
+      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:10px">Downloads a CSV with traffic, clicks, impressions, CTR, leads and MoM %% for all ' + STATE.clients.length + ' clients.</p>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-em-download" type="button">Download CSV</button></div>';
+
+    html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">' +
+      '<h4 style="font-size:0.84rem;margin-bottom:6px">Import Monthly Updates (CSV)</h4>' +
+      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:8px">Header row required: <code>Client,Month,Organic Traffic,Organic Clicks,Impressions,Leads Received,Notes</code></p>' +
+      '<textarea class="cr-csv-area" id="cr-em-textarea" rows="6" placeholder="Client,Month,Organic Traffic,Organic Clicks,Impressions,Leads Received,Notes"></textarea>' +
+      '<div id="cr-em-status" style="font-size:0.76rem;font-weight:700;margin-top:8px"></div>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-em-import" type="button" style="margin-top:8px">Parse &amp; Import CSV</button></div>';
+
+    html += '</div><div class="cr-modal-ft"><button class="cr-btn cr-btn-light" id="cr-em-close-bottom" type="button">Close</button></div>';
+    content.innerHTML = html;
+
+    document.getElementById('cr-em-close').addEventListener('click', closeExportModal);
+    document.getElementById('cr-em-close-bottom').addEventListener('click', closeExportModal);
+    document.getElementById('cr-em-download').addEventListener('click', downloadCSV);
+    document.getElementById('cr-em-import').addEventListener('click', importCSV);
+  }
+
+  function downloadCSV() {
+    var headers = ['Client', 'Domain', 'Industry', 'Tier', 'Account Manager', 'Month', 'Organic Traffic', 'MoM Traffic %', 'Organic Clicks', 'Impressions', 'CTR (%)', 'Leads Received', 'MoM Leads %', 'Target Traffic', 'Target Leads', 'Notes'];
+    var rows = STATE.clients.map(function (c) {
+      var comp = buildComparison(c.client, STATE.month);
+      return [c.client, c.domain, c.industry, c.tier, c.accountManager, STATE.month,
+        comp.cur.organicTraffic, comp.traffic.percentChange + '%', comp.cur.organicClicks, comp.cur.impressions,
+        comp.cur.ctr, comp.cur.leads, comp.leads.percentChange + '%', c.targetTraffic, c.targetLeads, comp.cur.notes || '']
+        .map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    });
+    var csv = [headers.join(','), rows.join('\n')].join('\n');
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', 'client-report-' + STATE.month + '.csv');
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  }
+
+  function importCSV() {
+    var textarea = document.getElementById('cr-em-textarea');
+    var statusEl = document.getElementById('cr-em-status');
+    var csv = textarea.value;
+    if (!csv.trim()) return;
+    apiSend('POST', '/api/client-reports/import', { csv: csv }).then(function (res) {
+      statusEl.style.color = '#16a34a';
+      statusEl.textContent = res.message || 'Imported successfully';
+      textarea.value = '';
+      return reloadAndRender();
+    }).catch(function (e) {
+      statusEl.style.color = '#dc2626';
+      statusEl.textContent = 'Import failed: ' + e.message;
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     TAB / MONTH SWITCHING + INIT
+     ═══════════════════════════════════════════════════════════════ */
+  function renderCurrentTab() {
+    document.getElementById('cr-summary-hint').textContent = STATE.clients.length + ' client(s) tracked';
+    if (STATE.tab === 'dashboard') renderDashboard();
+    else if (STATE.tab === 'clients') renderClientsTable();
+    else if (STATE.tab === 'bulk') renderBulkEntry();
+  }
+
+  function switchTab(tab) {
+    STATE.tab = tab;
+    document.querySelectorAll('.cr-tab-btn').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+    });
+    document.querySelectorAll('.cr-view').forEach(function (view) { view.classList.remove('active'); });
+    document.getElementById('cr-view-' + tab).classList.add('active');
+    renderCurrentTab();
+  }
+
+  function initMonthSelect() {
+    var sel = document.getElementById('cr-month-select');
+    var months = monthsList(18);
+    sel.innerHTML = months.map(function (m) { return '<option value="' + m + '">' + formatMonthName(m) + '</option>'; }).join('');
+    sel.value = STATE.month;
+    sel.addEventListener('change', function () {
+      STATE.month = sel.value;
+      initBulkDraft();
+      renderCurrentTab();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initMonthSelect();
+
+    document.querySelectorAll('.cr-tab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { switchTab(btn.getAttribute('data-tab')); });
+    });
+    document.getElementById('cr-btn-add-client').addEventListener('click', function () { openClientModal(null); });
+    document.getElementById('cr-btn-export').addEventListener('click', openExportModal);
+
+    // Close modals on overlay click (not on inner card click)
+    ['cr-modal-detail', 'cr-modal-client', 'cr-modal-export'].forEach(function (id) {
+      document.getElementById(id).addEventListener('click', function (e) {
+        if (e.target.id === id) {
+          if (id === 'cr-modal-detail') closeDetailModal();
+          else if (id === 'cr-modal-client') closeClientModal();
+          else closeExportModal();
+        }
+      });
+    });
+
+    document.getElementById('cr-view-dashboard').innerHTML = '<div class="cr-card"><div class="cr-state-box"><div>Loading client report data&hellip;</div></div></div>';
+
+    reloadAndRender();
+  });
+
+})();
+</script>
+</body>
+</html>

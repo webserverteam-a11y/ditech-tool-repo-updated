@@ -22,6 +22,7 @@ import { reportRouter }      from './report.routes.js';
 import { indexingRouter }    from './indexing.routes.js';
 import { keywordUpdateRouter } from './keyword-update.routes.js';
 import { unifiedTimesheetRouter } from './unified-timesheet.routes.js';
+import { clientReportsRouter } from './client-reports.routes.js';
 
 export function buildApiRouter() {
   const router = Router();
@@ -46,6 +47,7 @@ export function buildApiRouter() {
   router.use('/indexing',              indexingRouter); // GET tasks list + PATCH bulk status
   router.use('/keyword-update',        keywordUpdateRouter); // GET tasks list + PATCH bulk keyword/rank
   router.use('/unified-timesheet',     unifiedTimesheetRouter); // GET grouped timesheet report
+  router.use('/client-reports',        clientReportsRouter);  // Client Reports panel (profiles + monthly metrics)
 
   return router;
 }
