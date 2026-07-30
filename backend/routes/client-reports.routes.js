@@ -23,6 +23,39 @@ export const clientReportsRouter = Router();
 
 const TIERS = ['Enterprise', 'Growth', 'Starter'];
 
+// Quote-aware CSV parser — handles fields like "17,885" (a thousands-separator
+// comma inside quotes) that a naive line.split(',') would incorrectly break
+// into extra columns and misalign every field after it.
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\r') {
+      // skip
+    } else if (c === '\n') {
+      row.push(field); rows.push(row); row = []; field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(f => f.trim() !== ''));
+}
+
 function mapProfileRow(r) {
   return {
     client: r.client,
@@ -54,8 +87,8 @@ async function upsertMetric(conn, m) {
   const month = (m.month || '').trim();
   if (!client || !/^\d{4}-\d{2}$/.test(month)) return false;
 
-  const clicks = Math.max(0, parseInt(m.organicClicks, 10) || 0);
-  const impressions = Math.max(0, parseInt(m.impressions, 10) || 0);
+  const clicks = toInt(m.organicClicks);
+  const impressions = toInt(m.impressions);
   const ctr = impressions > 0 ? Math.round((clicks / impressions) * 10000) / 100 : 0;
 
   await conn.query(
@@ -71,13 +104,22 @@ async function upsertMetric(conn, m) {
        notes            = VALUES(notes)`,
     [
       client, month,
-      Math.max(0, parseInt(m.organicTraffic, 10) || 0),
+      toInt(m.organicTraffic),
       clicks, impressions, ctr,
-      Math.max(0, parseInt(m.leads, 10) || 0),
+      toInt(m.leads),
       m.notes || '',
     ]
   );
   return true;
+}
+
+// Accepts numbers or numeric strings that may contain thousands-separator
+// commas (e.g. from pasted CSV text) — parseInt alone stops at the first
+// comma and silently truncates values like "17,885" down to 17.
+function toInt(val) {
+  if (typeof val === 'number') return Math.max(0, Math.round(val) || 0);
+  const cleaned = String(val ?? '').replace(/,/g, '').trim();
+  return Math.max(0, parseInt(cleaned, 10) || 0);
 }
 
 // ── GET /profiles — shared client roster + this panel's extra fields ───────
@@ -223,11 +265,10 @@ clientReportsRouter.post('/import', async (req, res) => {
     return res.status(400).json({ error: 'csv text is required' });
   }
 
-  const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (lines.length < 2) return res.status(400).json({ error: 'CSV must include a header row plus at least one data row' });
+  const rows = parseCsvRows(csv);
+  if (rows.length < 2) return res.status(400).json({ error: 'CSV must include a header row plus at least one data row' });
 
-  const parseLine = (line) => line.split(',').map(p => p.replace(/^"|"$/g, '').trim());
-  const header = parseLine(lines[0]).map(h => h.toLowerCase());
+  const header = rows[0].map(h => h.trim().toLowerCase());
   const idx = (name) => header.indexOf(name);
 
   const iClient = idx('client');
@@ -247,8 +288,9 @@ clientReportsRouter.post('/import', async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
     let saved = 0;
-    for (let i = 1; i < lines.length; i++) {
-      const parts = parseLine(lines[i]);
+    for (let i = 1; i < rows.length; i++) {
+      const parts = rows[i];
+      if (!parts[iClient] || !parts[iClient].trim()) continue;
       const ok = await upsertMetric(conn, {
         client: parts[iClient],
         month: parts[iMonth],
