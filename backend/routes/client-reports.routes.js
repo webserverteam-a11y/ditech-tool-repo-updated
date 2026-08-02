@@ -82,6 +82,19 @@ function mapMetricRow(r) {
   };
 }
 
+// Additive-only registration in the shared `clients` roster — same upsert
+// clients.routes.js POST / and PUT /profiles/:client already use. Never
+// deletes or modifies an existing row, just no-ops via ON DUPLICATE KEY
+// UPDATE name = name when the client is already registered.
+async function registerClient(conn, name) {
+  const [maxRow] = await conn.query('SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM clients');
+  const nextOrder = (maxRow[0].maxOrder ?? -1) + 1;
+  await conn.query(
+    'INSERT INTO clients (name, sort_order) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = name',
+    [name, nextOrder]
+  );
+}
+
 async function upsertMetric(conn, m) {
   const client = (m.client || '').trim();
   const month = (m.month || '').trim();
@@ -164,12 +177,7 @@ clientReportsRouter.put('/profiles/:client', async (req, res) => {
 
     // Register in the shared roster if not already present — additive only,
     // reuses the exact upsert clients.routes.js already does for POST /api/clients.
-    const [maxRow] = await conn.query('SELECT COALESCE(MAX(sort_order), -1) AS maxOrder FROM clients');
-    const nextOrder = (maxRow[0].maxOrder ?? -1) + 1;
-    await conn.query(
-      'INSERT INTO clients (name, sort_order) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = name',
-      [client, nextOrder]
-    );
+    await registerClient(conn, client);
 
     await conn.query(
       `INSERT INTO client_reports_profiles
@@ -287,6 +295,22 @@ clientReportsRouter.post('/import', async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+
+    // Register every client named in the CSV into the shared roster first —
+    // otherwise a client imported here (but never added via "Add Client")
+    // gets metrics rows saved with no roster entry to hang off of, and
+    // silently never appears in the dashboard/clients list even though its
+    // data exists (this was the bug: 20 imported clients had metrics but
+    // were invisible because only 14 were ever registered in `clients`).
+    const importedNames = new Set();
+    for (let i = 1; i < rows.length; i++) {
+      const name = (rows[i][iClient] || '').trim();
+      if (name) importedNames.add(name);
+    }
+    for (const name of importedNames) {
+      await registerClient(conn, name);
+    }
+
     let saved = 0;
     for (let i = 1; i < rows.length; i++) {
       const parts = rows[i];
