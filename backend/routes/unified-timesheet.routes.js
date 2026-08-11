@@ -96,8 +96,13 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
+    const nowMs = Date.now();
     const { matrixStart, matrixEnd, days: matrixDays } = matrixDaysForRange(date, range, customFrom, customTo);
     const { fromStr: rangeFromStr, toStr: rangeToStr } = rangeWindow(date, range, customFrom, customTo);
+    // Only credit a still-open session's elapsed-to-now time when the window
+    // being computed actually includes "now" — never for a purely past
+    // range, where a dangling open is a stale/orphaned event, not a live one.
+    const rangeIncludesNow = rangeFromStr <= todayStr && todayStr <= rangeToStr;
 
     // ── Fetch in-scope tasks (owner match + optional client/status filters) ──
     const whereParts = ['(seo_owner = ? OR content_owner = ? OR web_owner = ? OR assigned_to = ?)'];
@@ -152,15 +157,17 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       const events = eventsByTask[task.id] || [];
 
       const rangeEvents = filterEventsForOwner(task, events, stakeholder, rangeFromStr, rangeToStr);
-      const loggedRangeMs = loggedMsFromEvents(rangeEvents);
-      const actualRangeMs = grossMsFromEvents(rangeEvents);
-      const reworkRangeMs = reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr));
+      const rangeNowMs = rangeIncludesNow ? nowMs : undefined;
+      const loggedRangeMs = loggedMsFromEvents(rangeEvents, rangeNowMs);
+      const actualRangeMs = grossMsFromEvents(rangeEvents, rangeNowMs);
+      const reworkRangeMs = reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr), rangeNowMs);
 
       const perDay = {};
       let totalMatrixLoggedMs = 0;
       for (const d of matrixDays) {
-        const dayLoggedMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, d, d));
-        const cumulativeToDateMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, null, d));
+        const dayNowMs = d === todayStr ? nowMs : undefined;
+        const dayLoggedMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, d, d), dayNowMs);
+        const cumulativeToDateMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, null, d), dayNowMs);
         perDay[d] = {
           loggedMs: dayLoggedMs,
           state: dayLoggedMs === 0 ? 'empty' : (estMs <= 0 || cumulativeToDateMs <= estMs ? 'within' : 'overrun'),
@@ -304,8 +311,10 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
+    const nowMs = Date.now();
     const { matrixStart, matrixEnd, days: matrixDays } = matrixDaysForRange(date, range, customFrom, customTo);
     const { fromStr: rangeFromStr, toStr: rangeToStr } = rangeWindow(date, range, customFrom, customTo);
+    const rangeIncludesNow = rangeFromStr <= todayStr && todayStr <= rangeToStr;
     const matrixDaysOut = matrixDays.map(d => ({ date: d, label: dayLabel(d), isToday: d === todayStr, isSelected: d === date }));
 
     // ── Roster: everyone with this role, or every non-admin user for "all" ──
@@ -393,9 +402,10 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
 
       const perDay = {};
       for (const d of matrixDays) {
+        const dayNowMs = d === todayStr ? nowMs : undefined;
         const actualMs = memberTasks.reduce((sum, task) => {
           const events = eventsByTask[task.id] || [];
-          return sum + loggedMsFromEvents(filterEventsForOwner(task, events, name, d, d));
+          return sum + loggedMsFromEvents(filterEventsForOwner(task, events, name, d, d), dayNowMs);
         }, 0);
         // Weekends are never a work-day target, regardless of leave records
         // (5-working-day week: Sat/Sun always target 0, not the usual 8h).
@@ -407,7 +417,7 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
 
       const rangeReworkMs = memberTasks.reduce((sum, task) => {
         const events = eventsByTask[task.id] || [];
-        return sum + reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr));
+        return sum + reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr), rangeIncludesNow ? nowMs : undefined);
       }, 0);
 
       const matrixActualMs = sumBy(matrixDays, d => perDay[d].actualMs);

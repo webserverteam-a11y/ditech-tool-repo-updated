@@ -85,8 +85,17 @@ function filterEventsInWindow(events, fromStr, toStr) {
 /**
  * Port of $n(): net logged ms from an (already filtered) event list.
  * Opening events overwrite the pending start; pause/end closes it.
+ *
+ * Optional `nowMs`: if the list ends with a dangling open (task is still
+ * running — no pause/end for it yet), credit (nowMs - open) as logged too.
+ * Without this, a freshly-started task reports 0ms until its first pause,
+ * which was hiding still-running tasks from the panel entirely (they'd only
+ * appear after being paused/resumed once, which finally produces a closed
+ * pair). Callers only pass `nowMs` for windows that include the current
+ * moment (e.g. today's cell) — never for past/closed windows, so stale
+ * orphaned opens from earlier days aren't misread as still accruing time.
  */
-function loggedMsFromEvents(events) {
+function loggedMsFromEvents(events, nowMs) {
   let total = 0;
   let open = null;
   for (const e of events || []) {
@@ -99,6 +108,7 @@ function loggedMsFromEvents(events) {
       open = null;
     }
   }
+  if (open !== null && nowMs) total += Math.max(0, nowMs - open);
   return total;
 }
 
@@ -106,8 +116,13 @@ function loggedMsFromEvents(events) {
  * Port of W0()'s inner loop: rework ms from an (already window-filtered)
  * event list — pairs rework_start → next pause/end. Returns 0 if the window
  * contains no rework_start at all (W0's early exit).
+ *
+ * Optional `nowMs`: same live-open credit as loggedMsFromEvents(), for the
+ * same reason — a task freshly moved into rework shouldn't read as 0 rework
+ * time (and vanish from the Rework stat) just because it hasn't been
+ * paused/ended yet.
  */
-function reworkMsFromEvents(events) {
+function reworkMsFromEvents(events, nowMs) {
   const list = events || [];
   if (!list.some(e => e.type === 'rework_start')) return 0;
   let total = 0;
@@ -125,6 +140,7 @@ function reworkMsFromEvents(events) {
       open = null;
     }
   }
+  if (inRework && open !== null && nowMs) total += Math.max(0, nowMs - open);
   return total;
 }
 
@@ -132,9 +148,11 @@ function reworkMsFromEvents(events) {
  * Gross session ms ("Actual time taken") from an (already filtered) event
  * list: first opening event → matching `end`, pauses do not close a session.
  * No bundle equivalent (the original panel has no such column); dangling
- * sessions contribute zero, consistent with the logged-time rules above.
+ * sessions contribute zero, consistent with the logged-time rules above,
+ * unless `nowMs` is supplied (see loggedMsFromEvents) for a still-running
+ * session in the current window.
  */
-function grossMsFromEvents(events) {
+function grossMsFromEvents(events, nowMs) {
   let total = 0;
   let open = null;
   for (const e of events || []) {
@@ -147,6 +165,7 @@ function grossMsFromEvents(events) {
       open = null;
     }
   }
+  if (open !== null && nowMs) total += Math.max(0, nowMs - open);
   return total;
 }
 
