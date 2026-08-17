@@ -128,9 +128,11 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
 
     // All events for these tasks, in insertion order (ORDER BY id), exactly
     // like the GET /api/tasks payload the original Timesheet consumes.
-    // Owner/department matching happens per-event in JS (filterEventsForOwner),
-    // NOT in SQL — events recorded with an empty owner but a department must
-    // still match via the task's department-owner field.
+    // Owner matching happens per-event in JS (filterEventsForOwner), NOT in
+    // SQL — and only on an exact owner match; events recorded with an empty
+    // owner (most commonly an admin-role action, see timesheetCalc.js's
+    // header) are excluded rather than attributed via department, so they
+    // never inflate a specific person's logged time.
     const taskIds = taskRows.map(r => r.id);
     const [eventRows] = await pool.query(
       `SELECT task_id, event_type, timestamp, department, owner FROM task_time_events

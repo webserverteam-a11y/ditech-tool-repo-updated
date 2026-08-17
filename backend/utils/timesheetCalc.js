@@ -1,8 +1,8 @@
 /**
  * timesheetCalc.js — Pure time-math helpers for the Unified Timesheet panel.
  *
- * FAITHFUL PORT of the original (bundle-only) Timesheet tab's calculation
- * functions, extracted verbatim from dist/assets/index-xUiSJVv5.js:
+ * Originally a FAITHFUL PORT of the original (bundle-only) Timesheet tab's
+ * calculation functions, extracted verbatim from dist/assets/index-xUiSJVv5.js:
  *
  *   $n (byte ~289084) → loggedMsFromEvents()
  *   kr (byte ~289305) → filterEventsForOwner() + loggedMsFromEvents()
@@ -26,6 +26,31 @@
  *    open; a closing event (pause/end) adds (t - pending) and clears it.
  *    A dangling open (no close in window) contributes zero.
  *
+ * DELIBERATE DIVERGENCE from the original bundle's kr(), 2026-08-17: the
+ * owner-matching step used to fall back to crediting a blank-owner event to
+ * whoever currently holds the task's department-owner field (see the old
+ * DEPT_OWNER_FIELD branch, kept below for reference but no longer used for
+ * matching). That fallback silently attributed OTHER people's timer actions
+ * to the current task owner. The most common source: every "admin"-role
+ * account has ownerName forced to "" by the Add-User form
+ * (`K.role==="admin"?"":...` in the bundle) and by the built-in admin seed
+ * user — so any start/pause/end an admin performs on a task (closing it out,
+ * bulk-ending overdue items, etc.) is recorded with owner:"" and, under the
+ * old logic, got fully credited as the task's web/content/SEO owner's own
+ * logged time. That's how a task with ~48m of real work (confirmed against
+ * the Action Board's own "Active Time", which matches strictly on
+ * owner===currentUser with no department fallback) could show 3h42m in the
+ * Unified Timesheet. Since blank owner means "we don't know who did this",
+ * filterEventsForOwner now excludes those events from any individual's
+ * personal timesheet rather than guessing — see below.
+ *
+ * This means the Unified Timesheet panel can now show LOWER numbers than
+ * the original (bundle-only) Timesheet tab for the same task/day whenever
+ * blank-owner events are involved — that's the fix, not a new bug: the
+ * original tab still has the over-attribution behaviour described above
+ * (unchanged, out of scope here — see backend/routes/unified-timesheet.routes.js
+ * header for why this file never touches the bundle or other routes).
+ *
  * Only consumed by backend/routes/unified-timesheet.routes.js — does not
  * touch any existing route or table.
  */
@@ -33,7 +58,11 @@
 const HOUR_MS = 3600000;
 const DAY_MS = 86400000;
 
-/** Event department → task owner-field, mirroring kr()'s DEPT_OWNER map. */
+/**
+ * Event department → task owner-field. No longer used to match ownership
+ * (see divergence note above) — kept only as documentation of the mapping
+ * blank-owner events used to be (mis)attributed through.
+ */
 const DEPT_OWNER_FIELD = {
   SEO: 'seoOwner',
   Content: 'contentOwner',
@@ -50,11 +79,13 @@ function eventDay(timestamp) {
 }
 
 /**
- * Port of kr()'s filter step: keep events whose calendar date falls inside
- * [fromStr, toStr] (inclusive, string compare; either bound may be null for
- * unbounded) AND that belong to this stakeholder — matched by the event's
- * own `owner`, or, when owner is empty, by mapping the event's `department`
- * to the task's corresponding owner field.
+ * Keep events whose calendar date falls inside [fromStr, toStr] (inclusive,
+ * string compare; either bound may be null for unbounded) AND whose `owner`
+ * exactly matches this stakeholder. Events with no `owner` recorded are
+ * excluded — we can't reliably tell who performed them (most commonly an
+ * admin-role action; see the divergence note in this file's header), so
+ * they're left out of everyone's personal timesheet rather than being
+ * guessed onto the task's current department owner.
  */
 function filterEventsForOwner(task, events, stakeholder, fromStr, toStr) {
   return (events || []).filter(e => {
@@ -62,12 +93,7 @@ function filterEventsForOwner(task, events, stakeholder, fromStr, toStr) {
     if (!day) return false;
     if (fromStr && day < fromStr) return false;
     if (toStr && day > toStr) return false;
-    if (e.owner) return e.owner === stakeholder;
-    if (e.department) {
-      const field = DEPT_OWNER_FIELD[e.department];
-      return field ? task[field] === stakeholder : false;
-    }
-    return false;
+    return !!e.owner && e.owner === stakeholder;
   });
 }
 
