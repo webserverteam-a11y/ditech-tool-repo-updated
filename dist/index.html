@@ -1744,6 +1744,366 @@
       }, true /* capture phase */);
     })();
   </script>
+
+  <!-- ── Sticky Notes panel ────────────────────────────────────────────────
+       Standalone, additive feature: a floating notes button (near the
+       top-right user controls) + a slide-in panel for quick private
+       per-user notes/reminders/ideas. Talks only to its own /api/notes
+       endpoints (backend/routes/notes.routes.js) — never touches tasks,
+       users, or any existing route/table. The button and panel are static
+       markup appended directly to <body> and positioned with fixed CSS, so
+       they render entirely outside React's #root and can't be affected by
+       (or affect) any React re-render — no DOM-injection/MutationObserver
+       dependency on the app's internal structure needed.
+       Notes are scoped to whoever is currently logged in, read from the
+       same "seo_current_user" localStorage key the compiled app itself
+       uses (see the owner-array sanitization script earlier in <head>).
+  ──────────────────────────────────────────────────────────────────────── -->
+  <style>
+    #_dt-notes-fab {
+      position: fixed; top: 78px; right: 22px; z-index: 5000;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: #4f6ef7; color: #fff; border: none; cursor: pointer;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 3px 10px rgba(79,110,247,0.4);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    #_dt-notes-fab:hover { transform: scale(1.07); box-shadow: 0 4px 14px rgba(79,110,247,0.5); }
+    #_dt-notes-fab.open { background: #374151; }
+
+    #_dt-notes-panel {
+      position: fixed; top: 0; right: 0; height: 100vh; width: 340px;
+      max-width: 92vw; background: #fff; z-index: 5001;
+      box-shadow: -8px 0 30px rgba(0,0,0,0.18);
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.22s ease;
+      font-family: inherit;
+    }
+    #_dt-notes-panel.open { transform: translateX(0); }
+
+    ._dtn-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 18px; border-bottom: 1px solid #eef0f4; flex-shrink: 0;
+    }
+    ._dtn-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px; }
+    ._dtn-close { background: none; border: none; cursor: pointer; font-size: 20px; line-height: 1; color: #94a3b8; padding: 2px 6px; border-radius: 6px; }
+    ._dtn-close:hover { background: #f1f5f9; color: #475569; }
+
+    ._dtn-body { flex: 1; overflow-y: auto; padding: 14px 18px 18px; }
+
+    ._dtn-add-btn {
+      width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px dashed #c7d2fe;
+      background: #eef2ff; color: #4f46e5; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; margin-bottom: 14px;
+    }
+    ._dtn-add-btn:hover { background: #e0e7ff; }
+
+    ._dtn-compose { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 14px; background: #f8fafc; }
+    ._dtn-compose textarea {
+      width: 100%; min-height: 70px; resize: vertical; border: 1px solid #e2e8f0;
+      border-radius: 7px; padding: 8px 10px; font-size: 12.5px; font-family: inherit;
+      color: #1e293b; box-sizing: border-box;
+    }
+    ._dtn-compose textarea:focus { outline: none; border-color: #4f6ef7; }
+    ._dtn-compose-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+    ._dtn-btn { padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+    ._dtn-btn-save { background: #4f6ef7; color: #fff; }
+    ._dtn-btn-save:hover { background: #3f5de0; }
+    ._dtn-btn-cancel { background: #f1f5f9; color: #475569; }
+    ._dtn-btn-cancel:hover { background: #e2e8f0; }
+
+    ._dtn-note { border: 1px solid #eef0f4; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: #fffdf5; }
+    ._dtn-note-content { font-size: 12.5px; color: #1e293b; white-space: pre-wrap; word-break: break-word; line-height: 1.5; margin: 0 0 8px; }
+    ._dtn-note-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    ._dtn-note-ts { font-size: 10.5px; color: #94a3b8; }
+    ._dtn-note-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    ._dtn-icon-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 5px; color: #94a3b8; display: flex; }
+    ._dtn-icon-btn:hover { background: #f1f5f9; color: #475569; }
+    ._dtn-icon-btn.danger:hover { background: #fef2f2; color: #dc2626; }
+
+    ._dtn-empty { text-align: center; color: #94a3b8; font-size: 12.5px; padding: 30px 10px; }
+  </style>
+
+  <button id="_dt-notes-fab" type="button" title="Sticky Notes" aria-label="Sticky Notes">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 4.5A1.5 1.5 0 0 1 5.5 3h9L20 8.5V19.5A1.5 1.5 0 0 1 18.5 21h-13A1.5 1.5 0 0 1 4 19.5v-15z"/>
+      <path d="M14 3v4.5A1.5 1.5 0 0 0 15.5 9H20"/>
+      <line x1="7.5" y1="12.5" x2="16.5" y2="12.5"/>
+      <line x1="7.5" y1="16" x2="13.5" y2="16"/>
+    </svg>
+  </button>
+
+  <div id="_dt-notes-panel">
+    <div class="_dtn-header">
+      <h3>🗒️ Sticky Notes</h3>
+      <button class="_dtn-close" id="_dt-notes-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="_dtn-body" id="_dt-notes-body">
+      <button class="_dtn-add-btn" id="_dt-notes-add-btn" type="button">+ New Note</button>
+      <div id="_dt-notes-list"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var API = '/api/notes';
+      var fabEl, panelEl, listEl, addBtnEl, closeBtnEl;
+      var notes = [];
+      var loaded = false;
+      var composing = false;
+      var editingId = null;
+      var lastUser = null;
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      // Same identity the rest of the app resolves a user to (ownerName,
+      // falling back to name — admin accounts have no ownerName).
+      function getCurrentUser() {
+        try {
+          var raw = localStorage.getItem('seo_current_user');
+          if (!raw) return null;
+          var u = JSON.parse(raw);
+          if (!u) return null;
+          return (u.ownerName || u.name || '').trim() || null;
+        } catch (e) { return null; }
+      }
+
+      function fmtTs(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d)) return '';
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var pad = function (n) { return n < 10 ? '0' + n : '' + n; };
+        var h = d.getHours(), ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return d.getDate() + ' ' + months[d.getMonth()] + ' ' + pad(h) + ':' + pad(d.getMinutes()) + ' ' + ampm;
+      }
+
+      function f() { return window._origFetch || window.fetch.bind(window); }
+
+      function renderList() {
+        if (!listEl) return;
+        var html = '';
+
+        if (composing) {
+          html += '<div class="_dtn-compose">' +
+            '<textarea id="_dt-notes-new-text" placeholder="Write a note…"></textarea>' +
+            '<div class="_dtn-compose-actions">' +
+            '<button type="button" class="_dtn-btn _dtn-btn-cancel" id="_dt-notes-new-cancel">Cancel</button>' +
+            '<button type="button" class="_dtn-btn _dtn-btn-save" id="_dt-notes-new-save">Save</button>' +
+            '</div></div>';
+        }
+
+        if (!loaded) {
+          html += '<div class="_dtn-empty">Loading…</div>';
+        } else if (notes.length === 0 && !composing) {
+          html += '<div class="_dtn-empty">No notes yet — click + New Note to add one.</div>';
+        } else {
+          notes.forEach(function (n) {
+            if (editingId === n.id) {
+              html += '<div class="_dtn-compose">' +
+                '<textarea id="_dt-notes-edit-text" data-id="' + esc(n.id) + '">' + esc(n.content) + '</textarea>' +
+                '<div class="_dtn-compose-actions">' +
+                '<button type="button" class="_dtn-btn _dtn-btn-cancel" id="_dt-notes-edit-cancel">Cancel</button>' +
+                '<button type="button" class="_dtn-btn _dtn-btn-save" id="_dt-notes-edit-save">Save</button>' +
+                '</div></div>';
+              return;
+            }
+            var updated = n.updatedAt && n.updatedAt !== n.createdAt;
+            var tsLabel = (updated ? 'Updated ' : 'Created ') + fmtTs(updated ? n.updatedAt : n.createdAt);
+            html += '<div class="_dtn-note">' +
+              '<p class="_dtn-note-content">' + esc(n.content) + '</p>' +
+              '<div class="_dtn-note-footer">' +
+              '<span class="_dtn-note-ts">' + esc(tsLabel) + '</span>' +
+              '<span class="_dtn-note-actions">' +
+              '<button type="button" class="_dtn-icon-btn _dt-notes-edit-btn" data-id="' + esc(n.id) + '" title="Edit" aria-label="Edit">' +
+              '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' +
+              '</button>' +
+              '<button type="button" class="_dtn-icon-btn danger _dt-notes-del-btn" data-id="' + esc(n.id) + '" title="Delete" aria-label="Delete">' +
+              '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
+              '</button>' +
+              '</span></div></div>';
+          });
+        }
+
+        listEl.innerHTML = html;
+
+        listEl.querySelectorAll('._dt-notes-edit-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            editingId = btn.getAttribute('data-id');
+            composing = false;
+            renderList();
+          });
+        });
+        listEl.querySelectorAll('._dt-notes-del-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var id = btn.getAttribute('data-id');
+            if (window.confirm('Delete this note?')) deleteNote(id);
+          });
+        });
+
+        if (composing) {
+          var ta = document.getElementById('_dt-notes-new-text');
+          if (ta) ta.focus();
+          var addCancel = document.getElementById('_dt-notes-new-cancel');
+          var addSave = document.getElementById('_dt-notes-new-save');
+          if (addCancel) addCancel.addEventListener('click', function () { composing = false; renderList(); });
+          if (addSave) addSave.addEventListener('click', saveNewNote);
+        }
+        if (editingId !== null) {
+          var editTa = document.getElementById('_dt-notes-edit-text');
+          if (editTa) editTa.focus();
+          var editCancel = document.getElementById('_dt-notes-edit-cancel');
+          var editSave = document.getElementById('_dt-notes-edit-save');
+          if (editCancel) editCancel.addEventListener('click', function () { editingId = null; renderList(); });
+          if (editSave) editSave.addEventListener('click', saveEditNote);
+        }
+      }
+
+      function loadNotes() {
+        var user = getCurrentUser();
+        if (!user) { notes = []; loaded = true; renderList(); return; }
+        loaded = false;
+        renderList();
+        f()(API + '?user=' + encodeURIComponent(user))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            notes = Array.isArray(data) ? data : [];
+            loaded = true;
+            renderList();
+          })
+          .catch(function () {
+            notes = [];
+            loaded = true;
+            renderList();
+            window._showToast && window._showToast('Could not load notes', 'error');
+          });
+      }
+
+      function saveNewNote() {
+        var ta = document.getElementById('_dt-notes-new-text');
+        var content = ta ? ta.value.trim() : '';
+        var user = getCurrentUser();
+        if (!content || !user) return;
+        f()(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: user, content: content })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (res.ok) {
+              notes.unshift(res.data);
+              composing = false;
+              renderList();
+            } else {
+              window._showToast && window._showToast((res.data && res.data.error) || 'Failed to save note', 'error');
+            }
+          })
+          .catch(function () { window._showToast && window._showToast('Network error — failed to save note', 'error'); });
+      }
+
+      function saveEditNote() {
+        var ta = document.getElementById('_dt-notes-edit-text');
+        var id = ta ? ta.getAttribute('data-id') : null;
+        var content = ta ? ta.value.trim() : '';
+        if (!id || !content) return;
+        f()(API + '/' + encodeURIComponent(id), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (res.ok) {
+              notes = notes.map(function (n) { return n.id === id ? res.data : n; })
+                .sort(function (a, b) { return new Date(b.updatedAt) - new Date(a.updatedAt); });
+              editingId = null;
+              renderList();
+            } else {
+              window._showToast && window._showToast((res.data && res.data.error) || 'Failed to update note', 'error');
+            }
+          })
+          .catch(function () { window._showToast && window._showToast('Network error — failed to update note', 'error'); });
+      }
+
+      function deleteNote(id) {
+        f()(API + '/' + encodeURIComponent(id), { method: 'DELETE' })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (res.ok) {
+              notes = notes.filter(function (n) { return n.id !== id; });
+              renderList();
+            } else {
+              window._showToast && window._showToast((res.data && res.data.error) || 'Failed to delete note', 'error');
+            }
+          })
+          .catch(function () { window._showToast && window._showToast('Network error — failed to delete note', 'error'); });
+      }
+
+      function openPanel() {
+        panelEl.classList.add('open');
+        fabEl.classList.add('open');
+        if (!loaded) loadNotes();
+      }
+      function closePanel() {
+        panelEl.classList.remove('open');
+        fabEl.classList.remove('open');
+        composing = false;
+        editingId = null;
+      }
+      function togglePanel() {
+        if (panelEl.classList.contains('open')) closePanel(); else openPanel();
+      }
+
+      // Show/hide the FAB as the logged-in user changes (e.g. login/logout);
+      // polled rather than event-driven since "seo_current_user" is written
+      // by the compiled React app, not by us.
+      function syncVisibility() {
+        var user = getCurrentUser();
+        if (user !== lastUser) {
+          lastUser = user;
+          if (!user) {
+            closePanel();
+            notes = []; loaded = false;
+          } else if (panelEl.classList.contains('open')) {
+            loadNotes();
+          }
+        }
+        fabEl.style.display = user ? 'flex' : 'none';
+      }
+
+      function start() {
+        fabEl = document.getElementById('_dt-notes-fab');
+        panelEl = document.getElementById('_dt-notes-panel');
+        listEl = document.getElementById('_dt-notes-list');
+        addBtnEl = document.getElementById('_dt-notes-add-btn');
+        closeBtnEl = document.getElementById('_dt-notes-close');
+        if (!fabEl || !panelEl) return;
+
+        fabEl.addEventListener('click', togglePanel);
+        closeBtnEl.addEventListener('click', closePanel);
+        addBtnEl.addEventListener('click', function () {
+          composing = true; editingId = null; renderList();
+        });
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape' && panelEl.classList.contains('open')) closePanel();
+        });
+
+        lastUser = getCurrentUser();
+        fabEl.style.display = lastUser ? 'flex' : 'none';
+        setInterval(syncVisibility, 1500);
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start);
+      } else {
+        start();
+      }
+    })();
+  </script>
 </body>
 
 </html>

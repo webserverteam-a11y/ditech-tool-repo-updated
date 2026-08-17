@@ -138,6 +138,14 @@ const TABLE_DDL = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (client, month))`],
+  // ── Sticky Notes panel — private per-user scratch notes ────────────────
+  ['sticky_notes', `CREATE TABLE IF NOT EXISTS sticky_notes (
+    id VARCHAR(255) PRIMARY KEY,
+    user_name VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_notes_user (user_name))`],
 ];
 
 const MIGRATIONS = [
