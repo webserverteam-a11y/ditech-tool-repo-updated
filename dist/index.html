@@ -1746,26 +1746,35 @@
   </script>
 
   <!-- ── Sticky Notes panel ────────────────────────────────────────────────
-       Standalone, additive feature: a floating notes button (near the
-       top-right user controls) + a slide-in panel for quick private
-       per-user notes/reminders/ideas. Talks only to its own /api/notes
-       endpoints (backend/routes/notes.routes.js) — never touches tasks,
-       users, or any existing route/table. The button and panel are static
-       markup appended directly to <body> and positioned with fixed CSS, so
-       they render entirely outside React's #root and can't be affected by
-       (or affect) any React re-render — no DOM-injection/MutationObserver
-       dependency on the app's internal structure needed.
+       Standalone, additive feature: a floating notes button (bottom-right
+       corner, clear of the toast stack) + a slide-in panel for quick
+       private per-user notes/reminders/ideas. Talks only to its own
+       /api/notes endpoints (backend/routes/notes.routes.js) — never
+       touches tasks, users, or any existing route/table. The button and
+       panel are static markup appended directly to <body> and positioned
+       with fixed CSS, so they render entirely outside React's #root and
+       can't be affected by (or affect) any React re-render — no
+       DOM-injection/MutationObserver dependency on the app's internal
+       structure needed.
+       NOTE ON PLACEMENT: originally anchored top-right near the header,
+       but several pages (e.g. Work Hub) render their own toolbar in that
+       same fixed-pixel band, so the button landed inside those controls
+       instead of floating clear of them. Bottom-right is used instead
+       because no page anchors its own toolbar/content to that corner, so
+       it can't collide regardless of which view is active — offset above
+       the toast stack (which lives at bottom:24px;right:24px) so the two
+       don't overlap.
        Notes are scoped to whoever is currently logged in, read from the
        same "seo_current_user" localStorage key the compiled app itself
        uses (see the owner-array sanitization script earlier in <head>).
   ──────────────────────────────────────────────────────────────────────── -->
   <style>
     #_dt-notes-fab {
-      position: fixed; top: 78px; right: 22px; z-index: 5000;
-      width: 38px; height: 38px; border-radius: 50%;
+      position: fixed; bottom: 100px; right: 24px; z-index: 5000;
+      width: 42px; height: 42px; border-radius: 50%;
       background: #4f6ef7; color: #fff; border: none; cursor: pointer;
       display: none; align-items: center; justify-content: center;
-      box-shadow: 0 3px 10px rgba(79,110,247,0.4);
+      box-shadow: 0 3px 12px rgba(79,110,247,0.45);
       transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
     #_dt-notes-fab:hover { transform: scale(1.07); box-shadow: 0 4px 14px rgba(79,110,247,0.5); }
