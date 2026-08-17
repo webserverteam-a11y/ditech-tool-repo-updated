@@ -350,14 +350,22 @@ function isWeekend(dateStr) {
   return dow === 0 || dow === 6;
 }
 
+// Team Timesheet day-cell color rule: flat logged-hours cutoffs, not a
+// percentage of the (leave-adjusted) daily target.
+const TEAM_RED_MAX_MS = 6.5 * HOUR_MS;    // < 6.5h logged → red
+const TEAM_GREEN_MIN_MS = 7 * HOUR_MS;    // >= 7h logged → green; between the two → yellow
+
 /**
  * Utilization bucket for one person-day, matching the Team Timesheet
- * legend: Underutilized <80%, Within Estimate 80-100%, Overrun >100%.
- * `targetMs<=0` means either a full-day leave/holiday or a weekend (callers
- * zero the target for both) — 'leave'/'weekend' if nothing was logged (the
- * expected case, `isWorkday=false` selects 'weekend' over the 'leave'
- * default), otherwise it still counts as overrun (any logged time against
- * a zero budget).
+ * legend: below 6.5h logged is red ('overrun' — reusing the existing red
+ * day-cell/legend styling), 6.5h-7h is yellow ('underutilized'), 7h or more
+ * is green ('within'). `targetMs<=0` means either a full-day leave/holiday
+ * or a weekend (callers zero the target for both) — 'leave'/'weekend' if
+ * nothing was logged (the expected case, `isWorkday=false` selects
+ * 'weekend' over the 'leave' default), otherwise it still counts as red
+ * (any logged time against a zero budget). A workday with nothing logged
+ * at all stays 'empty' (neutral, not red) — only days with SOME logged
+ * time under 6.5h are colored red.
  */
 function classifyUtilization(actualMs, targetMs, isWorkday) {
   if (targetMs <= 0) {
@@ -365,10 +373,9 @@ function classifyUtilization(actualMs, targetMs, isWorkday) {
     return isWorkday === false ? 'weekend' : 'leave';
   }
   if (actualMs === 0) return 'empty';
-  const pct = actualMs / targetMs;
-  if (pct < 0.8) return 'underutilized';
-  if (pct <= 1.0) return 'within';
-  return 'overrun';
+  if (actualMs < TEAM_RED_MAX_MS) return 'overrun';
+  if (actualMs < TEAM_GREEN_MIN_MS) return 'underutilized';
+  return 'within';
 }
 
 export {

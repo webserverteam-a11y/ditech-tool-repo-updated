@@ -1507,9 +1507,12 @@
       '</div>';
   }
 
-  /* Mirrors backend/utils/timesheetCalc.js's classifyUtilization() — used
-     here only to color the two progress-bar cells (avg/range totals) that
-     the API returns as raw ms without a precomputed state. */
+  /* Colors the "Total (Actual)" column's progress bar — the multi-day range
+     total, so it stays on the original percentage-of-target rule (a flat
+     6.5h/7h cutoff wouldn't mean anything against a week/month target).
+     Intentionally DIFFERENT from backend/utils/timesheetCalc.js's
+     classifyUtilization(), which now uses flat per-day hour cutoffs for the
+     day-by-day matrix cells only — the API returns those precomputed. */
   function classifyForBar(actualMs, targetMs) {
     if (targetMs <= 0) return actualMs > 0 ? 'overrun' : 'leave';
     if (actualMs === 0) return 'empty';
@@ -1575,9 +1578,9 @@
 
   function renderTeamLegend() {
     return '<div class="legend">' +
-      '<span><span class="legend-swatch legend-within"></span>Within Estimate (≤100%)</span>' +
-      '<span><span class="legend-swatch legend-overrun"></span>Overrun (&gt;100%)</span>' +
-      '<span><span class="legend-swatch legend-underutilized"></span>Underutilized (&lt;80%)</span>' +
+      '<span><span class="legend-swatch legend-within"></span>7h or more</span>' +
+      '<span><span class="legend-swatch legend-underutilized"></span>6.5h – 7h</span>' +
+      '<span><span class="legend-swatch legend-overrun"></span>Below 6.5h</span>' +
       '<span><span class="legend-swatch legend-empty"></span>No Entry</span>' +
       '</div>';
   }
