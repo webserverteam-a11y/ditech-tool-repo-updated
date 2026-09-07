@@ -152,6 +152,17 @@ const navScript = `${MARKER}
         aab.classList.remove('active', 'selected', 'current');
         aab.setAttribute('aria-current', 'false');
 
+        /* The sidebar marks the selected item with INLINE styles, not a class
+           (background #4A90D9 + solid white text). Cloning the Action Board
+           button while it happens to be selected would bake that in and leave
+           this item looking permanently selected, so force the idle look. It
+           opens in a new tab and never becomes the app's current tab, so it
+           should always render idle. */
+        aab.style.background = 'transparent';
+        aab.style.color = 'rgba(255,255,255,0.65)';
+        aab.onmouseenter = function () { aab.style.background = 'rgba(255,255,255,0.08)'; };
+        aab.onmouseleave = function () { aab.style.background = 'transparent'; };
+
         if (srcNav.parentNode) {
           srcNav.parentNode.insertBefore(aab, srcNav.nextSibling);
           console.log('[dt-alt-action-board-nav] Action Board 2.0 nav item injected.');
