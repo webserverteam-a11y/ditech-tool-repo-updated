@@ -880,7 +880,14 @@
   function buildPhases(t) {
     var phases = [], n = 0, reworkN = 0, cur = null, openTs = 0, pauseTs = 0, isPaused = false;
     var ownerFor = function (d) { return d === 'Content' ? (t.contentOwner || '') : d === 'Web' ? (t.webOwner || '') : (t.seoOwner || ''); };
-    (t.timeEvents || []).forEach(function (e) {
+    /* Events arrive in row-insertion order, which is not always chronological:
+       the original board writes each timer action twice a few ms apart, and the
+       second row sometimes carries the earlier timestamp. Sorting here keeps the
+       timeline from computing negative durations. (The active/paused totals
+       deliberately do NOT sort — they mirror the original board's own maths.) */
+    (t.timeEvents || []).slice().sort(function (a, b) {
+      return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    }).forEach(function (e) {
       var ts = new Date(e.timestamp).getTime();
       var dept = e.department || '';
       var owner = e.owner || ownerFor(dept);
