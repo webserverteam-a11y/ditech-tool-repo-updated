@@ -6,392 +6,395 @@
 <title>Action Board 2.0 — DiTech CDM</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { font-size: 13px; }
-  body {
-    font-family: 'Segoe UI', Arial, sans-serif;
-    background: #f1f5f9;
-    color: #1e293b;
-    min-height: 100vh;
-  }
+  html { font-size: 14px; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f8fafc; color: #0f172a; min-height: 100vh; }
 
   /* ── Header ── */
-  .header {
-    background: #1e2d5a;
-    color: #fff;
-    padding: 0 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 56px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-  }
-  .header-brand { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.3px; }
-  .header-sub { font-size: 0.85rem; opacity: 0.65; font-weight: 400; margin-left: 6px; }
+  .header { background: #1e2d5a; color: #fff; padding: 0 20px; display: flex; align-items: center;
+            justify-content: space-between; height: 52px; position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .header-brand { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 700; }
+  .header-sub { font-size: 0.82rem; opacity: 0.6; font-weight: 400; }
   .header-actions { display: flex; gap: 8px; align-items: center; }
-  .back-link {
-    display: inline-flex; align-items: center; gap: 5px; color: rgba(255,255,255,0.75);
-    text-decoration: none; font-size: 0.82rem; font-weight: 600; padding: 5px 10px;
-    border: 1.5px solid rgba(255,255,255,0.25); border-radius: 6px; margin-right: 10px; transition: background 0.15s;
-  }
+  .back-link { display: inline-flex; align-items: center; gap: 5px; color: rgba(255,255,255,0.75);
+    text-decoration: none; font-size: 0.8rem; font-weight: 600; padding: 5px 10px;
+    border: 1.5px solid rgba(255,255,255,0.25); border-radius: 6px; margin-right: 8px; }
   .back-link:hover { background: rgba(255,255,255,0.1); }
-  .user-badge {
-    display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.08);
-    border: 1.5px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 12px 4px 6px; font-size: 0.82rem;
-  }
-  .user-avatar {
-    width: 22px; height: 22px; border-radius: 50%; background: #4f6ef7; color: #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700;
-  }
-  .user-role-tag { opacity: 0.6; text-transform: capitalize; font-size: 0.72rem; }
+  .user-badge { display: flex; align-items: center; gap: 7px; background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 3px 11px 3px 5px; font-size: 0.8rem; }
+  .user-avatar { width: 21px; height: 21px; border-radius: 50%; background: #4f6ef7; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+  .user-role-tag { opacity: 0.6; text-transform: capitalize; font-size: 0.7rem; }
 
-  .btn {
-    display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 6px;
-    border: none; cursor: pointer; font-size: 0.84rem; font-weight: 600; transition: background 0.15s, opacity 0.15s;
-    white-space: nowrap;
-  }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px;
+    border: none; cursor: pointer; font-size: 0.82rem; font-weight: 600; white-space: nowrap;
+    transition: background 0.15s, opacity 0.15s; font-family: inherit; }
+  .btn:disabled { cursor: not-allowed; }
   .btn-outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.35); color: #fff; }
   .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
-  .btn-primary { background: #4f6ef7; color: #fff; }
-  .btn-primary:hover:not(:disabled) { background: #3b5be0; }
-  .btn-success { background: #16a34a; color: #fff; }
-  .btn-success:hover:not(:disabled) { background: #15803d; }
-  .btn-danger { background: #dc2626; color: #fff; }
-  .btn-danger:hover:not(:disabled) { background: #b91c1c; }
-  .btn-amber { background: #d97706; color: #fff; }
-  .btn-amber:hover:not(:disabled) { background: #b45309; }
-  .btn-neutral { background: #475569; color: #fff; }
-  .btn-neutral:hover:not(:disabled) { background: #334155; }
-  .btn-sm { padding: 5px 10px; font-size: 0.76rem; }
-  .btn-block { width: 100%; justify-content: center; }
+  .btn-white { background: #fff; border: 1px solid #cbd5e1; color: #334155; }
+  .btn-white:hover:not(:disabled) { background: #f8fafc; }
+  .btn-indigo { background: #4f46e5; color: #fff; }
+  .btn-indigo:hover:not(:disabled) { background: #4338ca; }
+  .btn-amber { background: #f59e0b; color: #fff; }
+  .btn-amber:hover:not(:disabled) { background: #d97706; }
+  .btn-emerald { background: #059669; color: #fff; }
+  .btn-emerald:hover:not(:disabled) { background: #047857; }
+  .btn-purple { background: #9333ea; color: #fff; }
+  .btn-purple:hover:not(:disabled) { background: #7e22ce; }
   .btn-ghost { background: #f1f5f9; color: #334155; }
   .btn-ghost:hover:not(:disabled) { background: #e2e8f0; }
+  .btn-disabled { background: #f1f5f9 !important; color: #94a3b8 !important; border: 1px solid #e2e8f0 !important; cursor: not-allowed; }
+  .btn-lg { padding: 8px 16px; font-size: 0.85rem; }
+  .btn-block { width: 100%; justify-content: center; }
+  .icon-btn { padding: 7px; border-radius: 8px; background: transparent; border: none; cursor: pointer;
+    color: #94a3b8; display: inline-flex; align-items: center; }
+  .icon-btn:hover { background: #f1f5f9; color: #475569; }
+  .icon-btn.danger:hover { background: #fef2f2; color: #dc2626; }
 
-  /* ── Controls ── */
-  .controls {
-    background: #fff; border-bottom: 1px solid #e2e8f0; padding: 14px 28px;
-    display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;
-  }
-  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
-  .ctrl-label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-  .ctrl-select, .ctrl-input {
-    padding: 7px 32px 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.85rem;
-    font-weight: 500; color: #1e293b; background: #f8fafc; cursor: pointer; min-width: 150px; transition: border-color 0.15s;
-  }
-  .ctrl-select {
-    background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
-    -webkit-appearance: none; appearance: none;
-  }
-  .ctrl-input { padding: 7px 10px; min-width: 130px; }
-  .ctrl-select:focus, .ctrl-input:focus { outline: none; border-color: #4f6ef7; }
-  .ctrl-search { min-width: 220px; }
-  .ctrl-toggle { display: flex; border: 1.5px solid #cbd5e1; border-radius: 7px; overflow: hidden; }
-  .ctrl-toggle button {
-    border: none; background: #f8fafc; padding: 7px 14px; font-size: 0.82rem; font-weight: 600; color: #64748b; cursor: pointer;
-  }
-  .ctrl-toggle button.active { background: #4f6ef7; color: #fff; }
-  .ctrl-toggle button + button { border-left: 1.5px solid #cbd5e1; }
+  /* ── Filter bar ── */
+  .filterbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 12px 20px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .fgroup { display: flex; flex-direction: column; gap: 4px; }
+  .flabel { font-size: 0.7rem; font-weight: 600; color: #64748b; }
+  .fctrl { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; font-size: 0.82rem;
+    font-family: inherit; color: #0f172a; background: #fff; min-width: 130px; }
+  .fctrl:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px #c7d2fe; }
+  .viewtoggle { display: flex; background: #f1f5f9; padding: 3px; border-radius: 8px; }
+  .viewtoggle button { border: none; background: transparent; padding: 5px 9px; border-radius: 6px;
+    cursor: pointer; color: #64748b; display: flex; }
+  .viewtoggle button.active { background: #fff; color: #4f46e5; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-  /* ── Capsules ── */
-  .capsules { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 28px 0; }
-  .capsule {
-    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 14px;
-    font-size: 0.8rem; font-weight: 700; cursor: pointer; border: 1.5px solid transparent; transition: opacity 0.15s, outline 0.1s;
-    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-  }
-  .capsule .n { font-size: 0.92rem; }
-  .capsule.active { outline: 2.5px solid #1e293b; outline-offset: 1px; }
-  .capsule.dim { opacity: 0.45; }
-  .cap-total     { color: #1e293b; }
-  .cap-notstarted{ color: #64748b; }
-  .cap-inprogress{ color: #2563eb; }
-  .cap-paused    { color: #b45309; }
-  .cap-rework    { color: #c2410c; }
-  .cap-qcpending { color: #7c3aed; }
-  .cap-completed { color: #15803d; }
-  .cap-delayed   { color: #dc2626; }
+  /* ── Summary capsules ── */
+  .summary { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 8px 20px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .summary-label { font-size: 0.72rem; font-weight: 600; color: #94a3b8; margin-right: 2px; }
+  .cap { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px;
+    font-size: 0.75rem; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; font-family: inherit; }
+  .cap .cn { font-weight: 700; }
+  .cap-total     { background: #f8fafc; border-color: #e2e8f0; color: #94a3b8; }
+  .cap-total .cn { color: #1e293b; }
+  .cap-total.on  { background: #f1f5f9; border-color: #94a3b8; box-shadow: 0 0 0 1px #cbd5e1; }
+  .cap-prog      { background: #eef2ff; border-color: #e0e7ff; color: #818cf8; }
+  .cap-prog .cn  { color: #312e81; }
+  .cap-prog.on   { background: #e0e7ff; border-color: #818cf8; box-shadow: 0 0 0 1px #a5b4fc; }
+  .cap-rework    { background: #faf5ff; border-color: #f3e8ff; color: #c084fc; }
+  .cap-rework .cn{ color: #581c87; }
+  .cap-rework.on { background: #f3e8ff; border-color: #c084fc; box-shadow: 0 0 0 1px #d8b4fe; }
+  .cap-qc        { background: #f0fdfa; border-color: #ccfbf1; color: #2dd4bf; }
+  .cap-qc .cn    { color: #134e4a; }
+  .cap-qc.on     { background: #ccfbf1; border-color: #2dd4bf; box-shadow: 0 0 0 1px #5eead4; }
+  .cap-delay     { background: #fef2f2; border-color: #fee2e2; color: #f87171; }
+  .cap-delay .cn { color: #7f1d1d; }
+  .cap-delay.on  { background: #fee2e2; border-color: #f87171; box-shadow: 0 0 0 1px #fca5a5; }
+  .cap-done      { background: #ecfdf5; border-color: #d1fae5; color: #34d399; }
+  .cap-done .cn  { color: #064e3b; }
+  .cap-done.on   { background: #d1fae5; border-color: #34d399; box-shadow: 0 0 0 1px #6ee7b7; }
+  .summary-hint { font-size: 0.72rem; color: #cbd5e1; margin-left: auto; }
 
   /* ── Content ── */
-  .content { padding: 18px 28px 48px; }
-  .toolrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
-  .result-count { font-size: 0.85rem; color: #64748b; font-weight: 600; }
+  .content { padding: 20px; }
+  .cards { display: flex; flex-direction: column; gap: 14px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+  .card-body { padding: 18px; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 12px; }
+  .card-headleft { flex: 1; min-width: 0; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 5px; }
+  .bdg { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; }
+  .bdg-id { background: #f1f5f9; color: #475569; }
+  .card-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; line-height: 1.35; word-break: break-word; }
+  .card-sub { font-size: 0.82rem; color: #64748b; margin-top: 1px; }
+  .doclink { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 0.8rem;
+    color: #4f46e5; text-decoration: none; max-width: 100%; }
+  .doclink:hover { text-decoration: underline; }
+  .doclink span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+  .card-timer { text-align: right; flex-shrink: 0; }
+  .timer-val { font-size: 1.9rem; font-family: 'Consolas', monospace; font-weight: 300; color: #1e293b; letter-spacing: -0.5px; }
+  .timer-scope { font-size: 0.62rem; color: #94a3b8; margin-top: 1px; }
+  .timer-label { font-size: 0.72rem; color: #64748b; font-weight: 500; }
+  .metagrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 12px;
+    background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; font-size: 0.75rem; margin-bottom: 14px; }
+  .metagrid .mk { color: #64748b; font-weight: 500; margin-bottom: 2px; }
+  .metagrid .mv { font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .esth div { display: flex; gap: 4px; }
+  .esth .e-seo { color: #2563eb; } .esth .e-con { color: #ea580c; } .esth .e-web { color: #059669; }
+  .card-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-foot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ended-tag { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #f1f5f9;
+    color: #64748b; font-size: 0.85rem; font-weight: 600; border-radius: 8px; }
 
-  /* ── Card grid ── */
-  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
-  .task-card {
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 10px;
-  }
-  .task-card.is-delayed { border-left: 4px solid #dc2626; }
-  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-  .card-id { font-family: monospace; font-size: 0.72rem; color: #94a3b8; }
-  .card-client { font-size: 0.72rem; font-weight: 700; color: #4f6ef7; text-transform: uppercase; letter-spacing: 0.3px; }
-  .card-title { font-size: 0.92rem; font-weight: 700; color: #1e293b; line-height: 1.35; }
-  .status-badge {
-    display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.7rem; font-weight: 700; white-space: nowrap;
-  }
-  .st-notstarted { background: #f1f5f9; color: #64748b; }
-  .st-inprogress { background: #dbeafe; color: #1d4ed8; }
-  .st-paused     { background: #fef3c7; color: #b45309; }
-  .st-rework     { background: #ffedd5; color: #c2410c; }
-  .st-ended, .st-completed { background: #dcfce7; color: #15803d; }
-  .st-delayed    { background: #fee2e2; color: #b91c1c; }
+  /* ── Table (list view) ── */
+  .tblcard { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .tblwrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  thead tr { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  thead th { padding: 9px 10px; text-align: left; font-weight: 600; color: #94a3b8; font-size: 0.62rem;
+    text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f1f5f9; }
+  tbody tr:hover { background: #f8fafc; }
+  td { padding: 9px 10px; vertical-align: top; color: #334155; }
+  .t-right { text-align: right; } .t-center { text-align: center; }
+  .t-mono { font-family: 'Consolas', monospace; }
+  .rowactions { display: flex; gap: 3px; justify-content: flex-end; flex-wrap: wrap; }
+  .mini-btn { padding: 5px; border-radius: 6px; border: none; cursor: pointer; display: inline-flex; }
+  .mini-indigo { background: #e0e7ff; color: #4338ca; } .mini-indigo:hover { background: #c7d2fe; }
+  .mini-amber { background: #fef3c7; color: #b45309; } .mini-amber:hover { background: #fde68a; }
+  .mini-emerald { background: #d1fae5; color: #047857; } .mini-emerald:hover { background: #a7f3d0; }
+  .mini-purple { background: #f3e8ff; color: #7e22ce; } .mini-purple:hover { background: #e9d5ff; }
+  .mini-slate { background: #f1f5f9; color: #64748b; } .mini-slate:hover { background: #e2e8f0; }
+  .mini-red { background: #fef2f2; color: #f87171; } .mini-red:hover { background: #fee2e2; }
+  .mini-off { background: #f1f5f9; color: #cbd5e1; cursor: not-allowed; }
 
-  .card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 0.78rem; color: #475569; }
-  .card-meta .lbl { color: #94a3b8; font-weight: 600; }
-  .card-links { display: flex; gap: 10px; font-size: 0.76rem; }
-  .card-links a { color: #2563eb; text-decoration: none; }
-  .card-links a:hover { text-decoration: underline; }
-  .card-timer { font-family: monospace; font-size: 0.78rem; color: #1e293b; font-weight: 700; }
-  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  /* ── Detail panel ── */
+  .detail { background: #f8fafc; padding: 16px; border-top: 1px solid #e2e8f0; }
+  .detail h4 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 8px; }
+  .phase { display: flex; gap: 10px; padding: 8px 10px; background: #fff; border: 1px solid #e2e8f0;
+    border-radius: 8px; margin-bottom: 6px; font-size: 0.76rem; align-items: center; flex-wrap: wrap; }
+  .phase-num { width: 22px; height: 22px; border-radius: 50%; background: #e0e7ff; color: #4338ca;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.68rem; flex-shrink: 0; }
+  .phase-name { font-weight: 700; color: #1e293b; min-width: 100px; }
+  .phase-meta { color: #64748b; }
+  .comment { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px;
+    margin-bottom: 6px; font-size: 0.78rem; }
+  .comment-head { display: flex; justify-content: space-between; font-size: 0.7rem; color: #94a3b8; margin-bottom: 3px; }
+  .comment-row { display: flex; gap: 8px; margin-top: 8px; }
+  .comment-row input { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 7px 10px;
+    font-size: 0.8rem; font-family: inherit; }
+  .comment-row input:focus { outline: none; border-color: #6366f1; }
 
-  /* ── Loading / Empty ── */
-  .state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: #94a3b8; }
-  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #4f6ef7; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  /* ── Pagination ── */
+  .pager { display: flex; align-items: center; gap: 10px; padding: 14px 4px 0; flex-wrap: wrap; }
+  .pager-info { font-size: 0.76rem; color: #64748b; }
+  .pager-btns { display: flex; gap: 4px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+  .pbtn { padding: 5px 10px; font-size: 0.75rem; font-weight: 600; border: 1px solid #e2e8f0;
+    background: #fff; color: #64748b; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .pbtn:hover:not(:disabled) { background: #f8fafc; }
+  .pbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .pbtn.on { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+
+  /* ── States ── */
+  .state-box { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 70px 20px; color: #94a3b8; }
+  .spinner { width: 34px; height: 34px; border: 3px solid #e2e8f0; border-top-color: #4f46e5;
+    border-radius: 50%; animation: spin 0.7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── Toast ── */
-  .toast {
-    position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 10px 18px;
-    border-radius: 8px; font-size: 0.88rem; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-    z-index: 9999; display: none; align-items: center; gap: 8px; max-width: 360px;
-  }
-  .toast.visible { display: flex; }
-  .toast.success { background: #15803d; }
-  .toast.error { background: #b91c1c; }
+  .toast { position: fixed; bottom: 22px; right: 22px; background: #1e293b; color: #fff; padding: 10px 16px;
+    border-radius: 8px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    z-index: 9999; display: none; max-width: 380px; }
+  .toast.visible { display: block; }
+  .toast.success { background: #047857; } .toast.error { background: #b91c1c; }
 
   /* ── Modal ── */
-  .modal-overlay {
-    position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none;
-    align-items: center; justify-content: center; z-index: 500; padding: 20px;
-  }
-  .modal-overlay.visible { display: flex; }
-  .modal-box {
-    background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
-  }
-  .modal-box.wide { max-width: 620px; }
-  .modal-head { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-  .modal-head h3 { font-size: 1rem; color: #1e293b; }
-  .modal-close { background: none; border: none; font-size: 1.3rem; color: #94a3b8; cursor: pointer; line-height: 1; }
-  .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
-  .modal-foot { padding: 14px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; }
-  .field { display: flex; flex-direction: column; gap: 5px; }
-  .field label { font-size: 0.78rem; font-weight: 700; color: #475569; }
-  .field input, .field select, .field textarea {
-    padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.86rem; font-family: inherit;
-  }
-  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #4f6ef7; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .action-choice-grid { display: flex; flex-direction: column; gap: 8px; }
-  .action-choice {
-    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1.5px solid #e2e8f0;
-    border-radius: 8px; cursor: pointer; text-align: left; background: #fff; font-size: 0.86rem; font-weight: 600; color: #1e293b;
-  }
-  .action-choice:hover { border-color: #4f6ef7; background: #f5f7ff; }
-  .action-choice .ac-desc { font-weight: 400; color: #64748b; font-size: 0.76rem; }
-  .login-box {
-    max-width: 340px; margin: 90px auto; background: #fff; border-radius: 12px; padding: 28px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 14px;
-  }
-  .login-box h2 { font-size: 1.15rem; color: #1e293b; text-align: center; }
-  .login-error { color: #b91c1c; font-size: 0.8rem; text-align: center; min-height: 16px; }
+  .ov { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center;
+    justify-content: center; z-index: 2147483647; padding: 16px; }
+  .ov.visible { display: flex; }
+  .mbox { background: #fff; border-radius: 16px; width: 100%; max-width: 460px; max-height: 92vh;
+    display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.3); overflow: hidden; }
+  .mbox.wide { max-width: 660px; }
+  .mhead { padding: 18px 22px; border-bottom: 1px solid #f1f5f9; }
+  .mhead h3 { font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+  .mhead p { font-size: 0.82rem; color: #64748b; margin-top: 3px; }
+  .mbody { padding: 20px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .mfoot { padding: 14px 22px; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 10px; background: #f8fafc; }
+  .fld { display: flex; flex-direction: column; gap: 5px; }
+  .fld label { font-size: 0.76rem; font-weight: 600; color: #334155; }
+  .fld .hint { font-size: 0.7rem; color: #94a3b8; font-weight: 400; }
+  .fld input, .fld select, .fld textarea { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px;
+    font-size: 0.85rem; font-family: inherit; color: #0f172a; width: 100%; }
+  .fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px #c7d2fe; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .choice { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 14px;
+    border-radius: 12px; border: 1px solid #e2e8f0; background: #fff; cursor: pointer; text-align: left;
+    font-family: inherit; transition: all 0.15s; }
+  .choice:hover { border-color: #6366f1; background: #f5f7ff; }
+  .choice .cl { font-weight: 700; color: #0f172a; font-size: 0.88rem; }
+  .choice .cs { font-size: 0.74rem; color: #64748b; margin-top: 2px; }
+  .choice .dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 1rem; margin-right: 12px; flex-shrink: 0; }
+  .choice-inner { display: flex; align-items: center; }
+  .rw-stats { display: flex; gap: 22px; padding: 14px; background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 12px; font-size: 0.82rem; align-items: center; }
+  .rw-stats .sk { font-size: 0.7rem; color: #64748b; font-weight: 500; }
+  .rw-stats .sv { font-weight: 700; color: #1e293b; }
+  .deptpick { display: flex; gap: 8px; }
+  .deptpick button { flex: 1; padding: 8px; font-size: 0.82rem; font-weight: 600; border-radius: 8px;
+    border: 1px solid #cbd5e1; background: #fff; color: #64748b; cursor: pointer; font-family: inherit; }
+  .deptpick button.on-con { background: #ffedd5; border-color: #fb923c; color: #9a3412; }
+  .deptpick button.on-web { background: #d1fae5; border-color: #34d399; color: #065f46; }
+  .banner { padding: 10px 12px; border-radius: 8px; font-size: 0.76rem; background: #eff6ff; color: #1e40af; }
 
-  @media (max-width: 900px) {
-    .controls, .content, .capsules { padding-left: 14px; padding-right: 14px; }
-    .header { padding: 0 14px; }
-    .field-row { grid-template-columns: 1fr; }
-  }
+  .login-box { max-width: 340px; margin: 80px auto; background: #fff; border-radius: 14px; padding: 26px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08); display: flex; flex-direction: column; gap: 14px; }
+  .login-box h2 { font-size: 1.1rem; text-align: center; color: #0f172a; }
+  .login-error { color: #b91c1c; font-size: 0.78rem; text-align: center; min-height: 16px; }
+
+  @media (max-width: 1100px) { .metagrid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .metagrid { grid-template-columns: repeat(2, 1fr); } .grid2, .grid3 { grid-template-columns: 1fr; }
+    .filterbar, .summary, .content { padding-left: 12px; padding-right: 12px; } }
 </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
 <div class="header">
   <div class="header-brand">
     <a href="/" class="back-link">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       Back
     </a>
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/>
+      <rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
     </svg>
-    DiTech CDM
-    <span class="header-sub">/ Action Board 2.0</span>
+    DiTech CDM <span class="header-sub">/ Action Board 2.0</span>
   </div>
   <div class="header-actions" id="headerActions"></div>
 </div>
 
-<!-- ── Login gate ── -->
 <div id="loginArea"></div>
 
-<!-- ── App (hidden until logged in) ── -->
 <div id="appArea" style="display:none">
-  <div class="controls">
-    <div class="ctrl-group">
-      <label class="ctrl-label">Scope</label>
-      <div class="ctrl-toggle" id="scopeToggle">
-        <button id="scopeMine" class="active" onclick="setScope('mine')">My Tasks</button>
-        <button id="scopeAll" onclick="setScope('all')">All Tasks</button>
-      </div>
-    </div>
-    <div class="ctrl-group">
-      <label class="ctrl-label" for="clientSel">Client</label>
-      <select class="ctrl-select" id="clientSel" onchange="applyFilters()">
-        <option value="">All Clients</option>
-      </select>
-    </div>
-    <div class="ctrl-group">
-      <label class="ctrl-label" for="fromDate">From</label>
-      <input class="ctrl-input" type="date" id="fromDate" onchange="applyFilters()" />
-    </div>
-    <div class="ctrl-group">
-      <label class="ctrl-label" for="toDate">To</label>
-      <input class="ctrl-input" type="date" id="toDate" onchange="applyFilters()" />
-    </div>
-    <div class="ctrl-group">
-      <label class="ctrl-label" for="searchBox">Search</label>
-      <input class="ctrl-input ctrl-search" type="text" id="searchBox" placeholder="Title, client, task ID…" oninput="applyFilters()" />
-    </div>
-    <div class="ctrl-group" style="margin-left:auto">
-      <label class="ctrl-label">&nbsp;</label>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" onclick="clearFilters()">Reset Filters</button>
-        <button class="btn btn-primary" onclick="openNewTaskModal()">+ New Task</button>
-        <label class="btn btn-ghost" style="margin:0">
-          Import CSV
-          <input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this)" />
-        </label>
-        <button class="btn btn-outline" style="background:#475569;color:#fff" onclick="exportCsv()">Export CSV</button>
-      </div>
-    </div>
+  <div class="filterbar">
+    <div class="fgroup"><label class="flabel">From Date</label><input class="fctrl" type="date" id="fFrom" onchange="onFilterChange()"></div>
+    <div class="fgroup"><label class="flabel">To Date</label><input class="fctrl" type="date" id="fTo" onchange="onFilterChange()"></div>
+    <div class="fgroup"><label class="flabel">Client</label><select class="fctrl" id="fClient" onchange="onFilterChange()"></select></div>
+    <div class="fgroup"><label class="flabel">SEO Owner</label><select class="fctrl" id="fSeo" onchange="onFilterChange()"></select></div>
+    <div class="fgroup"><label class="flabel">Content Owner</label><select class="fctrl" id="fContent" onchange="onFilterChange()"></select></div>
+    <div class="fgroup"><label class="flabel">Web Owner</label><select class="fctrl" id="fWeb" onchange="onFilterChange()"></select></div>
+    <div class="fgroup"><label class="flabel">Department</label>
+      <select class="fctrl" id="fDept" onchange="onFilterChange()">
+        <option value="All">All</option><option>SEO</option><option>Content</option><option>Web</option><option>Completed</option>
+      </select></div>
+    <div class="fgroup" id="resetWrap" style="display:none"><label class="flabel">&nbsp;</label>
+      <button class="btn btn-white" onclick="resetToToday()">Reset to today</button></div>
+    <div class="fgroup" style="margin-left:auto"><label class="flabel">&nbsp;</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-white" id="csvBtn" onclick="exportCsv()">⬇ CSV (<span id="csvCount">0</span>)</button>
+        <label class="btn btn-white" style="margin:0">⬆ Upload Tasks
+          <input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this)"></label>
+        <button class="btn btn-indigo" onclick="openNewTask()">+ New Task</button>
+        <div class="viewtoggle">
+          <button id="vCard" class="active" onclick="setView('card')" title="Card view">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></button>
+          <button id="vList" onclick="setView('list')" title="List view">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+        </div>
+      </div></div>
   </div>
 
-  <div class="capsules" id="capsules"></div>
-
-  <div class="content">
-    <div class="toolrow">
-      <span class="result-count" id="resultCount"></span>
-    </div>
-    <div id="mainArea">
-      <div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>
-    </div>
-  </div>
+  <div class="summary" id="summary"></div>
+  <div class="content"><div id="mainArea"><div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div></div></div>
 </div>
 
-<!-- ── New Task Modal ── -->
-<div class="modal-overlay" id="newTaskModal">
-  <div class="modal-box">
-    <div class="modal-head"><h3>New Task</h3><button class="modal-close" onclick="closeModal('newTaskModal')">✕</button></div>
-    <div class="modal-body">
-      <div class="field"><label>Title *</label><input type="text" id="ntTitle" /></div>
-      <div class="field-row">
-        <div class="field"><label>Client *</label><select id="ntClient"></select></div>
-        <div class="field"><label>SEO Stage</label><input type="text" id="ntStage" placeholder="e.g. On Page" /></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Focused Keyword</label><input type="text" id="ntKw" /></div>
-        <div class="field"><label>Target URL</label><input type="text" id="ntTargetUrl" /></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Est. Hours (SEO)</label><input type="number" step="0.25" id="ntEstHours" value="1" /></div>
-        <div class="field"><label>Due Date</label><input type="date" id="ntDueDate" /></div>
-      </div>
-      <div class="field"><label>Remarks</label><textarea id="ntRemarks" rows="2"></textarea></div>
+<!-- New / Edit Task -->
+<div class="ov" id="taskModal"><div class="mbox wide">
+  <div class="mhead"><h3 id="tmTitle">Create New Task</h3><p id="tmSub"></p></div>
+  <div class="mbody">
+    <div class="fld"><label>Task Title ★</label><input type="text" id="tmName" placeholder="Enter task title..."></div>
+    <div class="grid2">
+      <div class="fld"><label>Client ★</label><select id="tmClient"></select></div>
+      <div class="fld"><label>Stage ★</label><select id="tmStage"></select></div>
     </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('newTaskModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitNewTask()">Create Task</button>
+    <div class="grid2">
+      <div class="fld"><label id="tmSeoLbl">SEO Owner ★</label><select id="tmSeoOwner"></select></div>
+      <div class="fld"><label id="tmDateLbl">Intake Date ★</label><input type="date" id="tmDate"></div>
     </div>
+    <div class="grid3">
+      <div class="fld"><label>Est. Hrs (SEO)</label><input type="number" step="0.25" id="tmEstSeo" placeholder="0"></div>
+      <div class="fld"><label>Est. Hrs (Content)</label><input type="number" step="0.25" id="tmEstCon" placeholder="0"></div>
+      <div class="fld"><label>Est. Hrs (Web)</label><input type="number" step="0.25" id="tmEstWeb" placeholder="0"></div>
+    </div>
+    <div class="grid2">
+      <div class="fld"><label>Focused Keyword</label><input type="text" id="tmKw" placeholder="e.g. inconel pipes"></div>
+      <div class="fld"><label>Target URL</label><input type="url" id="tmTarget" placeholder="https://..."></div>
+    </div>
+    <div class="grid3">
+      <div class="fld"><label>Volume</label><input type="number" id="tmVolume" placeholder="0"></div>
+      <div class="fld"><label>Monthly Rank</label><input type="number" id="tmMarRank" placeholder="0"></div>
+      <div class="fld"><label>Cur Rank</label><input type="number" id="tmCurRank" placeholder="0"></div>
+    </div>
+    <div class="fld"><label id="tmDocLbl">Doc URL</label><input type="url" id="tmDoc" placeholder="https://..."></div>
+    <div class="fld"><label>Remarks</label><textarea id="tmRemarks" rows="2" placeholder="Optional notes..."></textarea></div>
+    <div class="banner" id="tmBanner" style="display:none"></div>
   </div>
-</div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeModal('taskModal')">Cancel</button>
+    <button class="btn btn-indigo" id="tmSave" onclick="submitTask()">Create Task</button></div>
+</div></div>
 
-<!-- ── End Task — choose action ── -->
-<div class="modal-overlay" id="endChoiceModal">
-  <div class="modal-box">
-    <div class="modal-head"><h3>End Task — choose next step</h3><button class="modal-close" onclick="closeModal('endChoiceModal')">✕</button></div>
-    <div class="modal-body">
-      <div class="action-choice-grid" id="endChoiceGrid"></div>
-    </div>
+<!-- End Task -->
+<div class="ov" id="endModal"><div class="mbox">
+  <div class="mhead"><h3>End Task</h3><p id="endSub">Where should this task go next?</p></div>
+  <div class="mbody" id="endBody"></div>
+  <div class="mfoot"><button class="btn btn-ghost" id="endBack" onclick="endModalBack()">Cancel</button></div>
+</div></div>
+
+<!-- Raise Rework -->
+<div class="ov" id="reworkModal"><div class="mbox">
+  <div class="mhead"><h3>Raise Rework</h3><p id="rwTaskTitle"></p></div>
+  <div class="mbody">
+    <div class="rw-stats" id="rwStats"></div>
+    <div class="fld"><label>Rework Date</label><input type="date" id="rwDate"></div>
+    <div class="fld"><label>Est. Hours for Rework</label><input type="number" min="0" step="0.5" id="rwEst" placeholder="e.g. 2.5" oninput="renderReworkStats()"></div>
+    <div class="fld"><label>Assign To</label>
+      <div class="deptpick" style="margin-bottom:8px">
+        <button id="rwDeptCon" onclick="setReworkDept('Content')">Content</button>
+        <button id="rwDeptWeb" onclick="setReworkDept('Web')">Web</button>
+      </div>
+      <select id="rwOwner"></select></div>
   </div>
-</div>
+  <div class="mfoot"><button class="btn btn-ghost" onclick="closeModal('reworkModal')">Cancel</button>
+    <button class="btn btn-purple" onclick="submitRework()">Raise Rework</button></div>
+</div></div>
 
-<!-- ── End Task — configure assignment/QC/rework ── -->
-<div class="modal-overlay" id="endConfigModal">
-  <div class="modal-box">
-    <div class="modal-head"><h3 id="endConfigTitle">Configure</h3><button class="modal-close" onclick="closeModal('endConfigModal')">✕</button></div>
-    <div class="modal-body" id="endConfigBody"></div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('endConfigModal')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitEndConfig()">Confirm</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Toast ── -->
 <div class="toast" id="toast"></div>
 
 <script>
 (function () {
   'use strict';
 
-  var USER_KEY = '_ab2_user'; // namespaced so it never collides with the main app's localStorage keys
+  var USER_KEY = '_ab2_user';
 
-  var currentUser = null;
-  var config = { clients: [], seoOwners: [], contentOwners: [], webOwners: [] };
-  var allTasks = [];
-  var filtered = [];
-  var scope = 'mine';
-  var activeCapsule = null; // 'notstarted'|'inprogress'|'paused'|'rework'|'qcpending'|'completed'|'delayed'|null
-  var pollTimer = null;
-  var pendingSaves = {}; // taskId -> true while a save is in flight, so the poll doesn't clobber it
-  var tickTimer = null;
-  var endTaskCtx = null; // { task, action }
+  var currentUser = null, isAdmin = false;
+  var cfg = { clients: [], seoOwners: [], contentOwners: [], webOwners: [], seoStages: [] };
+  var allTasks = [], scoped = [], filtered = [], sorted = [], pageItems = [];
+  var remarks = [];
+  var view = 'card', capsule = 'All', page = 1, pageSize = 10;
+  var expandedId = null, pendingSaves = {}, endCtx = null, reworkCtx = null, editingId = null;
+  var pollTimer = null, tickTimer = null;
 
-  /* ── Init ── */
+  var HOUR = 3600000;
+
+  /* ══════════ boot ══════════ */
   window.addEventListener('DOMContentLoaded', function () {
-    try {
-      var stored = localStorage.getItem(USER_KEY);
-      if (stored) currentUser = JSON.parse(stored);
-    } catch (e) { currentUser = null; }
+    try { var s = localStorage.getItem(USER_KEY); if (s) currentUser = JSON.parse(s); } catch (e) {}
     if (currentUser) startApp(); else renderLogin();
   });
 
-  /* ══════════════════════════ AUTH ══════════════════════════ */
-
-  function renderLogin(errMsg) {
+  function renderLogin(err) {
     document.getElementById('appArea').style.display = 'none';
     document.getElementById('headerActions').innerHTML = '';
     document.getElementById('loginArea').innerHTML =
-      '<div class="login-box">' +
-        '<h2>Sign in to Action Board</h2>' +
-        '<div class="field"><label>Name</label><input type="text" id="loginName" autocomplete="username" /></div>' +
-        '<div class="field"><label>Password</label><input type="password" id="loginPass" autocomplete="current-password" /></div>' +
-        '<div class="login-error">' + esc(errMsg || '') + '</div>' +
-        '<button class="btn btn-primary btn-block" onclick="doLogin()">Sign In</button>' +
-      '</div>';
-    var pass = document.getElementById('loginPass');
-    if (pass) pass.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+      '<div class="login-box"><h2>Sign in to Action Board</h2>' +
+      '<div class="fld"><label>Name</label><input type="text" id="loginName" autocomplete="username"></div>' +
+      '<div class="fld"><label>Password</label><input type="password" id="loginPass" autocomplete="current-password"></div>' +
+      '<div class="login-error">' + esc(err || '') + '</div>' +
+      '<button class="btn btn-indigo btn-block btn-lg" onclick="doLogin()">Sign In</button></div>';
+    var p = document.getElementById('loginPass');
+    if (p) p.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
   }
 
   window.doLogin = function () {
     var name = document.getElementById('loginName').value.trim();
     var pass = document.getElementById('loginPass').value;
     if (!name || !pass) { renderLogin('Enter your name and password.'); return; }
-
-    fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, password: pass }),
-    })
-      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, password: pass }) })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, b: b }; }); })
       .then(function (res) {
-        if (!res.ok) { renderLogin(res.body.error || 'Invalid credentials'); return; }
-        currentUser = res.body.user;
+        if (!res.ok) { renderLogin(res.b.error || 'Invalid credentials'); return; }
+        currentUser = res.b.user;
         try { localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); } catch (e) {}
         document.getElementById('loginArea').innerHTML = '';
         startApp();
@@ -407,748 +410,1161 @@
     renderLogin();
   };
 
-  function isAdmin() { return currentUser && currentUser.role === 'admin'; }
-
-  /* Which department this user acts as, for gating Start/End buttons */
-  function userDept() {
-    var r = (currentUser && currentUser.role) || '';
-    if (r === 'seo') return 'SEO';
-    if (r === 'content') return 'Content';
-    if (r === 'web') return 'Web';
-    return '';
-  }
-
-  /* ══════════════════════════ APP BOOT ══════════════════════════ */
-
   function startApp() {
+    isAdmin = currentUser.role === 'admin';
     document.getElementById('appArea').style.display = 'block';
-    renderHeaderActions();
+    var ini = (currentUser.ownerName || currentUser.name || '?').trim().slice(0, 1).toUpperCase();
+    document.getElementById('headerActions').innerHTML =
+      '<div class="user-badge"><span class="user-avatar">' + esc(ini) + '</span><span>' +
+      esc(currentUser.ownerName || currentUser.name) + '</span><span class="user-role-tag">· ' +
+      esc(currentUser.role || '') + '</span></div>' +
+      '<button class="btn btn-outline" onclick="doLogout()">Logout</button>';
+
+    var t = today();
+    document.getElementById('fFrom').value = t;
+    document.getElementById('fTo').value = t;
+
     loadConfig();
+    loadRemarks();
     loadTasks(true);
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = setInterval(function () { loadTasks(false); }, 30000);
     if (tickTimer) clearInterval(tickTimer);
-    tickTimer = setInterval(renderLiveTimers, 1000);
-  }
-
-  function renderHeaderActions() {
-    var initials = (currentUser.ownerName || currentUser.name || '?').trim().slice(0, 1).toUpperCase();
-    document.getElementById('headerActions').innerHTML =
-      '<div class="user-badge">' +
-        '<span class="user-avatar">' + esc(initials) + '</span>' +
-        '<span>' + esc(currentUser.ownerName || currentUser.name) + '</span>' +
-        '<span class="user-role-tag">· ' + esc(currentUser.role || '') + '</span>' +
-      '</div>' +
-      '<button class="btn btn-outline" onclick="doLogout()">Logout</button>';
+    tickTimer = setInterval(tickTimers, 1000);
   }
 
   function loadConfig() {
-    fetch('/api/config/admin_options')
-      .then(function (r) { return r.json(); })
-      .then(function (cfg) {
-        config = cfg || {};
-        var sel = document.getElementById('clientSel');
-        var ntSel = document.getElementById('ntClient');
-        sel.innerHTML = '<option value="">All Clients</option>';
-        ntSel.innerHTML = '';
-        (config.clients || []).forEach(function (c) {
-          var o1 = document.createElement('option'); o1.value = c; o1.textContent = c; sel.appendChild(o1);
-          var o2 = document.createElement('option'); o2.value = c; o2.textContent = c; ntSel.appendChild(o2);
-        });
-      })
-      .catch(function (e) { console.error('Failed to load config', e); });
+    fetch('/api/config/admin_options').then(function (r) { return r.json(); }).then(function (c) {
+      cfg = c || {};
+      ['clients', 'seoOwners', 'contentOwners', 'webOwners', 'seoStages'].forEach(function (k) {
+        if (!Array.isArray(cfg[k])) cfg[k] = [];
+      });
+      fillSelect('fClient', cfg.clients, 'All Clients');
+      fillSelect('fSeo', cfg.seoOwners, 'All SEO Owners');
+      fillSelect('fContent', cfg.contentOwners, 'All');
+      fillSelect('fWeb', cfg.webOwners, 'All');
+      fillSelect('tmClient', cfg.clients, null);
+      fillSelect('tmStage', cfg.seoStages, null);
+      fillSelect('tmSeoOwner', cfg.seoOwners, null);
+    }).catch(function (e) { console.error('config load failed', e); });
   }
 
-  /* ══════════════════════════ DATA LOAD ══════════════════════════ */
+  function fillSelect(id, list, allLabel) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var html = allLabel !== null && allLabel !== undefined ? '<option value="All">' + esc(allLabel) + '</option>' : '';
+    (list || []).forEach(function (v) { html += '<option value="' + esc(v) + '">' + esc(v) + '</option>'; });
+    el.innerHTML = html;
+  }
 
-  function loadTasks(showSpinner) {
-    if (showSpinner) document.getElementById('mainArea').innerHTML = '<div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>';
+  function loadRemarks() {
+    fetch('/api/workhub-remarks').then(function (r) { return r.json(); })
+      .then(function (d) { remarks = Array.isArray(d) ? d : []; })
+      .catch(function () { remarks = []; });
+  }
+
+  function loadTasks(spin) {
+    if (spin) document.getElementById('mainArea').innerHTML = '<div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>';
     fetch('/api/tasks', { cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (data) {
-        // Action Board = the SEO → Content/Web pipeline only (seoOwner set).
-        // WorkHub's per-person tasks (deptType-based) live in a separate panel and are excluded here.
-        var abTasks = data.filter(function (t) { return !!t.seoOwner; });
-        var freshById = {};
-        abTasks.forEach(function (t) { freshById[t.id] = t; });
-        // Keep local state for any task with a save in flight so the 30s poll can't
-        // revert an action the user just took while its write is still landing.
-        allTasks = abTasks.map(function (t) {
+        var ab = data.filter(function (t) { return !!t.seoOwner; });
+        allTasks = ab.map(function (t) {
           return pendingSaves[t.id] ? (allTasks.find(function (x) { return x.id === t.id; }) || t) : t;
         });
         applyFilters();
       })
-      .catch(function (e) { renderError(e.message); });
+      .catch(function (e) {
+        document.getElementById('mainArea').innerHTML =
+          '<div class="state-box"><p style="color:#ef4444">Failed to load tasks: ' + esc(e.message) + '</p></div>';
+      });
   }
 
-  /* ══════════════════════════ FILTERING ══════════════════════════ */
+  /* ══════════ time math (ports of the original ht / et) ══════════ */
 
-  window.setScope = function (s) {
-    scope = s;
-    document.getElementById('scopeMine').className = s === 'mine' ? 'active' : '';
-    document.getElementById('scopeAll').className = s === 'all' ? 'active' : '';
+  /* Department-level totals: only events belonging to the task's CURRENT owner
+     department, split into active / paused / rework. */
+  function deptTimes(t) {
+    var active = 0, paused = 0, rework = 0;
+    var aStart = 0, pStart = 0, rStart = 0, state = 'Not Started';
+    (t.timeEvents || []).filter(function (e) { return e.department === t.currentOwner; })
+      .forEach(function (e) {
+        var ts = new Date(e.timestamp).getTime();
+        if (e.type === 'start' || e.type === 'resume') {
+          if (state === 'Paused' && pStart) paused += ts - pStart;
+          aStart = ts; state = 'In Progress';
+        } else if (e.type === 'pause') {
+          if (state === 'In Progress' && aStart) active += ts - aStart;
+          if (state === 'Rework' && rStart) rework += ts - rStart;
+          pStart = ts; state = 'Paused';
+        } else if (e.type === 'rework_start') {
+          if (state === 'Paused' && pStart) paused += ts - pStart;
+          if (state === 'In Progress' && aStart) active += ts - aStart;
+          rStart = ts; state = 'Rework';
+        } else if (e.type === 'end') {
+          if (state === 'In Progress' && aStart) active += ts - aStart;
+          if (state === 'Rework' && rStart) rework += ts - rStart;
+          state = 'Ended';
+        }
+      });
+    var now = Date.now();
+    if (t.executionState === 'In Progress' && aStart) active += now - aStart;
+    if (t.executionState === 'Rework' && rStart) rework += now - rStart;
+    if (t.executionState === 'Paused' && pStart) paused += now - pStart;
+    return { activeMs: active, pauseMs: paused, reworkMs: rework };
+  }
+
+  /* "my time" for a normal user (events they personally logged), or the whole
+     department's total when an admin is looking. */
+  function myTime(t) {
+    var total = 0, open = 0, isPaused = false;
+    var me = (currentUser && currentUser.ownerName) || '';
+    var evts = isAdmin
+      ? (t.timeEvents || []).filter(function (e) { return e.department === t.currentOwner; })
+      : (t.timeEvents || []).filter(function (e) { return e.owner === me; });
+    evts.forEach(function (e) {
+      var ts = new Date(e.timestamp).getTime();
+      if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') { open = ts; isPaused = false; }
+      else if (e.type === 'pause') { if (!isPaused && open) total += ts - open; open = ts; isPaused = true; }
+      else if (e.type === 'end') { if (!isPaused && open) total += ts - open; open = 0; }
+    });
+    if (!isPaused && open && (t.executionState === 'In Progress' || t.executionState === 'Rework')) total += Date.now() - open;
+    return total;
+  }
+
+  /* Deadline = assigned date + ceil(estHours / 7.5) working days (weekends skipped). */
+  function deadlineOf(dateStr, estHours) {
+    if (!dateStr) return null;
+    var days = estHours > 0 ? Math.ceil(estHours / 7.5) : 2;
+    var d = new Date(dateStr + 'T00:00:00');
+    var left = days - 1;
+    while (left > 0) {
+      d.setDate(d.getDate() + 1);
+      var dow = d.getDay();
+      if (dow !== 0 && dow !== 6) left--;
+    }
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }
+
+  function delayInfo(dateStr, estHours, activeMs) {
+    var dl = deadlineOf(dateStr, estHours);
+    var lateCal = dl !== null && new Date() > dl;
+    var lateHrs = estHours > 0 && activeMs / HOUR > estHours;
+    if (lateCal && lateHrs) return { isDelayed: true, reason: 'both' };
+    if (lateCal) return { isDelayed: true, reason: 'calendar' };
+    if (lateHrs) return { isDelayed: true, reason: 'overrun' };
+    return { isDelayed: false, reason: null };
+  }
+
+  /* The date a task is judged by depends on which team currently holds it. */
+  function ownerDate(t) {
+    return t.currentOwner === 'SEO' ? t.intakeDate
+      : t.currentOwner === 'Content' ? t.contentAssignedDate
+      : t.webAssignedDate;
+  }
+  function filterDate(t) {
+    return t.currentOwner === 'Content' ? (t.contentAssignedDate || t.intakeDate)
+      : (t.currentOwner === 'Web' && t.webAssignedDate) || t.intakeDate;
+  }
+  function ownerEst(t) {
+    return t.currentOwner === 'SEO' ? (t.estHoursSEO || t.estHours || 0)
+      : t.currentOwner === 'Content' ? (t.estHoursContent || 0)
+      : (t.estHoursWeb || 0);
+  }
+  function taskDelay(t) { return delayInfo(ownerDate(t) || '', ownerEst(t), deptTimes(t).activeMs); }
+
+  function isRework(t) {
+    return t.executionState === 'Rework' || t.seoQcStatus === 'Rework' ||
+      t.contentStatus === 'Rework' || t.webStatus === 'Rework' ||
+      (t.reworkEntries && t.reworkEntries.length > 0 && !t.reworkEntries[t.reworkEntries.length - 1].endTimestamp);
+  }
+  function isQc(t) {
+    return !t.isCompleted && t.executionState !== 'Ended' &&
+      (t.seoQcStatus === 'Pending QC' || t.seoQcStatus === 'QC' || t.contentStatus === 'QC Submitted' ||
+       t.webStatus === 'QC Submitted' || t.webStatus === 'Pending QC');
+  }
+  function isDone(t) { return t.executionState === 'Ended' || t.isCompleted; }
+
+  /* ══════════ scope + filter + sort + paginate ══════════ */
+
+  /* Non-admins only ever see the tasks they personally own, matched on the
+     owner field for their own role — same rule as the original board. */
+  function scopeTasks() {
+    if (!currentUser || isAdmin) return allTasks.slice();
+    var me = currentUser.ownerName;
+    return allTasks.filter(function (t) {
+      return currentUser.role === 'seo' ? t.seoOwner === me
+        : currentUser.role === 'content' ? t.contentOwner === me
+        : currentUser.role === 'web' ? t.webOwner === me : true;
+    });
+  }
+
+  window.onFilterChange = function () { page = 1; applyFilters(); };
+  window.setView = function (v) {
+    view = v;
+    document.getElementById('vCard').className = v === 'card' ? 'active' : '';
+    document.getElementById('vList').className = v === 'list' ? 'active' : '';
+    render();
+  };
+  window.resetToToday = function () {
+    var t = today();
+    document.getElementById('fFrom').value = t;
+    document.getElementById('fTo').value = t;
+    ['fClient', 'fSeo', 'fContent', 'fWeb', 'fDept'].forEach(function (id) { document.getElementById(id).value = 'All'; });
+    capsule = 'All'; page = 1;
     applyFilters();
   };
+  window.setCapsule = function (k) { capsule = capsule === k ? 'All' : k; page = 1; applyFilters(); };
+  window.gotoPage = function (p) { page = p; render(); };
+  window.setPageSize = function (n) { pageSize = parseInt(n, 10) || 10; page = 1; render(); };
 
-  window.clearFilters = function () {
-    document.getElementById('clientSel').value = '';
-    document.getElementById('fromDate').value = '';
-    document.getElementById('toDate').value = '';
-    document.getElementById('searchBox').value = '';
-    activeCapsule = null;
-    applyFilters();
-  };
+  function applyFilters() {
+    var from = document.getElementById('fFrom').value;
+    var to = document.getElementById('fTo').value;
+    var fc = document.getElementById('fClient').value;
+    var fs = document.getElementById('fSeo').value;
+    var fco = document.getElementById('fContent').value;
+    var fw = document.getElementById('fWeb').value;
+    var fd = document.getElementById('fDept').value;
 
-  window.applyFilters = function () {
-    var client = document.getElementById('clientSel').value;
-    var from = document.getElementById('fromDate').value;
-    var to = document.getElementById('toDate').value;
-    var q = document.getElementById('searchBox').value.trim().toLowerCase();
-    var today = todayStr();
+    document.getElementById('resetWrap').style.display =
+      (from !== today() || to !== today() || fc !== 'All' || fs !== 'All' || fco !== 'All' || fw !== 'All' || fd !== 'All')
+        ? 'flex' : 'none';
 
-    filtered = allTasks.filter(function (t) {
-      if (scope === 'mine' && !isAdmin()) {
-        var mine = t.seoOwner === (currentUser.ownerName || currentUser.name) ||
-                   t.contentOwner === (currentUser.ownerName || currentUser.name) ||
-                   t.webOwner === (currentUser.ownerName || currentUser.name);
-        if (!mine) return false;
-      }
-      if (client && t.client !== client) return false;
-      if (from && (t.intakeDate || '') < from) return false;
-      if (to && (t.intakeDate || '') > to) return false;
-      if (q) {
-        var hay = (t.id + ' ' + t.title + ' ' + t.client).toLowerCase();
-        if (hay.indexOf(q) === -1) return false;
-      }
-      if (activeCapsule) {
-        var delayed = isDelayed(t, today);
-        if (activeCapsule === 'delayed' && !delayed) return false;
-        if (activeCapsule === 'notstarted' && t.executionState !== 'Not Started') return false;
-        if (activeCapsule === 'inprogress' && t.executionState !== 'In Progress') return false;
-        if (activeCapsule === 'paused' && t.executionState !== 'Paused') return false;
-        if (activeCapsule === 'rework' && t.executionState !== 'Rework') return false;
-        if (activeCapsule === 'qcpending' && t.seoQcStatus !== 'Pending QC') return false;
-        if (activeCapsule === 'completed' && !t.isCompleted) return false;
-      }
+    scoped = scopeTasks();
+    filtered = scoped.filter(function (t) {
+      var d = filterDate(t);
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+      if (fc !== 'All' && t.client !== fc) return false;
+      if (fs !== 'All' && t.seoOwner !== fs) return false;
+      if (fco !== 'All' && t.contentOwner !== fco) return false;
+      if (fw !== 'All' && t.webOwner !== fw) return false;
+      if (fd !== 'All' && t.currentOwner !== fd) return false;
+      if (capsule === 'InProgress' && t.executionState !== 'In Progress') return false;
+      if (capsule === 'Rework' && !isRework(t)) return false;
+      if (capsule === 'Completed' && !isDone(t)) return false;
+      if (capsule === 'QC' && !isQc(t)) return false;
+      if (capsule === 'Delayed' && !taskDelay(t).isDelayed) return false;
       return true;
     });
 
-    renderCapsules(today);
-    renderCards();
-  };
+    sorted = filtered.slice().sort(function (a, b) {
+      return (filterDate(b) || '').localeCompare(filterDate(a) || '');
+    });
 
-  function isDelayed(t, today) {
-    return !t.isCompleted && !!t.dueDate && t.dueDate < today;
+    renderSummary();
+    render();
   }
 
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
-
-  /* ══════════════════════════ CAPSULES ══════════════════════════ */
-
-  function renderCapsules(today) {
-    var scoped = allTasks.filter(function (t) {
-      if (scope === 'mine' && !isAdmin()) {
-        var mine = t.seoOwner === (currentUser.ownerName || currentUser.name) ||
-                   t.contentOwner === (currentUser.ownerName || currentUser.name) ||
-                   t.webOwner === (currentUser.ownerName || currentUser.name);
-        return mine;
-      }
-      return true;
-    });
-    var counts = { notstarted: 0, inprogress: 0, paused: 0, rework: 0, qcpending: 0, completed: 0, delayed: 0 };
-    scoped.forEach(function (t) {
-      if (t.executionState === 'Not Started') counts.notstarted++;
-      if (t.executionState === 'In Progress') counts.inprogress++;
-      if (t.executionState === 'Paused') counts.paused++;
-      if (t.executionState === 'Rework') counts.rework++;
-      if (t.seoQcStatus === 'Pending QC') counts.qcpending++;
-      if (t.isCompleted) counts.completed++;
-      if (isDelayed(t, today)) counts.delayed++;
-    });
-
+  function renderSummary() {
+    var s = {
+      total: filtered.length,
+      inProgress: filtered.filter(function (t) { return t.executionState === 'In Progress'; }).length,
+      rework: filtered.filter(isRework).length,
+      qc: filtered.filter(isQc).length,
+      delayed: filtered.filter(function (t) { return taskDelay(t).isDelayed; }).length,
+      completed: filtered.filter(isDone).length
+    };
     var defs = [
-      ['notstarted', 'cap-notstarted', 'Not Started', counts.notstarted],
-      ['inprogress', 'cap-inprogress', 'In Progress', counts.inprogress],
-      ['paused', 'cap-paused', 'Paused', counts.paused],
-      ['rework', 'cap-rework', 'Rework', counts.rework],
-      ['qcpending', 'cap-qcpending', 'QC Pending', counts.qcpending],
-      ['completed', 'cap-completed', 'Completed', counts.completed],
-      ['delayed', 'cap-delayed', 'Delayed', counts.delayed],
+      ['All', 'cap-total', 'Total', s.total],
+      ['InProgress', 'cap-prog', 'In Progress', s.inProgress],
+      ['Rework', 'cap-rework', 'Rework', s.rework],
+      ['QC', 'cap-qc', 'QC Pending', s.qc],
+      ['Delayed', 'cap-delay', 'Delayed', s.delayed],
+      ['Completed', 'cap-done', 'Completed', s.completed]
     ];
-
-    var html = '<div class="capsule cap-total' + (activeCapsule === null ? ' active' : '') + '" onclick="toggleCapsule(null)"><span class="n">' + scoped.length + '</span> Total</div>';
+    var html = '<span class="summary-label">Summary:</span>';
     defs.forEach(function (d) {
-      var isActive = activeCapsule === d[0];
-      var dim = activeCapsule && !isActive;
-      html += '<div class="capsule ' + d[1] + (isActive ? ' active' : '') + (dim ? ' dim' : '') +
-        '" onclick="toggleCapsule(\'' + d[0] + '\')"><span class="n">' + d[3] + '</span> ' + esc(d[2]) + '</div>';
+      html += '<button class="cap ' + d[1] + (capsule === d[0] ? ' on' : '') + '" onclick="setCapsule(\'' + d[0] + '\')">' +
+        '<span>' + esc(d[2]) + '</span><span class="cn">' + d[3] + '</span></button>';
     });
-    document.getElementById('capsules').innerHTML = html;
+    html += '<span class="summary-hint">Click to filter</span>';
+    document.getElementById('summary').innerHTML = html;
+    document.getElementById('csvCount').textContent = sorted.length;
   }
 
-  window.toggleCapsule = function (key) {
-    activeCapsule = activeCapsule === key ? null : key;
-    applyFilters();
-  };
+  function render() {
+    var totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+    if (page > totalPages) page = totalPages;
+    pageItems = sorted.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
 
-  /* ══════════════════════════ CARDS ══════════════════════════ */
-
-  function renderCards() {
-    document.getElementById('resultCount').textContent = filtered.length + ' task' + (filtered.length === 1 ? '' : 's');
-    if (filtered.length === 0) {
-      document.getElementById('mainArea').innerHTML = '<div class="state-box"><p>No tasks match the current filters.</p></div>';
+    var html;
+    if (sorted.length === 0) {
+      html = '<div class="state-box"><p>No tasks match the current filters.</p></div>';
+      document.getElementById('mainArea').innerHTML = html;
       return;
     }
-    var today = todayStr();
-    var html = '<div class="card-grid">';
-    filtered.forEach(function (t) { html += renderCard(t, today); });
-    html += '</div>';
+    html = view === 'card' ? renderCards() : renderTable();
+    html += renderPager(totalPages);
     document.getElementById('mainArea').innerHTML = html;
   }
 
-  function renderError(msg) {
-    document.getElementById('mainArea').innerHTML =
-      '<div class="state-box"><p style="color:#ef4444">Failed to load tasks: ' + esc(msg) + '</p></div>';
+  /* ══════════ badges ══════════ */
+
+  function deptBadge(o) {
+    var c = o === 'SEO' ? 'background:#dbeafe;color:#1d4ed8'
+      : o === 'Content' ? 'background:#ffedd5;color:#c2410c'
+      : o === 'Web' ? 'background:#d1fae5;color:#047857'
+      : 'background:#f1f5f9;color:#475569';
+    return '<span class="bdg" style="' + c + '">' + esc(o || '—') + '</span>';
+  }
+  function stateBadge(s) {
+    s = s || 'Not Started';
+    var c = s === 'In Progress' ? 'background:#e0e7ff;color:#4338ca'
+      : s === 'Paused' ? 'background:#fef3c7;color:#b45309'
+      : s === 'Rework' ? 'background:#f3e8ff;color:#7e22ce'
+      : s === 'Ended' ? 'background:#d1fae5;color:#047857'
+      : 'background:#f1f5f9;color:#64748b';
+    return '<span class="bdg" style="' + c + '">' + esc(s) + '</span>';
+  }
+  function extraBadges(t) {
+    var h = '';
+    var dl = taskDelay(t);
+    if (dl.isDelayed) {
+      h += '<span class="bdg" style="background:#fee2e2;color:#b91c1c">⚠ ' +
+        (dl.reason === 'calendar' ? 'Delayed (date)' : dl.reason === 'overrun' ? 'Delayed (hrs)' : 'Delayed (date+hrs)') + '</span>';
+    }
+    var last = (t.reworkEntries || [])[(t.reworkEntries || []).length - 1];
+    if (last) {
+      h += last.withinEstimate
+        ? '<span class="bdg" style="background:#d1fae5;color:#047857">✓ Within Est.</span>'
+        : '<span class="bdg" style="background:#fee2e2;color:#b91c1c">⚠ Over Est.</span>';
+    }
+    if ((t.seoQcStatus === 'Pending QC' || t.seoQcStatus === 'QC') && !t.isCompleted && t.executionState !== 'Ended')
+      h += '<span class="bdg" style="background:#ccfbf1;color:#115e59">✓ QC Submitted</span>';
+    if (t.webStatus === 'Pending QC' && !t.isCompleted && t.executionState !== 'Ended')
+      h += '<span class="bdg" style="background:#ccfbf1;color:#115e59">✓ QC → Web</span>';
+    return h;
   }
 
-  function statusBadge(t, today) {
-    if (isDelayed(t, today)) return '<span class="status-badge st-delayed">Delayed</span>';
-    var es = t.executionState || 'Not Started';
-    var cls = 'st-notstarted';
-    if (es === 'In Progress') cls = 'st-inprogress';
-    else if (es === 'Paused') cls = 'st-paused';
-    else if (es === 'Rework') cls = 'st-rework';
-    else if (es === 'Ended' || t.isCompleted) cls = 'st-ended';
-    return '<span class="status-badge ' + cls + '">' + esc(es) + '</span>';
+  function userDept() {
+    var r = currentUser && currentUser.role;
+    return r === 'content' ? 'Content' : r === 'web' ? 'Web' : 'SEO';
+  }
+  function canAct(t) { return isAdmin || t.currentOwner === userDept(); }
+  function canRework(t) {
+    if (!(isAdmin || (currentUser && currentUser.role === 'seo'))) return false;
+    return (t.executionState === 'Rework' && t.currentOwner === 'SEO') ||
+      (t.currentOwner === 'SEO' && (t.seoQcStatus === 'Pending QC' || t.seoQcStatus === 'QC') &&
+       (t.executionState === 'In Progress' || t.executionState === 'Paused'));
   }
 
-  function renderCard(t, today) {
-    var delayed = isDelayed(t, today);
-    var canAct = isAdmin() || t.currentOwner === userDept();
-    var actionsHtml = '';
+  /* ══════════ card view ══════════ */
 
-    if (!t.isCompleted && canAct) {
-      if (t.executionState === 'Not Started') {
-        actionsHtml += '<button class="btn btn-primary btn-sm" onclick="startTask(\'' + esc(t.id) + '\')">▶ Start Task</button>';
-      } else if (t.executionState === 'Paused') {
-        actionsHtml += '<button class="btn btn-primary btn-sm" onclick="resumeTask(\'' + esc(t.id) + '\')">▶ Resume</button>';
-      } else if (t.executionState === 'In Progress' || t.executionState === 'Rework') {
-        actionsHtml += '<button class="btn btn-amber btn-sm" onclick="pauseTask(\'' + esc(t.id) + '\')">⏸ Pause</button>';
-        actionsHtml += '<button class="btn btn-danger btn-sm" onclick="openEndChoice(\'' + esc(t.id) + '\')">■ End Task</button>';
+  function renderCards() {
+    var html = '<div class="cards">';
+    pageItems.forEach(function (t) {
+      var ok = canAct(t);
+      var st = t.executionState || 'Not Started';
+      var acts = '';
+      if (st === 'Not Started') {
+        acts += actionBtn(ok, 'btn-indigo', '▶ Start Task', "timerAction('" + esc(t.id) + "','start')", t);
+      } else if (st === 'In Progress' || st === 'Rework') {
+        acts += actionBtn(ok, 'btn-amber', '⏸ Pause', "timerAction('" + esc(t.id) + "','pause')", t);
+        acts += actionBtn(ok, 'btn-emerald', '■ End Task', "openEnd('" + esc(t.id) + "')", t);
+      } else if (st === 'Paused') {
+        acts += actionBtn(ok, 'btn-indigo', '▶ Resume', "timerAction('" + esc(t.id) + "','resume')", t);
+        acts += actionBtn(ok, 'btn-emerald', '■ End Task', "openEnd('" + esc(t.id) + "')", t);
       }
+      if (canRework(t)) acts += '<button class="btn btn-purple btn-lg" onclick="openRework(\'' + esc(t.id) + '\')">↻ Raise Rework</button>';
+      if (st === 'Ended') acts += '<span class="ended-tag">✓ Ended</span>';
+
+      html +=
+        '<div class="card"><div class="card-body">' +
+          '<div class="card-head"><div class="card-headleft">' +
+            '<div class="badges"><span class="bdg bdg-id">' + esc(t.id) + '</span>' +
+              deptBadge(t.currentOwner) + stateBadge(st) + extraBadges(t) + '</div>' +
+            '<div class="card-title">' + esc(t.title) + '</div>' +
+            '<div class="card-sub">' + esc(t.client || '—') + ' · ' + esc(t.seoStage || '—') + '</div>' +
+            (t.docUrl ? '<a class="doclink" href="' + esc(t.docUrl) + '" target="_blank" rel="noreferrer">📄 <span>' +
+              esc(t.docUrl) + '</span> ↗</a>' : '') +
+          '</div>' +
+          '<div class="card-timer"><div class="timer-val" data-timer="' + esc(t.id) + '">' + fmtMs(myTime(t)) + '</div>' +
+            '<div class="timer-scope">' + (isAdmin ? 'dept total' : 'my time') + '</div>' +
+            '<div class="timer-label">Active Time</div></div></div>' +
+          '<div class="metagrid">' +
+            metaCell('Keyword', t.focusedKw || '-') +
+            metaCell('Volume', t.volume ? Number(t.volume).toLocaleString() : '-') +
+            metaCell('Monthly Rank', t.marRank || '-') +
+            metaCell('Cur Rank', t.currentRank || '-') +
+            '<div><p class="mk">Est. Hours</p><div class="esth">' +
+              ((t.estHoursSEO || t.estHours || 0) > 0 ? '<div><span class="e-seo">SEO:</span><b>' + (t.estHoursSEO || t.estHours) + 'h</b></div>' : '') +
+              ((t.estHoursContent || 0) > 0 ? '<div><span class="e-con">Con:</span><b>' + t.estHoursContent + 'h</b></div>' : '') +
+              ((t.estHoursWeb || 0) > 0 ? '<div><span class="e-web">Web:</span><b>' + t.estHoursWeb + 'h</b></div>' : '') +
+            '</div></div>' +
+          '</div>' +
+          '<div class="card-foot"><div class="card-foot-actions">' + acts + '</div>' +
+            '<div style="display:flex;gap:2px">' +
+              '<button class="icon-btn" title="Edit" onclick="openEdit(\'' + esc(t.id) + '\')">✎</button>' +
+              '<button class="icon-btn danger" title="Delete" onclick="deleteTask(\'' + esc(t.id) + '\')">🗑</button>' +
+              '<button class="icon-btn" title="Details" onclick="toggleExpand(\'' + esc(t.id) + '\')">' +
+                (expandedId === t.id ? '▲' : '▼') + '</button>' +
+            '</div></div>' +
+        '</div>' +
+        (expandedId === t.id ? renderDetail(t) : '') +
+        '</div>';
+    });
+    return html + '</div>';
+  }
+
+  function metaCell(k, v) {
+    return '<div><p class="mk">' + esc(k) + '</p><p class="mv" title="' + esc(v) + '">' + esc(v) + '</p></div>';
+  }
+
+  function actionBtn(ok, cls, label, onclick, t) {
+    if (ok) return '<button class="btn ' + cls + ' btn-lg" onclick="' + onclick + '">' + label + '</button>';
+    return '<button class="btn btn-lg btn-disabled" disabled title="This task is currently with the ' +
+      esc(t.currentOwner) + ' team">' + label + ' <span style="opacity:.7;font-size:.75rem">(' + esc(t.currentOwner) + ')</span></button>';
+  }
+
+  /* ══════════ list view ══════════ */
+
+  function renderTable() {
+    var html = '<div class="tblcard"><div class="tblwrap"><table><thead><tr>' +
+      '<th style="width:22%">Task</th><th style="width:10%">Client / Stage</th><th style="width:14%">Keyword</th>' +
+      '<th style="width:6%" class="t-right">Vol</th><th style="width:7%" class="t-center">Ranks</th>' +
+      '<th style="width:11%">Owners</th><th style="width:10%">Status</th><th style="width:8%">Time</th>' +
+      '<th class="t-right">Actions</th></tr></thead><tbody>';
+
+    pageItems.forEach(function (t) {
+      var ok = canAct(t);
+      var st = t.executionState || 'Not Started';
+      var btns = '';
+      if (st === 'Not Started') btns += miniBtn(ok, 'mini-indigo', '▶', "timerAction('" + esc(t.id) + "','start')", 'Start', t);
+      else if (st === 'In Progress' || st === 'Rework') {
+        btns += miniBtn(ok, 'mini-amber', '⏸', "timerAction('" + esc(t.id) + "','pause')", 'Pause', t);
+        btns += miniBtn(ok, 'mini-emerald', '■', "openEnd('" + esc(t.id) + "')", 'End Task', t);
+      } else if (st === 'Paused') {
+        btns += miniBtn(ok, 'mini-indigo', '▶', "timerAction('" + esc(t.id) + "','resume')", 'Resume', t);
+        btns += miniBtn(ok, 'mini-emerald', '■', "openEnd('" + esc(t.id) + "')", 'End Task', t);
+      }
+      if (canRework(t)) btns += '<button class="mini-btn mini-purple" title="Raise Rework" onclick="openRework(\'' + esc(t.id) + '\')">↻</button>';
+      btns += '<button class="mini-btn mini-slate" title="Edit" onclick="openEdit(\'' + esc(t.id) + '\')">✎</button>';
+      btns += '<button class="mini-btn mini-red" title="Delete" onclick="deleteTask(\'' + esc(t.id) + '\')">🗑</button>';
+      btns += '<button class="mini-btn mini-slate" title="Details" onclick="toggleExpand(\'' + esc(t.id) + '\')">' + (expandedId === t.id ? '▲' : '▼') + '</button>';
+
+      var dl = taskDelay(t);
+      html += '<tr>' +
+        '<td><div style="font-weight:600;color:#0f172a">' + esc(t.title) + '</div>' +
+          '<div style="font-size:.68rem;color:#94a3b8;font-family:Consolas,monospace">' + esc(t.id) + '</div>' +
+          (dl.isDelayed ? '<span class="bdg" style="background:#fee2e2;color:#b91c1c;margin-top:3px">⚠ ' +
+            (dl.reason === 'calendar' ? 'Delayed (date)' : dl.reason === 'overrun' ? 'Delayed (hrs)' : 'Delayed (date+hrs)') + '</span>' : '') + '</td>' +
+        '<td>' + esc(t.client || '-') + '<div style="color:#94a3b8">' + esc(t.seoStage || '') + '</div></td>' +
+        '<td>' + esc(t.focusedKw || '-') + '</td>' +
+        '<td class="t-right">' + (t.volume ? Number(t.volume).toLocaleString() : '-') + '</td>' +
+        '<td class="t-center">' + (t.marRank || '-') + ' → ' + (t.currentRank || '-') + '</td>' +
+        '<td style="font-size:.7rem">' +
+          '<div><span style="color:#94a3b8">SEO:</span> ' + esc(t.seoOwner || '-') + '</div>' +
+          (t.contentOwner ? '<div><span style="color:#94a3b8">Con:</span> ' + esc(t.contentOwner) + '</div>' : '') +
+          (t.webOwner ? '<div><span style="color:#94a3b8">Web:</span> ' + esc(t.webOwner) + '</div>' : '') + '</td>' +
+        '<td>' + deptBadge(t.currentOwner) + '<br>' + stateBadge(st) +
+          (isQc(t) ? '<div style="margin-top:3px"><span class="bdg" style="background:#ccfbf1;color:#115e59">QC Submitted</span></div>' : '') + '</td>' +
+        '<td class="t-mono"><div data-timer="' + esc(t.id) + '">' + fmtMs(myTime(t)) + '</div>' +
+          '<div style="font-size:.6rem;color:#94a3b8">' + (isAdmin ? 'dept total' : 'my time') + '</div></td>' +
+        '<td><div class="rowactions">' + btns + '</div></td></tr>';
+
+      if (expandedId === t.id) html += '<tr><td colspan="9" style="padding:0">' + renderDetail(t) + '</td></tr>';
+    });
+    return html + '</tbody></table></div></div>';
+  }
+
+  function miniBtn(ok, cls, label, onclick, title, t) {
+    if (ok) return '<button class="mini-btn ' + cls + '" title="' + esc(title) + '" onclick="' + onclick + '">' + label + '</button>';
+    return '<button class="mini-btn mini-off" disabled title="With ' + esc(t.currentOwner) + ' team">' + label + '</button>';
+  }
+
+  /* ══════════ detail panel: phase timeline + comments ══════════ */
+
+  function buildPhases(t) {
+    var phases = [], n = 0, reworkN = 0, cur = null, openTs = 0, pauseTs = 0, isPaused = false;
+    var ownerFor = function (d) { return d === 'Content' ? (t.contentOwner || '') : d === 'Web' ? (t.webOwner || '') : (t.seoOwner || ''); };
+    (t.timeEvents || []).forEach(function (e) {
+      var ts = new Date(e.timestamp).getTime();
+      var dept = e.department || '';
+      var owner = e.owner || ownerFor(dept);
+      var isRw = e.type === 'rework_start';
+      if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') {
+        if (!cur || cur.dept !== dept || (isRw && cur.type !== 'rework')) {
+          if (cur) { if (!isPaused && openTs) cur.activeMs += ts - openTs; cur.endTs = e.timestamp; cur.status = 'done'; }
+          n++; if (isRw) reworkN++;
+          var est = isRw ? 0 : dept === 'Content' ? (t.estHoursContent || 0) : dept === 'Web' ? (t.estHoursWeb || 0) : (t.estHoursSEO || t.estHours || 0);
+          cur = { num: n, phase: isRw ? 'Rework #' + reworkN : dept === 'Content' ? 'Content Work' : dept === 'Web' ? 'Web Work' : 'SEO Work',
+                  type: isRw ? 'rework' : 'work', dept: dept, owner: owner, startTs: e.timestamp, endTs: '',
+                  activeMs: 0, pauseMs: 0, estHours: est, status: 'live' };
+          phases.push(cur); isPaused = false; openTs = ts;
+        } else { if (isPaused && pauseTs) cur.pauseMs += ts - pauseTs; openTs = ts; isPaused = false; }
+      } else if (e.type === 'pause') {
+        if (!isPaused && openTs && cur) cur.activeMs += ts - openTs;
+        pauseTs = ts; isPaused = true;
+      } else if (e.type === 'end') {
+        if (!isPaused && openTs && cur) cur.activeMs += ts - openTs;
+        if (isPaused && pauseTs && cur) cur.pauseMs += ts - pauseTs;
+        if (cur) { cur.endTs = e.timestamp; cur.status = 'done'; }
+        openTs = 0; isPaused = false;
+      }
+    });
+    return phases;
+  }
+
+  function renderDetail(t) {
+    var phases = buildPhases(t);
+    var h = '<div class="detail">';
+    h += '<h4>Task Timeline</h4>';
+    if (phases.length === 0) h += '<p style="font-size:.78rem;color:#94a3b8;margin-bottom:12px">No time logged yet.</p>';
+    phases.forEach(function (p) {
+      h += '<div class="phase"><div class="phase-num">' + p.num + '</div>' +
+        '<div class="phase-name">' + esc(p.phase) + '</div>' +
+        '<div class="phase-meta">' + esc(p.owner || '—') + '</div>' +
+        '<div class="phase-meta">Active <b>' + fmtMs(p.activeMs) + '</b></div>' +
+        '<div class="phase-meta">Paused <b>' + fmtMs(p.pauseMs) + '</b></div>' +
+        (p.estHours > 0 ? '<div class="phase-meta">Est <b>' + p.estHours + 'h</b></div>' : '') +
+        '<div class="phase-meta" style="margin-left:auto">' + fmtDate(p.startTs) +
+          (p.endTs ? ' → ' + fmtDate(p.endTs) : ' → <b style="color:#4338ca">running</b>') + '</div></div>';
+    });
+
+    var qcs = t.qcReviews || [];
+    if (qcs.length) {
+      h += '<h4 style="margin-top:14px">QC Reviews</h4>';
+      qcs.forEach(function (q) {
+        h += '<div class="phase"><div class="phase-name">' + esc(q.submittedByDept || '') + ' → ' + esc(q.assignedTo || '') + '</div>' +
+          '<div class="phase-meta">by ' + esc(q.submittedBy || '—') + '</div>' +
+          '<div class="phase-meta">Est ' + (q.estHours || 0) + 'h</div>' +
+          (q.outcome ? '<div class="phase-meta"><b>' + esc(q.outcome) + '</b></div>' : '<div class="phase-meta"><b style="color:#0d9488">pending</b></div>') +
+          (q.note ? '<div class="phase-meta">“' + esc(q.note) + '”</div>' : '') +
+          '<div class="phase-meta" style="margin-left:auto">' + fmtDate(q.submittedAt) + '</div></div>';
+      });
     }
 
-    var timerHtml = '';
-    if (t.executionState === 'In Progress' || t.executionState === 'Rework') {
-      timerHtml = '<div class="card-timer" data-timer-for="' + esc(t.id) + '">' + formatLiveElapsed(t) + '</div>';
-    }
-
-    var linksHtml = '';
-    if (t.docUrl) linksHtml += '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">📄 Doc</a>';
-    if (t.targetUrl) linksHtml += '<a href="' + esc(t.targetUrl) + '" target="_blank" rel="noopener">🔗 Target URL</a>';
-
-    return (
-      '<div class="task-card' + (delayed ? ' is-delayed' : '') + '">' +
-        '<div class="card-top">' +
-          '<div><div class="card-id">' + esc(t.id) + '</div><div class="card-client">' + esc(t.client || 'Unassigned') + '</div></div>' +
-          statusBadge(t, today) +
-        '</div>' +
-        '<div class="card-title">' + esc(t.title) + '</div>' +
-        '<div class="card-meta">' +
-          '<div><span class="lbl">Owner:</span> ' + esc(t.currentOwner || '—') + '</div>' +
-          '<div><span class="lbl">SEO:</span> ' + esc(t.seoOwner || '—') + '</div>' +
-          '<div><span class="lbl">Content:</span> ' + esc(t.contentOwner || '—') + '</div>' +
-          '<div><span class="lbl">Web:</span> ' + esc(t.webOwner || '—') + '</div>' +
-          '<div><span class="lbl">Due:</span> ' + esc(t.dueDate || '—') + '</div>' +
-          '<div><span class="lbl">QC:</span> ' + esc(t.seoQcStatus || '—') + '</div>' +
-        '</div>' +
-        (linksHtml ? '<div class="card-links">' + linksHtml + '</div>' : '') +
-        timerHtml +
-        (actionsHtml ? '<div class="card-actions">' + actionsHtml + '</div>' : '') +
-      '</div>'
-    );
-  }
-
-  /* Live ticking timer text for open (In Progress / Rework) cards — display only,
-     recomputed every second from the task's own timeEvents, never written anywhere. */
-  function formatLiveElapsed(t) {
-    var ms = pairedOpenMs(t.timeEvents || []);
-    return '⏱ ' + formatDuration(ms);
-  }
-  function pairedOpenMs(events) {
-    var open = null, total = 0;
-    var sorted = events.slice().sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : 1; });
-    sorted.forEach(function (e) {
-      var t = new Date(e.timestamp).getTime();
-      if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') open = t;
-      else if ((e.type === 'pause' || e.type === 'end') && open !== null) { total += t - open; open = null; }
+    var mine = remarks.filter(function (r) { return r.taskId === t.id; });
+    h += '<h4 style="margin-top:14px">Comments</h4>';
+    if (mine.length === 0) h += '<p style="font-size:.78rem;color:#94a3b8">No comments yet.</p>';
+    mine.forEach(function (r) {
+      h += '<div class="comment"><div class="comment-head"><span><b>' + esc(r.userName || '?') + '</b> · ' +
+        esc(r.userRole || '') + '</span><span>' + fmtDate(r.createdAt) + '</span></div>' + esc(r.remark) + '</div>';
     });
-    if (open !== null) total += Date.now() - open;
-    return total;
-  }
-  function formatDuration(ms) {
-    var s = Math.floor(ms / 1000);
-    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
-  }
-  function renderLiveTimers() {
-    document.querySelectorAll('[data-timer-for]').forEach(function (el) {
-      var id = el.getAttribute('data-timer-for');
-      var t = allTasks.find(function (x) { return x.id === id; });
-      if (t) el.textContent = formatLiveElapsed(t);
-    });
+    h += '<div class="comment-row"><input type="text" id="cmt_' + esc(t.id) + '" placeholder="Add a comment…">' +
+      '<button class="btn btn-indigo" onclick="addComment(\'' + esc(t.id) + '\')">Post</button></div>';
+    return h + '</div>';
   }
 
-  /* ══════════════════════════ TIMER ACTIONS ══════════════════════════ */
-  /* Each of these fires exactly ONE POST /events call — no duplicate writes. */
+  window.toggleExpand = function (id) { expandedId = expandedId === id ? null : id; render(); };
 
-  function actorName() { return currentUser.ownerName || currentUser.name || ''; }
-
-  function pushEvent(taskId, type, department) {
-    return fetch('/api/tasks/' + encodeURIComponent(taskId) + '/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: type, timestamp: new Date().toISOString(), department: department, owner: actorName() }),
-    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-  }
-
-  function patchAssign(taskId, fields) {
-    return fetch('/api/tasks/' + encodeURIComponent(taskId) + '/assign', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fields),
-    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-  }
-
-  function withPending(taskId, work) {
-    pendingSaves[taskId] = true;
-    return work.finally(function () { delete pendingSaves[taskId]; });
-  }
-
-  function localTask(id) { return allTasks.find(function (t) { return t.id === id; }); }
-
-  function statusFieldFor(dept) {
-    if (dept === 'Content') return 'contentStatus';
-    if (dept === 'Web') return 'webStatus';
-    if (dept === 'SEO') return 'seoQcStatus';
-    return null;
-  }
-
-  window.startTask = function (id) {
-    var t = localTask(id); if (!t) return;
-    var dept = t.currentOwner;
-    var statusField = statusFieldFor(dept);
-    var patch = { executionState: 'In Progress' };
-    if (statusField) patch[statusField] = 'In Progress';
-
-    withPending(id, pushEvent(id, 'start', dept).then(function () { return patchAssign(id, patch); }))
-      .then(function () {
-        t.executionState = 'In Progress';
-        if (statusField) t[statusField] = 'In Progress';
-        t.timeEvents = (t.timeEvents || []).concat([{ type: 'start', timestamp: new Date().toISOString(), department: dept, owner: actorName() }]);
-        applyFilters();
-        showToast('Task started', 'success');
+  window.addComment = function (id) {
+    var el = document.getElementById('cmt_' + id);
+    var text = el ? el.value.trim() : '';
+    if (!text) return;
+    fetch('/api/workhub-remarks', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: id, userName: currentUser.ownerName || currentUser.name,
+        userRole: currentUser.role, remark: text }) })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (res) {
+        remarks.unshift({ id: res.id, taskId: id, userName: currentUser.ownerName || currentUser.name,
+          userRole: currentUser.role, remark: text, createdAt: new Date().toISOString() });
+        render();
+        toast('Comment added', 'success');
       })
-      .catch(function (e) { showToast('Failed to start: ' + e.message, 'error'); });
+      .catch(function (e) { toast('Failed: ' + e.message, 'error'); });
   };
 
-  window.resumeTask = function (id) {
+  /* ══════════ pagination ══════════ */
+
+  function renderPager(totalPages) {
+    var from = sorted.length === 0 ? 0 : (page - 1) * pageSize + 1;
+    var to = Math.min(page * pageSize, sorted.length);
+    var nums = [];
+    if (totalPages <= 7) { for (var i = 1; i <= totalPages; i++) nums.push(i); }
+    else if (page <= 4) nums = [1, 2, 3, 4, 5, '…', totalPages];
+    else if (page >= totalPages - 3) nums = [1, '…', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    else nums = [1, '…', page - 1, page, page + 1, '…', totalPages];
+
+    var h = '<div class="pager"><span class="pager-info">Showing ' + from + '–' + to + ' of ' + sorted.length + '</span>' +
+      '<select class="fctrl" style="min-width:auto;padding:4px 6px;font-size:.75rem" onchange="setPageSize(this.value)">' +
+      [10, 25, 50, 100].map(function (n) { return '<option value="' + n + '"' + (pageSize === n ? ' selected' : '') + '>' + n + ' / page</option>'; }).join('') +
+      '</select><div class="pager-btns">' +
+      '<button class="pbtn" onclick="gotoPage(1)"' + (page === 1 ? ' disabled' : '') + '>«</button>' +
+      '<button class="pbtn" onclick="gotoPage(' + (page - 1) + ')"' + (page === 1 ? ' disabled' : '') + '>‹ Prev</button>';
+    nums.forEach(function (n) {
+      h += n === '…' ? '<span class="pager-info">…</span>'
+        : '<button class="pbtn' + (n === page ? ' on' : '') + '" onclick="gotoPage(' + n + ')">' + n + '</button>';
+    });
+    h += '<button class="pbtn" onclick="gotoPage(' + (page + 1) + ')"' + (page === totalPages ? ' disabled' : '') + '>Next ›</button>' +
+      '<button class="pbtn" onclick="gotoPage(' + totalPages + ')"' + (page === totalPages ? ' disabled' : '') + '>»</button></div></div>';
+    return h;
+  }
+
+  /* ══════════ timer actions (exactly one event write each) ══════════ */
+
+  function localTask(id) { return allTasks.find(function (t) { return t.id === id; }); }
+  function actor() { return (currentUser && currentUser.ownerName) || currentUser.name || ''; }
+
+  function postEvent(id, type, dept) {
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/events', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, timestamp: new Date().toISOString(), department: dept, owner: actor() })
+    }).then(chk);
+  }
+  function patchAssign(id, f) {
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/assign', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }).then(chk);
+  }
+  function patchFields(id, f) {
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }).then(chk);
+  }
+  function postQc(id, q) {
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q) }).then(chk);
+  }
+  function postRework(id, r) {
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) }).then(chk);
+  }
+  function chk(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+  function guard(id, p) { pendingSaves[id] = true; return p.finally(function () { delete pendingSaves[id]; }); }
+
+  function statusField(dept) {
+    return dept === 'Content' ? 'contentStatus' : dept === 'Web' ? 'webStatus' : dept === 'SEO' ? 'seoQcStatus' : null;
+  }
+
+  window.timerAction = function (id, kind) {
     var t = localTask(id); if (!t) return;
     var dept = t.currentOwner;
-    // A rework task whose active rework entry has no startTimestamp yet is being
-    // resumed INTO rework work — mirrors the original's rework_start branch.
-    var rw = (t.reworkEntries || []);
-    var openRework = rw.length > 0 && !rw[rw.length - 1].startTimestamp ? rw[rw.length - 1] : null;
 
-    if (openRework) {
-      var reworkStart = withPending(id, pushEvent(id, 'rework_start', dept).then(function () {
-        return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({}, openRework, { startTimestamp: new Date().toISOString() })),
-        }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
-      }));
-      reworkStart.then(function () {
-        t.executionState = 'Rework';
-        applyFilters();
-        showToast('Rework started', 'success');
-      }).catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
+    if (kind === 'pause') {
+      guard(id, postEvent(id, 'pause', dept).then(function () { return patchAssign(id, { executionState: 'Paused' }); }))
+        .then(function () {
+          t.executionState = 'Paused';
+          t.timeEvents = (t.timeEvents || []).concat([{ type: 'pause', timestamp: new Date().toISOString(), department: dept, owner: actor() }]);
+          applyFilters(); toast('Task paused', 'success');
+        }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
       return;
     }
 
-    var statusField = statusFieldFor(dept);
+    /* Resuming into an open rework entry logs rework_start and flips the task
+       to Rework, matching the original board's rework branch. */
+    var rw = t.reworkEntries || [];
+    var openRw = rw.length > 0 && !rw[rw.length - 1].startTimestamp ? rw[rw.length - 1] : null;
+    if (openRw) {
+      var ts = new Date().toISOString();
+      guard(id, postEvent(id, 'rework_start', dept)
+        .then(function () { return postRework(id, Object.assign({}, openRw, { startTimestamp: ts })); })
+        .then(function () {
+          var p = { executionState: 'Rework' };
+          var sf = statusField(dept); if (sf && sf !== 'seoQcStatus') p[sf] = 'In Progress';
+          return patchAssign(id, p);
+        }))
+        .then(function () {
+          t.executionState = 'Rework';
+          openRw.startTimestamp = ts;
+          t.timeEvents = (t.timeEvents || []).concat([{ type: 'rework_start', timestamp: ts, department: dept, owner: actor() }]);
+          applyFilters(); toast('Rework started', 'success');
+        }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+      return;
+    }
+
     var patch = { executionState: 'In Progress' };
-    if (statusField) patch[statusField] = 'In Progress';
-    withPending(id, pushEvent(id, 'resume', dept).then(function () { return patchAssign(id, patch); }))
+    var sf = statusField(dept);
+    if (sf) patch[sf] = 'In Progress';
+    guard(id, postEvent(id, kind, dept).then(function () { return patchAssign(id, patch); }))
       .then(function () {
         t.executionState = 'In Progress';
-        if (statusField) t[statusField] = 'In Progress';
+        if (sf) t[sf] = 'In Progress';
+        t.timeEvents = (t.timeEvents || []).concat([{ type: kind, timestamp: new Date().toISOString(), department: dept, owner: actor() }]);
         applyFilters();
-        showToast('Task resumed', 'success');
-      })
-      .catch(function (e) { showToast('Failed to resume: ' + e.message, 'error'); });
+        toast(kind === 'start' ? 'Task started' : 'Task resumed', 'success');
+      }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
   };
 
-  window.pauseTask = function (id) {
-    var t = localTask(id); if (!t) return;
-    withPending(id, pushEvent(id, 'pause', t.currentOwner).then(function () { return patchAssign(id, { executionState: 'Paused' }); }))
-      .then(function () {
-        t.executionState = 'Paused';
-        applyFilters();
-        showToast('Task paused', 'success');
-      })
-      .catch(function (e) { showToast('Failed to pause: ' + e.message, 'error'); });
-  };
+  /* ══════════ End Task ══════════ */
 
-  /* ══════════════════════════ END TASK — action menu ══════════════════════════ */
-
-  window.openEndChoice = function (id) {
+  window.openEnd = function (id) {
     var t = localTask(id); if (!t) return;
-    endTaskCtx = { taskId: id };
-    var choices = [];
+    endCtx = { id: id, step: 'select' };
+    document.getElementById('endSub').textContent = 'Where should this task go next?';
+    document.getElementById('endBack').textContent = 'Cancel';
+    var opts = [];
     if (t.currentOwner === 'SEO') {
-      if (!t.contentStatus) choices.push(['assign_content', 'Assign to Content', 'Hand this task to the Content team']);
-      if (!t.webStatus) choices.push(['assign_web', 'Assign to Web', 'Hand this task to the Web team']);
-      if (t.seoQcStatus === 'Pending QC') {
-        choices.push(['approve', 'Mark Approved', 'Approve the submitted work']);
-        choices.push(['rework', 'Send to Rework', 'Send back with rework notes']);
-      }
+      opts.push(['assign_content', '#ffedd5', '#ea580c', '👤', 'Assign to Content Team', 'Pass to content writers']);
+      opts.push(['assign_web', '#d1fae5', '#059669', '👤', 'Assign to Web Team', 'Pass to developers']);
+      opts.push(['approve', '#dbeafe', '#2563eb', '✓', 'Mark Approved', 'Approve QC submission']);
+      opts.push(['rework', '#f3e8ff', '#9333ea', '↻', 'Mark Rework', 'Send back for rework']);
+    } else if (t.currentOwner === 'Content') {
+      opts.push(['assign_web', '#d1fae5', '#059669', '👤', 'Assign to Web Team', 'Pass to developers']);
+      opts.push(['qc_seo', '#dbeafe', '#2563eb', '✓', 'QC Submit to SEO', 'Send to SEO for review']);
+    } else if (t.currentOwner === 'Web') {
+      opts.push(['qc_seo', '#dbeafe', '#2563eb', '✓', 'QC Submit to SEO', 'Send to SEO for review']);
+      opts.push(['qc_web', '#d1fae5', '#059669', '✓', 'QC Submit to Web Team', 'Send for peer review']);
     }
-    if (t.currentOwner === 'Content' || t.currentOwner === 'Web') {
-      choices.push(['qc_seo', 'QC Submit to SEO', 'Submit finished work to SEO for review']);
-      choices.push(['qc_web', 'QC Submit to Web', 'Submit to Web team for a technical check']);
-    }
-    choices.push(['close', 'Close Task (Bypass)', 'Mark completed without further review']);
+    opts.push(['close', '#f1f5f9', '#475569', '⊘', 'Close Task (Bypass)', 'Mark as completely finished']);
 
-    document.getElementById('endChoiceGrid').innerHTML = choices.map(function (c) {
-      return '<button class="action-choice" onclick="chooseEndAction(\'' + c[0] + '\')">' +
-        '<div>' + esc(c[1]) + '<div class="ac-desc">' + esc(c[2]) + '</div></div></button>';
+    document.getElementById('endBody').innerHTML = opts.map(function (o) {
+      return '<button class="choice" onclick="pickEndAction(\'' + o[0] + '\')"><div class="choice-inner">' +
+        '<div class="dot" style="background:' + o[1] + ';color:' + o[2] + '">' + o[3] + '</div>' +
+        '<div><div class="cl">' + esc(o[4]) + '</div><div class="cs">' + esc(o[5]) + '</div></div></div>' +
+        '<span style="color:#cbd5e1">›</span></button>';
     }).join('');
-    openModal('endChoiceModal');
+    openModal('endModal');
   };
 
-  window.chooseEndAction = function (action) {
-    endTaskCtx.action = action;
-    closeModal('endChoiceModal');
-    renderEndConfig(action);
-    openModal('endConfigModal');
-  };
+  window.pickEndAction = function (action) {
+    var t = localTask(endCtx.id);
+    endCtx.action = action;
 
-  function ownerOptions(list) {
-    return (list || []).map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
-  }
+    /* approve / rework / close need no extra input — apply straight away. */
+    if (action === 'approve' || action === 'close' || action === 'rework') { applyEndAction(); return; }
 
-  function renderEndConfig(action) {
-    var titles = {
-      assign_content: 'Assign to Content', assign_web: 'Assign to Web',
-      qc_seo: 'QC Submit to SEO', qc_web: 'QC Submit to Web',
-      approve: 'Mark Approved', rework: 'Send to Rework', close: 'Close Task (Bypass)',
-    };
-    document.getElementById('endConfigTitle').textContent = titles[action] || 'Configure';
-    var body = document.getElementById('endConfigBody');
+    endCtx.step = 'configure';
+    document.getElementById('endSub').textContent = 'Configure Assignment';
+    document.getElementById('endBack').textContent = 'Back';
 
-    if (action === 'assign_content' || action === 'assign_web') {
-      var owners = action === 'assign_content' ? config.contentOwners : config.webOwners;
-      body.innerHTML =
-        '<div class="field"><label>Assignee</label><select id="cfgAssignee">' + ownerOptions(owners) + '</select></div>' +
-        '<div class="field-row">' +
-          '<div class="field"><label>Assigned Date</label><input type="date" id="cfgDate" value="' + todayStr() + '" /></div>' +
-          '<div class="field"><label>Est. Hours</label><input type="number" step="0.25" id="cfgEstHours" value="1" /></div>' +
-        '</div>' +
-        '<div class="field"><label>Doc URL</label><input type="text" id="cfgDocUrl" /></div>';
-    } else if (action === 'qc_seo' || action === 'qc_web') {
-      var qcOwners = action === 'qc_seo' ? config.seoOwners : config.webOwners;
-      body.innerHTML =
-        '<div class="field"><label>Assign QC To</label><select id="cfgAssignee">' + ownerOptions(qcOwners) + '</select></div>' +
-        '<div class="field"><label>Est. Hours (QC)</label><input type="number" step="0.25" id="cfgEstHours" value="0.25" /></div>' +
-        '<div class="field"><label>Note</label><textarea id="cfgNote" rows="2"></textarea></div>';
-    } else if (action === 'rework') {
-      body.innerHTML =
-        '<div class="field"><label>Rework Note</label><textarea id="cfgNote" rows="3"></textarea></div>' +
-        '<div class="field"><label>Est. Hours (rework)</label><input type="number" step="0.25" id="cfgEstHours" value="0.5" /></div>';
-    } else if (action === 'approve') {
-      body.innerHTML = '<p style="font-size:0.86rem;color:#475569">This marks the task Approved and moves it to Completed.</p>';
-    } else if (action === 'close') {
-      body.innerHTML = '<p style="font-size:0.86rem;color:#475569">This closes the task immediately, bypassing any pending QC/review step.</p>';
+    var isAssign = action === 'assign_content' || action === 'assign_web';
+    var isQcAct = action === 'qc_seo' || action === 'qc_web';
+    var owners = action === 'assign_content' ? cfg.contentOwners
+      : (action === 'assign_web' || action === 'qc_web') ? cfg.webOwners : cfg.seoOwners;
+
+    var h = '<div class="fld"><label>Assignment Date</label><input type="date" id="ecDate" value="' + today() + '"></div>';
+    if (isAssign) {
+      h += '<div class="fld"><label>Est. Hours for ' + (action === 'assign_content' ? 'Content' : 'Web') + ' Team</label>' +
+        '<input type="number" min="0" step="0.5" id="ecEst" placeholder="e.g. 3.5">' +
+        '<span class="hint">Used to track delays</span></div>';
     }
-  }
+    if (isQcAct) {
+      h += '<div class="fld"><label>Suggested review time (hours)</label>' +
+        '<input type="number" min="0" step="0.25" id="ecQcEst" value="0.25">' +
+        '<span class="hint">e.g. 0.25 = 15 min. Pre-filled with default.</span></div>' +
+        '<div class="fld"><label>Note for reviewer <span class="hint">(optional)</span></label>' +
+        '<textarea id="ecNote" rows="2" placeholder="Any context for the reviewer..."></textarea></div>';
+    }
+    h += '<div class="fld"><label>Working Document <span class="hint">(Google Sheet / Doc / URL)</span></label>' +
+      (t.docUrl ? '<div class="banner" style="background:#ecfdf5;color:#065f46">✓ Carried over from SEO\'s working doc — team will use the same file</div>' : '') +
+      '<input type="url" id="ecDoc" placeholder="https://docs.google.com/..." value="' + esc(t.docUrl || '') + '">' +
+      '<span class="hint">This link will be attached to the task and visible to the assigned team member</span></div>';
+    h += '<div class="fld"><label>Assign To</label><select id="ecOwner">' +
+      (owners || []).map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') + '</select></div>';
+    h += '<button class="btn btn-indigo btn-block btn-lg" style="margin-top:6px" onclick="applyEndAction()">Confirm Assignment</button>';
+    document.getElementById('endBody').innerHTML = h;
+  };
 
-  window.submitEndConfig = function () {
-    var id = endTaskCtx.taskId, action = endTaskCtx.action;
+  window.endModalBack = function () {
+    if (endCtx && endCtx.step === 'configure') openEnd(endCtx.id);
+    else closeModal('endModal');
+  };
+
+  window.applyEndAction = function () {
+    var id = endCtx.id, action = endCtx.action;
     var t = localTask(id); if (!t) return;
-    var g = function (elId) { var el = document.getElementById(elId); return el ? el.value : ''; };
+    var val = function (i) { var e = document.getElementById(i); return e ? e.value : ''; };
     var now = new Date().toISOString();
     var dept = t.currentOwner;
+    var date = val('ecDate') || today();
+    var assignee = val('ecOwner');
+    var est = parseFloat(val('ecEst')) || 0;
+    var qcEst = parseFloat(val('ecQcEst')) || 0.25;
+    var note = val('ecNote');
+    var doc = val('ecDoc');
 
-    var afterEvent = pushEvent(id, 'end', dept);
-    var chain;
+    var chain = postEvent(id, 'end', dept);
 
     if (action === 'assign_content' || action === 'assign_web') {
-      var toContent = action === 'assign_content';
-      var assignee = g('cfgAssignee'), date = g('cfgDate'), est = parseFloat(g('cfgEstHours')) || 0, docUrl = g('cfgDocUrl');
-      chain = afterEvent.then(function () {
-        var patch = {
-          currentOwner: toContent ? 'Content' : 'Web',
-          executionState: 'Not Started',
-        };
-        patch[toContent ? 'contentOwner' : 'webOwner'] = assignee;
-        patch[toContent ? 'contentStatus' : 'webStatus'] = 'Assigned';
-        return patchAssign(id, patch).then(function () {
-          var fieldPatch = {};
-          fieldPatch[toContent ? 'contentAssignedDate' : 'webAssignedDate'] = date;
-          fieldPatch[toContent ? 'estHoursContent' : 'estHoursWeb'] = est;
-          if (docUrl) fieldPatch.docUrl = docUrl;
-          return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
-            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fieldPatch),
-          });
-        });
+      var toCon = action === 'assign_content';
+      chain = chain.then(function () {
+        var p = { currentOwner: toCon ? 'Content' : 'Web', executionState: 'Not Started' };
+        p[toCon ? 'contentOwner' : 'webOwner'] = assignee;
+        p[toCon ? 'contentStatus' : 'webStatus'] = 'Assigned';
+        return patchAssign(id, p);
       }).then(function () {
-        Object.assign(t, {
-          currentOwner: toContent ? 'Content' : 'Web', executionState: 'Not Started',
-        });
-        t[toContent ? 'contentOwner' : 'webOwner'] = assignee;
-        t[toContent ? 'contentStatus' : 'webStatus'] = 'Assigned';
+        var f = {};
+        f[toCon ? 'contentAssignedDate' : 'webAssignedDate'] = date;
+        f[toCon ? 'estHoursContent' : 'estHoursWeb'] = est;
+        if (doc) f.docUrl = doc;
+        return patchFields(id, f);
+      }).then(function () {
+        t.currentOwner = toCon ? 'Content' : 'Web';
+        t.executionState = 'Not Started';
+        t[toCon ? 'contentOwner' : 'webOwner'] = assignee;
+        t[toCon ? 'contentStatus' : 'webStatus'] = 'Assigned';
+        t[toCon ? 'contentAssignedDate' : 'webAssignedDate'] = date;
+        t[toCon ? 'estHoursContent' : 'estHoursWeb'] = est;
+        if (doc) t.docUrl = doc;
       });
     } else if (action === 'qc_seo' || action === 'qc_web') {
       var toSeo = action === 'qc_seo';
-      var qcAssignee = g('cfgAssignee'), qcEst = parseFloat(g('cfgEstHours')) || 0.25, note = g('cfgNote');
-      var review = {
-        id: 'qc_' + Date.now(), submittedBy: actorName(), submittedByDept: dept,
-        submittedAt: now, assignedTo: qcAssignee, estHours: qcEst, note: note || undefined,
-      };
-      chain = afterEvent.then(function () {
-        var patch = { currentOwner: toSeo ? 'SEO' : 'Web', executionState: 'Not Started' };
-        if (toSeo) { patch.seoOwner = qcAssignee; patch.seoQcStatus = 'Pending QC'; if (dept === 'Content') patch.contentStatus = 'QC Submitted'; else if (dept === 'Web') patch.webStatus = 'QC Submitted'; }
-        else { patch.webOwner = qcAssignee; patch.webStatus = 'Pending QC'; }
-        return patchAssign(id, patch);
+      var review = { id: 'qc_' + Date.now(), submittedBy: actor(), submittedByDept: dept, submittedAt: now,
+        assignedTo: assignee, estHours: qcEst, note: note || '' };
+      chain = chain.then(function () {
+        var p = { currentOwner: toSeo ? 'SEO' : 'Web', executionState: 'Not Started' };
+        if (toSeo) {
+          p.seoOwner = assignee; p.seoQcStatus = 'Pending QC';
+          if (dept === 'Content') p.contentStatus = 'QC Submitted';
+          else if (dept === 'Web') p.webStatus = 'QC Submitted';
+        } else { p.webOwner = assignee; p.webStatus = 'Pending QC'; }
+        return patchAssign(id, p);
       }).then(function () {
-        return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(review),
+        var f = { qcSubmittedAt: now };
+        if (toSeo) f.intakeDate = now.split('T')[0];
+        if (doc) f.docUrl = doc;
+        return patchFields(id, f);
+      }).then(function () { return postQc(id, review); })
+        .then(function () {
+          t.currentOwner = toSeo ? 'SEO' : 'Web';
+          t.executionState = 'Not Started';
+          if (toSeo) {
+            t.seoOwner = assignee; t.seoQcStatus = 'Pending QC'; t.intakeDate = now.split('T')[0];
+            if (dept === 'Content') t.contentStatus = 'QC Submitted';
+            else if (dept === 'Web') t.webStatus = 'QC Submitted';
+          } else { t.webOwner = assignee; t.webStatus = 'Pending QC'; }
+          if (doc) t.docUrl = doc;
+          t.qcReviews = (t.qcReviews || []).concat([review]);
         });
-      }).then(function () {
-        t.currentOwner = toSeo ? 'SEO' : 'Web';
-        t.executionState = 'Not Started';
-        if (toSeo) { t.seoOwner = qcAssignee; t.seoQcStatus = 'Pending QC'; if (dept === 'Content') t.contentStatus = 'QC Submitted'; else if (dept === 'Web') t.webStatus = 'QC Submitted'; }
-        else { t.webOwner = qcAssignee; t.webStatus = 'Pending QC'; }
-        t.qcReviews = (t.qcReviews || []).concat([review]);
-      });
     } else if (action === 'approve') {
-      chain = afterEvent.then(function () {
-        var patch = { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended' };
-        if (t.contentStatus) patch.contentStatus = 'Approved';
-        if (t.webStatus) patch.webStatus = 'Approved';
-        return patchAssign(id, patch);
-      }).then(function () {
-        return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCompleted: true }),
+      chain = chain.then(function () {
+        var p = { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended' };
+        if (t.contentStatus) p.contentStatus = 'Approved';
+        if (t.webStatus) p.webStatus = 'Approved';
+        return patchAssign(id, p);
+      }).then(function () { return patchFields(id, { isCompleted: true }); })
+        .then(function () {
+          var lastQc = (t.qcReviews || [])[(t.qcReviews || []).length - 1];
+          if (lastQc) return postQc(id, Object.assign({}, lastQc, { outcome: 'Approved', completedAt: now }));
+        }).then(function () {
+          Object.assign(t, { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended', isCompleted: true });
+          if (t.contentStatus) t.contentStatus = 'Approved';
+          if (t.webStatus) t.webStatus = 'Approved';
         });
-      }).then(function () {
-        var lastQc = (t.qcReviews || [])[t.qcReviews.length - 1];
-        if (lastQc) {
-          return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(Object.assign({}, lastQc, { outcome: 'Approved', completedAt: now })),
-          });
-        }
-      }).then(function () {
-        Object.assign(t, { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended', isCompleted: true });
-        if (t.contentStatus) t.contentStatus = 'Approved';
-        if (t.webStatus) t.webStatus = 'Approved';
-      });
     } else if (action === 'rework') {
-      var reworkNote = g('cfgNote'), reworkEst = parseFloat(g('cfgEstHours')) || 0.5;
-      var reworkEntry = {
-        id: 'rw_' + Date.now(), date: todayStr(), estHours: reworkEst,
-        assignedDept: dept, assignedOwner: dept === 'Content' ? t.contentOwner : t.webOwner,
-        withinEstimate: true, hoursAlreadySpent: 0,
-      };
-      chain = afterEvent.then(function () {
-        var patch = { seoQcStatus: 'Rework', executionState: 'Rework' };
-        if (t.contentStatus && t.contentStatus !== 'Approved') patch.contentStatus = 'Rework';
-        if (t.webStatus && t.webStatus !== 'Approved') patch.webStatus = 'Rework';
-        return patchAssign(id, patch);
+      chain = chain.then(function () {
+        var p = { seoQcStatus: 'Rework', executionState: 'Rework' };
+        if (t.contentStatus && t.contentStatus !== 'Approved') p.contentStatus = 'Rework';
+        if (t.webStatus && t.webStatus !== 'Approved') p.webStatus = 'Rework';
+        return patchAssign(id, p);
       }).then(function () {
-        return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reworkEntry),
-        });
-      }).then(function () {
-        var lastQc = (t.qcReviews || [])[t.qcReviews.length - 1];
-        if (lastQc) {
-          return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(Object.assign({}, lastQc, { outcome: 'Rework', completedAt: now, note: reworkNote || lastQc.note })),
-          });
-        }
+        var lastQc = (t.qcReviews || [])[(t.qcReviews || []).length - 1];
+        if (lastQc) return postQc(id, Object.assign({}, lastQc, { outcome: 'Rework', completedAt: now }));
       }).then(function () {
         t.seoQcStatus = 'Rework'; t.executionState = 'Rework';
         if (t.contentStatus && t.contentStatus !== 'Approved') t.contentStatus = 'Rework';
         if (t.webStatus && t.webStatus !== 'Approved') t.webStatus = 'Rework';
-        t.reworkEntries = (t.reworkEntries || []).concat([reworkEntry]);
       });
     } else if (action === 'close') {
-      chain = afterEvent.then(function () {
-        var patch = { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed' };
-        if (t.contentStatus) patch.contentStatus = 'Completed';
-        patch.webStatus = 'Completed';
-        return patchAssign(id, patch);
-      }).then(function () {
-        return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCompleted: true }),
+      chain = chain.then(function () {
+        var p = { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed', webStatus: 'Completed' };
+        if (t.contentStatus) p.contentStatus = 'Completed';
+        return patchAssign(id, p);
+      }).then(function () { return patchFields(id, { isCompleted: true }); })
+        .then(function () {
+          Object.assign(t, { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed',
+            isCompleted: true, webStatus: 'Completed' });
+          if (t.contentStatus) t.contentStatus = 'Completed';
         });
-      }).then(function () {
-        Object.assign(t, { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed', isCompleted: true, webStatus: 'Completed' });
-        if (t.contentStatus) t.contentStatus = 'Completed';
-      });
     }
 
-    withPending(id, chain)
-      .then(function () {
-        closeModal('endConfigModal');
-        applyFilters();
-        showToast('Task updated', 'success');
-      })
-      .catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
+    guard(id, chain).then(function () {
+      closeModal('endModal');
+      t.timeEvents = (t.timeEvents || []).concat([{ type: 'end', timestamp: now, department: dept, owner: actor() }]);
+      applyFilters();
+      toast('Task updated', 'success');
+    }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
   };
 
-  /* ══════════════════════════ NEW TASK ══════════════════════════ */
+  /* ══════════ Raise Rework ══════════ */
 
-  window.openNewTaskModal = function () {
-    document.getElementById('ntTitle').value = '';
-    document.getElementById('ntStage').value = '';
-    document.getElementById('ntKw').value = '';
-    document.getElementById('ntTargetUrl').value = '';
-    document.getElementById('ntEstHours').value = '1';
-    document.getElementById('ntDueDate').value = '';
-    document.getElementById('ntRemarks').value = '';
-    openModal('newTaskModal');
+  window.openRework = function (id) {
+    var t = localTask(id); if (!t) return;
+    reworkCtx = { id: id, dept: 'Content' };
+    document.getElementById('rwTaskTitle').textContent = t.title;
+    document.getElementById('rwDate').value = today();
+    document.getElementById('rwEst').value = '';
+    setReworkDept('Content');
+    renderReworkStats();
+    openModal('reworkModal');
   };
 
-  window.submitNewTask = function () {
-    var title = document.getElementById('ntTitle').value.trim();
-    var client = document.getElementById('ntClient').value;
-    if (!title || !client) { showToast('Title and client are required', 'error'); return; }
+  window.setReworkDept = function (d) {
+    reworkCtx.dept = d;
+    document.getElementById('rwDeptCon').className = d === 'Content' ? 'on-con' : '';
+    document.getElementById('rwDeptWeb').className = d === 'Web' ? 'on-web' : '';
+    fillSelect('rwOwner', d === 'Content' ? cfg.contentOwners : cfg.webOwners, null);
+  };
 
-    var task = {
-      id: 'AB2-' + Date.now(),
-      title: title, client: client,
-      seoOwner: actorName(), currentOwner: 'SEO',
-      seoStage: document.getElementById('ntStage').value.trim(),
-      seoQcStatus: 'Pending',
-      focusedKw: document.getElementById('ntKw').value.trim(),
-      targetUrl: document.getElementById('ntTargetUrl').value.trim(),
-      estHours: parseFloat(document.getElementById('ntEstHours').value) || 0,
-      estHoursSEO: parseFloat(document.getElementById('ntEstHours').value) || 0,
-      dueDate: document.getElementById('ntDueDate').value,
-      remarks: document.getElementById('ntRemarks').value.trim(),
-      intakeDate: todayStr(),
-      executionState: 'Not Started',
-      isCompleted: false,
-      timeEvents: [],
+  window.renderReworkStats = function () {
+    var t = localTask(reworkCtx.id); if (!t) return;
+    var spent = deptTimes(t).activeMs / HOUR;
+    var orig = t.estHours || 0;
+    var remain = orig > 0 ? orig - spent : null;
+    var newEst = parseFloat(document.getElementById('rwEst').value) || 0;
+    var within = remain !== null && newEst > 0 && newEst <= remain;
+    var h = '<div><p class="sk">Original Est.</p><p class="sv">' + (orig > 0 ? orig + 'h' : '—') + '</p></div>' +
+      '<div><p class="sk">Time Spent</p><p class="sv">' + spent.toFixed(2) + 'h</p></div>' +
+      '<div><p class="sk">Remaining</p><p class="sv"' + (remain !== null && remain < 0 ? ' style="color:#dc2626"' : '') + '>' +
+        (remain !== null ? remain.toFixed(2) + 'h' : '—') + '</p></div>';
+    if (newEst > 0) {
+      h += '<div style="margin-left:auto"><span class="bdg" style="' +
+        (within ? 'background:#d1fae5;color:#047857' : 'background:#fee2e2;color:#b91c1c') + ';padding:6px 12px">' +
+        (within ? '✓ Within Estimate' : '⚠ Over Estimate') + '</span></div>';
+    }
+    document.getElementById('rwStats').innerHTML = h;
+  };
+
+  window.submitRework = function () {
+    var id = reworkCtx.id, t = localTask(id); if (!t) return;
+    var est = parseFloat(document.getElementById('rwEst').value) || 0;
+    var dept = reworkCtx.dept;
+    var owner = document.getElementById('rwOwner').value;
+    var date = document.getElementById('rwDate').value || today();
+    var spent = deptTimes(t).activeMs / HOUR;
+    var remain = (t.estHours || 0) > 0 ? (t.estHours - spent) : null;
+
+    var entry = { id: 'rw_' + Date.now(), date: date, estHours: est, assignedDept: dept, assignedOwner: owner,
+      withinEstimate: !!(remain !== null && est > 0 && est <= remain), hoursAlreadySpent: spent,
+      startTimestamp: '', endTimestamp: '', durationMs: 0 };
+
+    guard(id, postRework(id, entry).then(function () {
+      var p = { currentOwner: dept, executionState: 'Rework', seoQcStatus: 'Rework' };
+      p[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
+      p[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
+      return patchAssign(id, p);
+    })).then(function () {
+      t.reworkEntries = (t.reworkEntries || []).concat([entry]);
+      t.currentOwner = dept; t.executionState = 'Rework'; t.seoQcStatus = 'Rework';
+      t[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
+      t[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
+      closeModal('reworkModal'); applyFilters();
+      toast('Rework raised → ' + dept, 'success');
+    }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+  };
+
+  /* ══════════ New / Edit task ══════════ */
+
+  window.openNewTask = function () {
+    editingId = null;
+    document.getElementById('tmTitle').textContent = 'Create New Task';
+    document.getElementById('tmSave').textContent = 'Create Task';
+    var role = currentUser.role;
+    var isCon = role === 'content', isWeb = role === 'web';
+    document.getElementById('tmSub').textContent = (isCon || isWeb) ? '— your assigned date will auto-set as intake date' : '';
+    document.getElementById('tmSeoLbl').textContent = (isCon || isWeb) ? 'SEO Owner ★ (QC reviewer)' : 'SEO Owner ★';
+    document.getElementById('tmDateLbl').textContent = isCon ? 'Content Assigned Date ★' : isWeb ? 'Web Assigned Date ★' : 'Intake Date ★';
+    document.getElementById('tmDocLbl').textContent = isCon ? 'Canva / Doc URL' : isWeb ? 'Live / Doc URL' : 'Doc URL';
+    var banner = document.getElementById('tmBanner');
+    if (isCon || isWeb) {
+      banner.style.display = 'block';
+      banner.textContent = 'Your assigned date will also be set as the SEO intake date so this task appears in all team reports and filters from day one. When you QC submit to SEO, today\'s date will update as the SEO intake date.';
+    } else banner.style.display = 'none';
+
+    ['tmName', 'tmKw', 'tmTarget', 'tmDoc', 'tmRemarks'].forEach(function (i) { document.getElementById(i).value = ''; });
+    ['tmEstSeo', 'tmEstCon', 'tmEstWeb', 'tmVolume', 'tmMarRank', 'tmCurRank'].forEach(function (i) { document.getElementById(i).value = ''; });
+    document.getElementById('tmDate').value = today();
+    if (cfg.clients.length) document.getElementById('tmClient').value = cfg.clients[0];
+    if (cfg.seoOwners.length) document.getElementById('tmSeoOwner').value = cfg.seoOwners[0];
+    openModal('taskModal');
+  };
+
+  window.openEdit = function (id) {
+    var t = localTask(id); if (!t) return;
+    editingId = id;
+    document.getElementById('tmTitle').textContent = 'Edit Task';
+    document.getElementById('tmSub').textContent = t.id;
+    document.getElementById('tmSave').textContent = 'Save Changes';
+    document.getElementById('tmSeoLbl').textContent = 'SEO Owner ★';
+    document.getElementById('tmDateLbl').textContent = 'Intake Date ★';
+    document.getElementById('tmDocLbl').textContent = 'Doc URL';
+    document.getElementById('tmBanner').style.display = 'none';
+    document.getElementById('tmName').value = t.title || '';
+    document.getElementById('tmClient').value = t.client || '';
+    document.getElementById('tmStage').value = t.seoStage || '';
+    document.getElementById('tmSeoOwner').value = t.seoOwner || '';
+    document.getElementById('tmDate').value = (t.intakeDate || '').slice(0, 10);
+    document.getElementById('tmEstSeo').value = t.estHoursSEO || t.estHours || '';
+    document.getElementById('tmEstCon').value = t.estHoursContent || '';
+    document.getElementById('tmEstWeb').value = t.estHoursWeb || '';
+    document.getElementById('tmKw').value = t.focusedKw || '';
+    document.getElementById('tmTarget').value = t.targetUrl || '';
+    document.getElementById('tmVolume').value = t.volume || '';
+    document.getElementById('tmMarRank').value = t.marRank || '';
+    document.getElementById('tmCurRank').value = t.currentRank || '';
+    document.getElementById('tmDoc').value = t.docUrl || '';
+    document.getElementById('tmRemarks').value = t.remarks || '';
+    openModal('taskModal');
+  };
+
+  window.submitTask = function () {
+    var v = function (i) { return document.getElementById(i).value; };
+    var title = v('tmName').trim();
+    if (!title) { toast('Task title is required', 'error'); return; }
+
+    var fields = {
+      title: title, client: v('tmClient'), seoStage: v('tmStage'), seoOwner: v('tmSeoOwner'),
+      intakeDate: v('tmDate') || today(),
+      estHoursSEO: parseFloat(v('tmEstSeo')) || 0,
+      estHoursContent: parseFloat(v('tmEstCon')) || 0,
+      estHoursWeb: parseFloat(v('tmEstWeb')) || 0,
+      focusedKw: v('tmKw').trim(), targetUrl: v('tmTarget').trim(),
+      volume: parseInt(v('tmVolume'), 10) || 0,
+      marRank: parseInt(v('tmMarRank'), 10) || 0,
+      currentRank: parseInt(v('tmCurRank'), 10) || 0,
+      docUrl: v('tmDoc').trim(), remarks: v('tmRemarks').trim()
     };
 
+    if (editingId) {
+      var t = localTask(editingId);
+      guard(editingId, patchFields(editingId, fields).then(function () {
+        return patchAssign(editingId, { seoOwner: fields.seoOwner, seoStage: fields.seoStage });
+      })).then(function () {
+        Object.assign(t, fields);
+        closeModal('taskModal'); applyFilters(); toast('Task updated', 'success');
+      }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+      return;
+    }
+
+    var role = currentUser.role;
+    var task = Object.assign({
+      id: 'AB2-' + Date.now(),
+      estHours: fields.estHoursSEO,
+      currentOwner: role === 'content' ? 'Content' : role === 'web' ? 'Web' : 'SEO',
+      executionState: 'Not Started', seoQcStatus: 'Pending', isCompleted: false, timeEvents: []
+    }, fields);
+    if (role === 'content') { task.contentOwner = actor(); task.contentAssignedDate = fields.intakeDate; task.contentStatus = 'Assigned'; }
+    if (role === 'web') { task.webOwner = actor(); task.webAssignedDate = fields.intakeDate; task.webStatus = 'Assigned'; }
+
     fetch('/api/tasks/' + encodeURIComponent(task.id), {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task),
-    })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(function () {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) })
+      .then(chk).then(function () {
         allTasks.push(task);
-        closeModal('newTaskModal');
-        applyFilters();
-        showToast('Task created: ' + task.id, 'success');
-      })
-      .catch(function (e) { showToast('Failed to create task: ' + e.message, 'error'); });
+        closeModal('taskModal'); applyFilters(); toast('Task created: ' + task.id, 'success');
+      }).catch(function (e) { toast('Failed to create task: ' + e.message, 'error'); });
   };
 
-  /* ══════════════════════════ CSV IMPORT / EXPORT ══════════════════════════ */
+  window.deleteTask = function (id) {
+    if (!confirm('Delete task ' + id + '? This cannot be undone.')) return;
+    fetch('/api/tasks/' + encodeURIComponent(id), { method: 'DELETE' }).then(chk)
+      .then(function () {
+        allTasks = allTasks.filter(function (t) { return t.id !== id; });
+        applyFilters(); toast('Task deleted', 'success');
+      }).catch(function (e) { toast('Delete failed: ' + e.message, 'error'); });
+  };
+
+  /* ══════════ CSV ══════════ */
+
+  window.exportCsv = function () {
+    if (!sorted.length) { toast('Nothing to export', 'error'); return; }
+    var head = ['ID', 'Title', 'Client', 'SEO Stage', 'SEO Owner', 'Content Owner', 'Web Owner', 'Intake Date',
+      'Keyword', 'Volume', 'Monthly Rank', 'Cur Rank', 'Est SEO', 'Est Content', 'Est Web', 'Current Owner',
+      'Execution State', 'SEO QC Status', 'Target URL', 'Doc URL', 'Remarks'];
+    var rows = sorted.map(function (t) {
+      return [t.id, t.title, t.client, t.seoStage, t.seoOwner, t.contentOwner || '', t.webOwner || '', t.intakeDate,
+        t.focusedKw || '', t.volume || '', t.marRank || '', t.currentRank || '',
+        t.estHoursSEO || t.estHours || 0, t.estHoursContent || 0, t.estHoursWeb || 0, t.currentOwner,
+        t.executionState || 'Not Started', t.seoQcStatus, t.targetUrl || '', t.docUrl || '', t.remarks || ''];
+    });
+    var csv = [head].concat(rows).map(function (r) {
+      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'action-board-' + today() + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
 
   window.handleCsvImport = function (input) {
-    var file = input.files[0];
-    if (!file) return;
+    var file = input.files[0]; if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
       var lines = String(reader.result).split('\n').filter(function (l) { return l.trim(); });
-      if (lines.length < 2) { showToast('CSV has no data rows', 'error'); input.value = ''; return; }
-      var headers = lines[0].toLowerCase().split(',').map(function (h) { return h.trim().replace(/"/g, ''); });
-      var findIdx = function (cands) {
+      if (lines.length < 2) { toast('CSV has no data rows', 'error'); input.value = ''; return; }
+      var head = lines[0].toLowerCase().split(',').map(function (h) { return h.trim().replace(/"/g, ''); });
+      var find = function (cands) {
         for (var c = 0; c < cands.length; c++) {
-          var pos = headers.findIndex(function (h) { return h.indexOf(cands[c]) !== -1; });
-          if (pos >= 0) return pos;
+          var p = head.findIndex(function (h) { return h.indexOf(cands[c]) !== -1; });
+          if (p >= 0) return p;
         }
         return -1;
       };
-      var iTitle = findIdx(['title', 'task']), iClient = findIdx(['client']), iKw = findIdx(['keyword', 'kw']),
-          iUrl = findIdx(['target', 'url']), iDue = findIdx(['due']), iEst = findIdx(['est']);
+      var iT = find(['title', 'task']), iC = find(['client']), iS = find(['stage']), iO = find(['seo owner', 'owner']),
+          iK = find(['keyword', 'kw']), iV = find(['volume', 'vol']), iM = find(['monthly', 'mar rank']),
+          iR = find(['cur rank', 'current rank']), iE = find(['est']), iU = find(['target']),
+          iD = find(['doc']), iRe = find(['remark', 'note']), iDate = find(['intake', 'date']);
 
-      var newTasks = [];
+      var out = [];
       for (var r = 1; r < lines.length; r++) {
-        var cols = lines[r].split(',').map(function (c) { return c.trim().replace(/^"|"$/g, ''); });
-        var title = iTitle >= 0 ? cols[iTitle] : '';
+        var col = lines[r].split(',').map(function (c) { return c.trim().replace(/^"|"$/g, ''); });
+        var title = iT >= 0 ? col[iT] : '';
         if (!title) continue;
-        // Unique id per row (row index baked in) — this is the exact fix applied to
-        // the WorkHub importer after it collapsed every row into one shared id.
-        newTasks.push({
+        /* Unique id per row — the collision that collapsed every imported row
+           into a single task is exactly what this guards against. */
+        out.push({
           id: 'AB2-' + Date.now() + '-' + r,
           title: title,
-          client: iClient >= 0 ? cols[iClient] : (config.clients[0] || ''),
-          seoOwner: actorName(), currentOwner: 'SEO',
+          client: iC >= 0 ? col[iC] : (cfg.clients[0] || ''),
+          seoStage: iS >= 0 ? col[iS] : '',
+          seoOwner: iO >= 0 && col[iO] ? col[iO] : actor(),
+          currentOwner: 'SEO',
+          focusedKw: iK >= 0 ? col[iK] : '',
+          volume: iV >= 0 ? (parseInt(col[iV], 10) || 0) : 0,
+          marRank: iM >= 0 ? (parseInt(col[iM], 10) || 0) : 0,
+          currentRank: iR >= 0 ? (parseInt(col[iR], 10) || 0) : 0,
+          estHours: iE >= 0 ? (parseFloat(col[iE]) || 0) : 0,
+          estHoursSEO: iE >= 0 ? (parseFloat(col[iE]) || 0) : 0,
+          targetUrl: iU >= 0 ? col[iU] : '',
+          docUrl: iD >= 0 ? col[iD] : '',
+          remarks: iRe >= 0 ? col[iRe] : '',
+          intakeDate: iDate >= 0 && col[iDate] ? col[iDate] : today(),
           seoQcStatus: 'Pending',
-          focusedKw: iKw >= 0 ? cols[iKw] : '',
-          targetUrl: iUrl >= 0 ? cols[iUrl] : '',
-          dueDate: iDue >= 0 ? cols[iDue] : '',
-          estHours: iEst >= 0 ? (parseFloat(cols[iEst]) || 0) : 0,
-          intakeDate: todayStr(),
           executionState: 'Not Started',
           isCompleted: false,
-          timeEvents: [],
+          timeEvents: []
         });
       }
-      if (newTasks.length === 0) { showToast('No valid rows found in CSV', 'error'); input.value = ''; return; }
+      if (!out.length) { toast('No valid rows found in CSV', 'error'); input.value = ''; return; }
 
-      fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newTasks) })
-        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-        .then(function () {
-          allTasks = allTasks.concat(newTasks);
-          applyFilters();
-          showToast('Imported ' + newTasks.length + ' task(s)', 'success');
-        })
-        .catch(function (e) { showToast('Import failed: ' + e.message, 'error'); })
+      fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) })
+        .then(chk).then(function () {
+          allTasks = allTasks.concat(out);
+          applyFilters(); toast('Imported ' + out.length + ' task(s)', 'success');
+        }).catch(function (e) { toast('Import failed: ' + e.message, 'error'); })
         .finally(function () { input.value = ''; });
     };
     reader.readAsText(file);
   };
 
-  window.exportCsv = function () {
-    if (!filtered.length) { showToast('Nothing to export', 'error'); return; }
-    var headers = ['Task ID', 'Title', 'Client', 'Current Owner', 'SEO Owner', 'Content Owner', 'Web Owner', 'Status', 'QC Status', 'Due Date', 'Target URL'];
-    var rows = filtered.map(function (t) {
-      return [t.id, t.title, t.client, t.currentOwner, t.seoOwner, t.contentOwner, t.webOwner, t.executionState, t.seoQcStatus, t.dueDate, t.targetUrl];
-    });
-    var csv = [headers].concat(rows).map(function (r) {
-      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
-    }).join('\n');
-    var blob = new Blob([csv], { type: 'text/csv' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'action-board-2-' + todayStr() + '.csv';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  };
+  /* ══════════ helpers ══════════ */
 
-  /* ══════════════════════════ MODAL / TOAST HELPERS ══════════════════════════ */
+  function tickTimers() {
+    document.querySelectorAll('[data-timer]').forEach(function (el) {
+      var t = localTask(el.getAttribute('data-timer'));
+      if (t) el.textContent = fmtMs(myTime(t));
+    });
+  }
+
+  function fmtMs(ms) {
+    var s = Math.floor(Math.max(0, ms) / 1000);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts);
+    if (isNaN(d.getTime())) return String(ts).slice(0, 16).replace('T', ' ');
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  function today() { return new Date().toISOString().slice(0, 10); }
 
   function openModal(id) { document.getElementById(id).classList.add('visible'); }
   window.closeModal = function (id) { document.getElementById(id).classList.remove('visible'); };
 
-  function showToast(msg, type) {
+  function toast(msg, type) {
     var el = document.getElementById('toast');
     el.textContent = msg;
     el.className = 'toast visible ' + (type || '');
-    clearTimeout(el._timer);
-    el._timer = setTimeout(function () { el.className = 'toast'; }, 3500);
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.className = 'toast'; }, 3500);
   }
 
-  function esc(str) {
-    if (str === null || str === undefined) return '';
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function esc(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
 })();
