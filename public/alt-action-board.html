@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Action Board 2.0 — DiTech CDM</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 13px; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f1f5f9;
+    color: #1e293b;
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #1e2d5a;
+    color: #fff;
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .header-brand { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.3px; }
+  .header-sub { font-size: 0.85rem; opacity: 0.65; font-weight: 400; margin-left: 6px; }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .back-link {
+    display: inline-flex; align-items: center; gap: 5px; color: rgba(255,255,255,0.75);
+    text-decoration: none; font-size: 0.82rem; font-weight: 600; padding: 5px 10px;
+    border: 1.5px solid rgba(255,255,255,0.25); border-radius: 6px; margin-right: 10px; transition: background 0.15s;
+  }
+  .back-link:hover { background: rgba(255,255,255,0.1); }
+  .user-badge {
+    display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.08);
+    border: 1.5px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 12px 4px 6px; font-size: 0.82rem;
+  }
+  .user-avatar {
+    width: 22px; height: 22px; border-radius: 50%; background: #4f6ef7; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700;
+  }
+  .user-role-tag { opacity: 0.6; text-transform: capitalize; font-size: 0.72rem; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; border-radius: 6px;
+    border: none; cursor: pointer; font-size: 0.84rem; font-weight: 600; transition: background 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.35); color: #fff; }
+  .btn-outline:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+  .btn-primary { background: #4f6ef7; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #3b5be0; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-success:hover:not(:disabled) { background: #15803d; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+  .btn-amber { background: #d97706; color: #fff; }
+  .btn-amber:hover:not(:disabled) { background: #b45309; }
+  .btn-neutral { background: #475569; color: #fff; }
+  .btn-neutral:hover:not(:disabled) { background: #334155; }
+  .btn-sm { padding: 5px 10px; font-size: 0.76rem; }
+  .btn-block { width: 100%; justify-content: center; }
+  .btn-ghost { background: #f1f5f9; color: #334155; }
+  .btn-ghost:hover:not(:disabled) { background: #e2e8f0; }
+
+  /* ── Controls ── */
+  .controls {
+    background: #fff; border-bottom: 1px solid #e2e8f0; padding: 14px 28px;
+    display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;
+  }
+  .ctrl-group { display: flex; flex-direction: column; gap: 4px; }
+  .ctrl-label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .ctrl-select, .ctrl-input {
+    padding: 7px 32px 7px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.85rem;
+    font-weight: 500; color: #1e293b; background: #f8fafc; cursor: pointer; min-width: 150px; transition: border-color 0.15s;
+  }
+  .ctrl-select {
+    background: #f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+    -webkit-appearance: none; appearance: none;
+  }
+  .ctrl-input { padding: 7px 10px; min-width: 130px; }
+  .ctrl-select:focus, .ctrl-input:focus { outline: none; border-color: #4f6ef7; }
+  .ctrl-search { min-width: 220px; }
+  .ctrl-toggle { display: flex; border: 1.5px solid #cbd5e1; border-radius: 7px; overflow: hidden; }
+  .ctrl-toggle button {
+    border: none; background: #f8fafc; padding: 7px 14px; font-size: 0.82rem; font-weight: 600; color: #64748b; cursor: pointer;
+  }
+  .ctrl-toggle button.active { background: #4f6ef7; color: #fff; }
+  .ctrl-toggle button + button { border-left: 1.5px solid #cbd5e1; }
+
+  /* ── Capsules ── */
+  .capsules { display: flex; gap: 8px; flex-wrap: wrap; padding: 14px 28px 0; }
+  .capsule {
+    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 14px;
+    font-size: 0.8rem; font-weight: 700; cursor: pointer; border: 1.5px solid transparent; transition: opacity 0.15s, outline 0.1s;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .capsule .n { font-size: 0.92rem; }
+  .capsule.active { outline: 2.5px solid #1e293b; outline-offset: 1px; }
+  .capsule.dim { opacity: 0.45; }
+  .cap-total     { color: #1e293b; }
+  .cap-notstarted{ color: #64748b; }
+  .cap-inprogress{ color: #2563eb; }
+  .cap-paused    { color: #b45309; }
+  .cap-rework    { color: #c2410c; }
+  .cap-qcpending { color: #7c3aed; }
+  .cap-completed { color: #15803d; }
+  .cap-delayed   { color: #dc2626; }
+
+  /* ── Content ── */
+  .content { padding: 18px 28px 48px; }
+  .toolrow { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+  .result-count { font-size: 0.85rem; color: #64748b; font-weight: 600; }
+
+  /* ── Card grid ── */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+  .task-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 10px;
+  }
+  .task-card.is-delayed { border-left: 4px solid #dc2626; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .card-id { font-family: monospace; font-size: 0.72rem; color: #94a3b8; }
+  .card-client { font-size: 0.72rem; font-weight: 700; color: #4f6ef7; text-transform: uppercase; letter-spacing: 0.3px; }
+  .card-title { font-size: 0.92rem; font-weight: 700; color: #1e293b; line-height: 1.35; }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 700; white-space: nowrap;
+  }
+  .st-notstarted { background: #f1f5f9; color: #64748b; }
+  .st-inprogress { background: #dbeafe; color: #1d4ed8; }
+  .st-paused     { background: #fef3c7; color: #b45309; }
+  .st-rework     { background: #ffedd5; color: #c2410c; }
+  .st-ended, .st-completed { background: #dcfce7; color: #15803d; }
+  .st-delayed    { background: #fee2e2; color: #b91c1c; }
+
+  .card-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 0.78rem; color: #475569; }
+  .card-meta .lbl { color: #94a3b8; font-weight: 600; }
+  .card-links { display: flex; gap: 10px; font-size: 0.76rem; }
+  .card-links a { color: #2563eb; text-decoration: none; }
+  .card-links a:hover { text-decoration: underline; }
+  .card-timer { font-family: monospace; font-size: 0.78rem; color: #1e293b; font-weight: 700; }
+  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+
+  /* ── Loading / Empty ── */
+  .state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: #94a3b8; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: #4f6ef7; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 10px 18px;
+    border-radius: 8px; font-size: 0.88rem; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    z-index: 9999; display: none; align-items: center; gap: 8px; max-width: 360px;
+  }
+  .toast.visible { display: flex; }
+  .toast.success { background: #15803d; }
+  .toast.error { background: #b91c1c; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none;
+    align-items: center; justify-content: center; z-index: 500; padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 12px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  }
+  .modal-box.wide { max-width: 620px; }
+  .modal-head { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  .modal-head h3 { font-size: 1rem; color: #1e293b; }
+  .modal-close { background: none; border: none; font-size: 1.3rem; color: #94a3b8; cursor: pointer; line-height: 1; }
+  .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .modal-foot { padding: 14px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 0.78rem; font-weight: 700; color: #475569; }
+  .field input, .field select, .field textarea {
+    padding: 8px 10px; border: 1.5px solid #cbd5e1; border-radius: 7px; font-size: 0.86rem; font-family: inherit;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #4f6ef7; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .action-choice-grid { display: flex; flex-direction: column; gap: 8px; }
+  .action-choice {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1.5px solid #e2e8f0;
+    border-radius: 8px; cursor: pointer; text-align: left; background: #fff; font-size: 0.86rem; font-weight: 600; color: #1e293b;
+  }
+  .action-choice:hover { border-color: #4f6ef7; background: #f5f7ff; }
+  .action-choice .ac-desc { font-weight: 400; color: #64748b; font-size: 0.76rem; }
+  .login-box {
+    max-width: 340px; margin: 90px auto; background: #fff; border-radius: 12px; padding: 28px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 14px;
+  }
+  .login-box h2 { font-size: 1.15rem; color: #1e293b; text-align: center; }
+  .login-error { color: #b91c1c; font-size: 0.8rem; text-align: center; min-height: 16px; }
+
+  @media (max-width: 900px) {
+    .controls, .content, .capsules { padding-left: 14px; padding-right: 14px; }
+    .header { padding: 0 14px; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-brand">
+    <a href="/" class="back-link">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7dd3fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>
+    </svg>
+    DiTech CDM
+    <span class="header-sub">/ Action Board 2.0</span>
+  </div>
+  <div class="header-actions" id="headerActions"></div>
+</div>
+
+<!-- ── Login gate ── -->
+<div id="loginArea"></div>
+
+<!-- ── App (hidden until logged in) ── -->
+<div id="appArea" style="display:none">
+  <div class="controls">
+    <div class="ctrl-group">
+      <label class="ctrl-label">Scope</label>
+      <div class="ctrl-toggle" id="scopeToggle">
+        <button id="scopeMine" class="active" onclick="setScope('mine')">My Tasks</button>
+        <button id="scopeAll" onclick="setScope('all')">All Tasks</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="clientSel">Client</label>
+      <select class="ctrl-select" id="clientSel" onchange="applyFilters()">
+        <option value="">All Clients</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="fromDate">From</label>
+      <input class="ctrl-input" type="date" id="fromDate" onchange="applyFilters()" />
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="toDate">To</label>
+      <input class="ctrl-input" type="date" id="toDate" onchange="applyFilters()" />
+    </div>
+    <div class="ctrl-group">
+      <label class="ctrl-label" for="searchBox">Search</label>
+      <input class="ctrl-input ctrl-search" type="text" id="searchBox" placeholder="Title, client, task ID…" oninput="applyFilters()" />
+    </div>
+    <div class="ctrl-group" style="margin-left:auto">
+      <label class="ctrl-label">&nbsp;</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="clearFilters()">Reset Filters</button>
+        <button class="btn btn-primary" onclick="openNewTaskModal()">+ New Task</button>
+        <label class="btn btn-ghost" style="margin:0">
+          Import CSV
+          <input type="file" accept=".csv" style="display:none" onchange="handleCsvImport(this)" />
+        </label>
+        <button class="btn btn-outline" style="background:#475569;color:#fff" onclick="exportCsv()">Export CSV</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="capsules" id="capsules"></div>
+
+  <div class="content">
+    <div class="toolrow">
+      <span class="result-count" id="resultCount"></span>
+    </div>
+    <div id="mainArea">
+      <div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Task Modal ── -->
+<div class="modal-overlay" id="newTaskModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3>New Task</h3><button class="modal-close" onclick="closeModal('newTaskModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Title *</label><input type="text" id="ntTitle" /></div>
+      <div class="field-row">
+        <div class="field"><label>Client *</label><select id="ntClient"></select></div>
+        <div class="field"><label>SEO Stage</label><input type="text" id="ntStage" placeholder="e.g. On Page" /></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Focused Keyword</label><input type="text" id="ntKw" /></div>
+        <div class="field"><label>Target URL</label><input type="text" id="ntTargetUrl" /></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Est. Hours (SEO)</label><input type="number" step="0.25" id="ntEstHours" value="1" /></div>
+        <div class="field"><label>Due Date</label><input type="date" id="ntDueDate" /></div>
+      </div>
+      <div class="field"><label>Remarks</label><textarea id="ntRemarks" rows="2"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('newTaskModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitNewTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── End Task — choose action ── -->
+<div class="modal-overlay" id="endChoiceModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3>End Task — choose next step</h3><button class="modal-close" onclick="closeModal('endChoiceModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="action-choice-grid" id="endChoiceGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── End Task — configure assignment/QC/rework ── -->
+<div class="modal-overlay" id="endConfigModal">
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="endConfigTitle">Configure</h3><button class="modal-close" onclick="closeModal('endConfigModal')">✕</button></div>
+    <div class="modal-body" id="endConfigBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('endConfigModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEndConfig()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var USER_KEY = '_ab2_user'; // namespaced so it never collides with the main app's localStorage keys
+
+  var currentUser = null;
+  var config = { clients: [], seoOwners: [], contentOwners: [], webOwners: [] };
+  var allTasks = [];
+  var filtered = [];
+  var scope = 'mine';
+  var activeCapsule = null; // 'notstarted'|'inprogress'|'paused'|'rework'|'qcpending'|'completed'|'delayed'|null
+  var pollTimer = null;
+  var pendingSaves = {}; // taskId -> true while a save is in flight, so the poll doesn't clobber it
+  var tickTimer = null;
+  var endTaskCtx = null; // { task, action }
+
+  /* ── Init ── */
+  window.addEventListener('DOMContentLoaded', function () {
+    try {
+      var stored = localStorage.getItem(USER_KEY);
+      if (stored) currentUser = JSON.parse(stored);
+    } catch (e) { currentUser = null; }
+    if (currentUser) startApp(); else renderLogin();
+  });
+
+  /* ══════════════════════════ AUTH ══════════════════════════ */
+
+  function renderLogin(errMsg) {
+    document.getElementById('appArea').style.display = 'none';
+    document.getElementById('headerActions').innerHTML = '';
+    document.getElementById('loginArea').innerHTML =
+      '<div class="login-box">' +
+        '<h2>Sign in to Action Board</h2>' +
+        '<div class="field"><label>Name</label><input type="text" id="loginName" autocomplete="username" /></div>' +
+        '<div class="field"><label>Password</label><input type="password" id="loginPass" autocomplete="current-password" /></div>' +
+        '<div class="login-error">' + esc(errMsg || '') + '</div>' +
+        '<button class="btn btn-primary btn-block" onclick="doLogin()">Sign In</button>' +
+      '</div>';
+    var pass = document.getElementById('loginPass');
+    if (pass) pass.addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  }
+
+  window.doLogin = function () {
+    var name = document.getElementById('loginName').value.trim();
+    var pass = document.getElementById('loginPass').value;
+    if (!name || !pass) { renderLogin('Enter your name and password.'); return; }
+
+    fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, password: pass }),
+    })
+      .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
+      .then(function (res) {
+        if (!res.ok) { renderLogin(res.body.error || 'Invalid credentials'); return; }
+        currentUser = res.body.user;
+        try { localStorage.setItem(USER_KEY, JSON.stringify(currentUser)); } catch (e) {}
+        document.getElementById('loginArea').innerHTML = '';
+        startApp();
+      })
+      .catch(function () { renderLogin('Login failed — check your connection.'); });
+  };
+
+  window.doLogout = function () {
+    try { localStorage.removeItem(USER_KEY); } catch (e) {}
+    currentUser = null;
+    if (pollTimer) clearInterval(pollTimer);
+    if (tickTimer) clearInterval(tickTimer);
+    renderLogin();
+  };
+
+  function isAdmin() { return currentUser && currentUser.role === 'admin'; }
+
+  /* Which department this user acts as, for gating Start/End buttons */
+  function userDept() {
+    var r = (currentUser && currentUser.role) || '';
+    if (r === 'seo') return 'SEO';
+    if (r === 'content') return 'Content';
+    if (r === 'web') return 'Web';
+    return '';
+  }
+
+  /* ══════════════════════════ APP BOOT ══════════════════════════ */
+
+  function startApp() {
+    document.getElementById('appArea').style.display = 'block';
+    renderHeaderActions();
+    loadConfig();
+    loadTasks(true);
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function () { loadTasks(false); }, 30000);
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(renderLiveTimers, 1000);
+  }
+
+  function renderHeaderActions() {
+    var initials = (currentUser.ownerName || currentUser.name || '?').trim().slice(0, 1).toUpperCase();
+    document.getElementById('headerActions').innerHTML =
+      '<div class="user-badge">' +
+        '<span class="user-avatar">' + esc(initials) + '</span>' +
+        '<span>' + esc(currentUser.ownerName || currentUser.name) + '</span>' +
+        '<span class="user-role-tag">· ' + esc(currentUser.role || '') + '</span>' +
+      '</div>' +
+      '<button class="btn btn-outline" onclick="doLogout()">Logout</button>';
+  }
+
+  function loadConfig() {
+    fetch('/api/config/admin_options')
+      .then(function (r) { return r.json(); })
+      .then(function (cfg) {
+        config = cfg || {};
+        var sel = document.getElementById('clientSel');
+        var ntSel = document.getElementById('ntClient');
+        sel.innerHTML = '<option value="">All Clients</option>';
+        ntSel.innerHTML = '';
+        (config.clients || []).forEach(function (c) {
+          var o1 = document.createElement('option'); o1.value = c; o1.textContent = c; sel.appendChild(o1);
+          var o2 = document.createElement('option'); o2.value = c; o2.textContent = c; ntSel.appendChild(o2);
+        });
+      })
+      .catch(function (e) { console.error('Failed to load config', e); });
+  }
+
+  /* ══════════════════════════ DATA LOAD ══════════════════════════ */
+
+  function loadTasks(showSpinner) {
+    if (showSpinner) document.getElementById('mainArea').innerHTML = '<div class="state-box"><div class="spinner"></div><p>Loading tasks…</p></div>';
+    fetch('/api/tasks', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (data) {
+        // Action Board = the SEO → Content/Web pipeline only (seoOwner set).
+        // WorkHub's per-person tasks (deptType-based) live in a separate panel and are excluded here.
+        var abTasks = data.filter(function (t) { return !!t.seoOwner; });
+        var freshById = {};
+        abTasks.forEach(function (t) { freshById[t.id] = t; });
+        // Keep local state for any task with a save in flight so the 30s poll can't
+        // revert an action the user just took while its write is still landing.
+        allTasks = abTasks.map(function (t) {
+          return pendingSaves[t.id] ? (allTasks.find(function (x) { return x.id === t.id; }) || t) : t;
+        });
+        applyFilters();
+      })
+      .catch(function (e) { renderError(e.message); });
+  }
+
+  /* ══════════════════════════ FILTERING ══════════════════════════ */
+
+  window.setScope = function (s) {
+    scope = s;
+    document.getElementById('scopeMine').className = s === 'mine' ? 'active' : '';
+    document.getElementById('scopeAll').className = s === 'all' ? 'active' : '';
+    applyFilters();
+  };
+
+  window.clearFilters = function () {
+    document.getElementById('clientSel').value = '';
+    document.getElementById('fromDate').value = '';
+    document.getElementById('toDate').value = '';
+    document.getElementById('searchBox').value = '';
+    activeCapsule = null;
+    applyFilters();
+  };
+
+  window.applyFilters = function () {
+    var client = document.getElementById('clientSel').value;
+    var from = document.getElementById('fromDate').value;
+    var to = document.getElementById('toDate').value;
+    var q = document.getElementById('searchBox').value.trim().toLowerCase();
+    var today = todayStr();
+
+    filtered = allTasks.filter(function (t) {
+      if (scope === 'mine' && !isAdmin()) {
+        var mine = t.seoOwner === (currentUser.ownerName || currentUser.name) ||
+                   t.contentOwner === (currentUser.ownerName || currentUser.name) ||
+                   t.webOwner === (currentUser.ownerName || currentUser.name);
+        if (!mine) return false;
+      }
+      if (client && t.client !== client) return false;
+      if (from && (t.intakeDate || '') < from) return false;
+      if (to && (t.intakeDate || '') > to) return false;
+      if (q) {
+        var hay = (t.id + ' ' + t.title + ' ' + t.client).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      if (activeCapsule) {
+        var delayed = isDelayed(t, today);
+        if (activeCapsule === 'delayed' && !delayed) return false;
+        if (activeCapsule === 'notstarted' && t.executionState !== 'Not Started') return false;
+        if (activeCapsule === 'inprogress' && t.executionState !== 'In Progress') return false;
+        if (activeCapsule === 'paused' && t.executionState !== 'Paused') return false;
+        if (activeCapsule === 'rework' && t.executionState !== 'Rework') return false;
+        if (activeCapsule === 'qcpending' && t.seoQcStatus !== 'Pending QC') return false;
+        if (activeCapsule === 'completed' && !t.isCompleted) return false;
+      }
+      return true;
+    });
+
+    renderCapsules(today);
+    renderCards();
+  };
+
+  function isDelayed(t, today) {
+    return !t.isCompleted && !!t.dueDate && t.dueDate < today;
+  }
+
+  function todayStr() { return new Date().toISOString().slice(0, 10); }
+
+  /* ══════════════════════════ CAPSULES ══════════════════════════ */
+
+  function renderCapsules(today) {
+    var scoped = allTasks.filter(function (t) {
+      if (scope === 'mine' && !isAdmin()) {
+        var mine = t.seoOwner === (currentUser.ownerName || currentUser.name) ||
+                   t.contentOwner === (currentUser.ownerName || currentUser.name) ||
+                   t.webOwner === (currentUser.ownerName || currentUser.name);
+        return mine;
+      }
+      return true;
+    });
+    var counts = { notstarted: 0, inprogress: 0, paused: 0, rework: 0, qcpending: 0, completed: 0, delayed: 0 };
+    scoped.forEach(function (t) {
+      if (t.executionState === 'Not Started') counts.notstarted++;
+      if (t.executionState === 'In Progress') counts.inprogress++;
+      if (t.executionState === 'Paused') counts.paused++;
+      if (t.executionState === 'Rework') counts.rework++;
+      if (t.seoQcStatus === 'Pending QC') counts.qcpending++;
+      if (t.isCompleted) counts.completed++;
+      if (isDelayed(t, today)) counts.delayed++;
+    });
+
+    var defs = [
+      ['notstarted', 'cap-notstarted', 'Not Started', counts.notstarted],
+      ['inprogress', 'cap-inprogress', 'In Progress', counts.inprogress],
+      ['paused', 'cap-paused', 'Paused', counts.paused],
+      ['rework', 'cap-rework', 'Rework', counts.rework],
+      ['qcpending', 'cap-qcpending', 'QC Pending', counts.qcpending],
+      ['completed', 'cap-completed', 'Completed', counts.completed],
+      ['delayed', 'cap-delayed', 'Delayed', counts.delayed],
+    ];
+
+    var html = '<div class="capsule cap-total' + (activeCapsule === null ? ' active' : '') + '" onclick="toggleCapsule(null)"><span class="n">' + scoped.length + '</span> Total</div>';
+    defs.forEach(function (d) {
+      var isActive = activeCapsule === d[0];
+      var dim = activeCapsule && !isActive;
+      html += '<div class="capsule ' + d[1] + (isActive ? ' active' : '') + (dim ? ' dim' : '') +
+        '" onclick="toggleCapsule(\'' + d[0] + '\')"><span class="n">' + d[3] + '</span> ' + esc(d[2]) + '</div>';
+    });
+    document.getElementById('capsules').innerHTML = html;
+  }
+
+  window.toggleCapsule = function (key) {
+    activeCapsule = activeCapsule === key ? null : key;
+    applyFilters();
+  };
+
+  /* ══════════════════════════ CARDS ══════════════════════════ */
+
+  function renderCards() {
+    document.getElementById('resultCount').textContent = filtered.length + ' task' + (filtered.length === 1 ? '' : 's');
+    if (filtered.length === 0) {
+      document.getElementById('mainArea').innerHTML = '<div class="state-box"><p>No tasks match the current filters.</p></div>';
+      return;
+    }
+    var today = todayStr();
+    var html = '<div class="card-grid">';
+    filtered.forEach(function (t) { html += renderCard(t, today); });
+    html += '</div>';
+    document.getElementById('mainArea').innerHTML = html;
+  }
+
+  function renderError(msg) {
+    document.getElementById('mainArea').innerHTML =
+      '<div class="state-box"><p style="color:#ef4444">Failed to load tasks: ' + esc(msg) + '</p></div>';
+  }
+
+  function statusBadge(t, today) {
+    if (isDelayed(t, today)) return '<span class="status-badge st-delayed">Delayed</span>';
+    var es = t.executionState || 'Not Started';
+    var cls = 'st-notstarted';
+    if (es === 'In Progress') cls = 'st-inprogress';
+    else if (es === 'Paused') cls = 'st-paused';
+    else if (es === 'Rework') cls = 'st-rework';
+    else if (es === 'Ended' || t.isCompleted) cls = 'st-ended';
+    return '<span class="status-badge ' + cls + '">' + esc(es) + '</span>';
+  }
+
+  function renderCard(t, today) {
+    var delayed = isDelayed(t, today);
+    var canAct = isAdmin() || t.currentOwner === userDept();
+    var actionsHtml = '';
+
+    if (!t.isCompleted && canAct) {
+      if (t.executionState === 'Not Started') {
+        actionsHtml += '<button class="btn btn-primary btn-sm" onclick="startTask(\'' + esc(t.id) + '\')">▶ Start Task</button>';
+      } else if (t.executionState === 'Paused') {
+        actionsHtml += '<button class="btn btn-primary btn-sm" onclick="resumeTask(\'' + esc(t.id) + '\')">▶ Resume</button>';
+      } else if (t.executionState === 'In Progress' || t.executionState === 'Rework') {
+        actionsHtml += '<button class="btn btn-amber btn-sm" onclick="pauseTask(\'' + esc(t.id) + '\')">⏸ Pause</button>';
+        actionsHtml += '<button class="btn btn-danger btn-sm" onclick="openEndChoice(\'' + esc(t.id) + '\')">■ End Task</button>';
+      }
+    }
+
+    var timerHtml = '';
+    if (t.executionState === 'In Progress' || t.executionState === 'Rework') {
+      timerHtml = '<div class="card-timer" data-timer-for="' + esc(t.id) + '">' + formatLiveElapsed(t) + '</div>';
+    }
+
+    var linksHtml = '';
+    if (t.docUrl) linksHtml += '<a href="' + esc(t.docUrl) + '" target="_blank" rel="noopener">📄 Doc</a>';
+    if (t.targetUrl) linksHtml += '<a href="' + esc(t.targetUrl) + '" target="_blank" rel="noopener">🔗 Target URL</a>';
+
+    return (
+      '<div class="task-card' + (delayed ? ' is-delayed' : '') + '">' +
+        '<div class="card-top">' +
+          '<div><div class="card-id">' + esc(t.id) + '</div><div class="card-client">' + esc(t.client || 'Unassigned') + '</div></div>' +
+          statusBadge(t, today) +
+        '</div>' +
+        '<div class="card-title">' + esc(t.title) + '</div>' +
+        '<div class="card-meta">' +
+          '<div><span class="lbl">Owner:</span> ' + esc(t.currentOwner || '—') + '</div>' +
+          '<div><span class="lbl">SEO:</span> ' + esc(t.seoOwner || '—') + '</div>' +
+          '<div><span class="lbl">Content:</span> ' + esc(t.contentOwner || '—') + '</div>' +
+          '<div><span class="lbl">Web:</span> ' + esc(t.webOwner || '—') + '</div>' +
+          '<div><span class="lbl">Due:</span> ' + esc(t.dueDate || '—') + '</div>' +
+          '<div><span class="lbl">QC:</span> ' + esc(t.seoQcStatus || '—') + '</div>' +
+        '</div>' +
+        (linksHtml ? '<div class="card-links">' + linksHtml + '</div>' : '') +
+        timerHtml +
+        (actionsHtml ? '<div class="card-actions">' + actionsHtml + '</div>' : '') +
+      '</div>'
+    );
+  }
+
+  /* Live ticking timer text for open (In Progress / Rework) cards — display only,
+     recomputed every second from the task's own timeEvents, never written anywhere. */
+  function formatLiveElapsed(t) {
+    var ms = pairedOpenMs(t.timeEvents || []);
+    return '⏱ ' + formatDuration(ms);
+  }
+  function pairedOpenMs(events) {
+    var open = null, total = 0;
+    var sorted = events.slice().sort(function (a, b) { return a.timestamp < b.timestamp ? -1 : 1; });
+    sorted.forEach(function (e) {
+      var t = new Date(e.timestamp).getTime();
+      if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') open = t;
+      else if ((e.type === 'pause' || e.type === 'end') && open !== null) { total += t - open; open = null; }
+    });
+    if (open !== null) total += Date.now() - open;
+    return total;
+  }
+  function formatDuration(ms) {
+    var s = Math.floor(ms / 1000);
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+  }
+  function renderLiveTimers() {
+    document.querySelectorAll('[data-timer-for]').forEach(function (el) {
+      var id = el.getAttribute('data-timer-for');
+      var t = allTasks.find(function (x) { return x.id === id; });
+      if (t) el.textContent = formatLiveElapsed(t);
+    });
+  }
+
+  /* ══════════════════════════ TIMER ACTIONS ══════════════════════════ */
+  /* Each of these fires exactly ONE POST /events call — no duplicate writes. */
+
+  function actorName() { return currentUser.ownerName || currentUser.name || ''; }
+
+  function pushEvent(taskId, type, department) {
+    return fetch('/api/tasks/' + encodeURIComponent(taskId) + '/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: type, timestamp: new Date().toISOString(), department: department, owner: actorName() }),
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  function patchAssign(taskId, fields) {
+    return fetch('/api/tasks/' + encodeURIComponent(taskId) + '/assign', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  function withPending(taskId, work) {
+    pendingSaves[taskId] = true;
+    return work.finally(function () { delete pendingSaves[taskId]; });
+  }
+
+  function localTask(id) { return allTasks.find(function (t) { return t.id === id; }); }
+
+  function statusFieldFor(dept) {
+    if (dept === 'Content') return 'contentStatus';
+    if (dept === 'Web') return 'webStatus';
+    if (dept === 'SEO') return 'seoQcStatus';
+    return null;
+  }
+
+  window.startTask = function (id) {
+    var t = localTask(id); if (!t) return;
+    var dept = t.currentOwner;
+    var statusField = statusFieldFor(dept);
+    var patch = { executionState: 'In Progress' };
+    if (statusField) patch[statusField] = 'In Progress';
+
+    withPending(id, pushEvent(id, 'start', dept).then(function () { return patchAssign(id, patch); }))
+      .then(function () {
+        t.executionState = 'In Progress';
+        if (statusField) t[statusField] = 'In Progress';
+        t.timeEvents = (t.timeEvents || []).concat([{ type: 'start', timestamp: new Date().toISOString(), department: dept, owner: actorName() }]);
+        applyFilters();
+        showToast('Task started', 'success');
+      })
+      .catch(function (e) { showToast('Failed to start: ' + e.message, 'error'); });
+  };
+
+  window.resumeTask = function (id) {
+    var t = localTask(id); if (!t) return;
+    var dept = t.currentOwner;
+    // A rework task whose active rework entry has no startTimestamp yet is being
+    // resumed INTO rework work — mirrors the original's rework_start branch.
+    var rw = (t.reworkEntries || []);
+    var openRework = rw.length > 0 && !rw[rw.length - 1].startTimestamp ? rw[rw.length - 1] : null;
+
+    if (openRework) {
+      var reworkStart = withPending(id, pushEvent(id, 'rework_start', dept).then(function () {
+        return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({}, openRework, { startTimestamp: new Date().toISOString() })),
+        }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+      }));
+      reworkStart.then(function () {
+        t.executionState = 'Rework';
+        applyFilters();
+        showToast('Rework started', 'success');
+      }).catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
+      return;
+    }
+
+    var statusField = statusFieldFor(dept);
+    var patch = { executionState: 'In Progress' };
+    if (statusField) patch[statusField] = 'In Progress';
+    withPending(id, pushEvent(id, 'resume', dept).then(function () { return patchAssign(id, patch); }))
+      .then(function () {
+        t.executionState = 'In Progress';
+        if (statusField) t[statusField] = 'In Progress';
+        applyFilters();
+        showToast('Task resumed', 'success');
+      })
+      .catch(function (e) { showToast('Failed to resume: ' + e.message, 'error'); });
+  };
+
+  window.pauseTask = function (id) {
+    var t = localTask(id); if (!t) return;
+    withPending(id, pushEvent(id, 'pause', t.currentOwner).then(function () { return patchAssign(id, { executionState: 'Paused' }); }))
+      .then(function () {
+        t.executionState = 'Paused';
+        applyFilters();
+        showToast('Task paused', 'success');
+      })
+      .catch(function (e) { showToast('Failed to pause: ' + e.message, 'error'); });
+  };
+
+  /* ══════════════════════════ END TASK — action menu ══════════════════════════ */
+
+  window.openEndChoice = function (id) {
+    var t = localTask(id); if (!t) return;
+    endTaskCtx = { taskId: id };
+    var choices = [];
+    if (t.currentOwner === 'SEO') {
+      if (!t.contentStatus) choices.push(['assign_content', 'Assign to Content', 'Hand this task to the Content team']);
+      if (!t.webStatus) choices.push(['assign_web', 'Assign to Web', 'Hand this task to the Web team']);
+      if (t.seoQcStatus === 'Pending QC') {
+        choices.push(['approve', 'Mark Approved', 'Approve the submitted work']);
+        choices.push(['rework', 'Send to Rework', 'Send back with rework notes']);
+      }
+    }
+    if (t.currentOwner === 'Content' || t.currentOwner === 'Web') {
+      choices.push(['qc_seo', 'QC Submit to SEO', 'Submit finished work to SEO for review']);
+      choices.push(['qc_web', 'QC Submit to Web', 'Submit to Web team for a technical check']);
+    }
+    choices.push(['close', 'Close Task (Bypass)', 'Mark completed without further review']);
+
+    document.getElementById('endChoiceGrid').innerHTML = choices.map(function (c) {
+      return '<button class="action-choice" onclick="chooseEndAction(\'' + c[0] + '\')">' +
+        '<div>' + esc(c[1]) + '<div class="ac-desc">' + esc(c[2]) + '</div></div></button>';
+    }).join('');
+    openModal('endChoiceModal');
+  };
+
+  window.chooseEndAction = function (action) {
+    endTaskCtx.action = action;
+    closeModal('endChoiceModal');
+    renderEndConfig(action);
+    openModal('endConfigModal');
+  };
+
+  function ownerOptions(list) {
+    return (list || []).map(function (n) { return '<option value="' + esc(n) + '">' + esc(n) + '</option>'; }).join('');
+  }
+
+  function renderEndConfig(action) {
+    var titles = {
+      assign_content: 'Assign to Content', assign_web: 'Assign to Web',
+      qc_seo: 'QC Submit to SEO', qc_web: 'QC Submit to Web',
+      approve: 'Mark Approved', rework: 'Send to Rework', close: 'Close Task (Bypass)',
+    };
+    document.getElementById('endConfigTitle').textContent = titles[action] || 'Configure';
+    var body = document.getElementById('endConfigBody');
+
+    if (action === 'assign_content' || action === 'assign_web') {
+      var owners = action === 'assign_content' ? config.contentOwners : config.webOwners;
+      body.innerHTML =
+        '<div class="field"><label>Assignee</label><select id="cfgAssignee">' + ownerOptions(owners) + '</select></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Assigned Date</label><input type="date" id="cfgDate" value="' + todayStr() + '" /></div>' +
+          '<div class="field"><label>Est. Hours</label><input type="number" step="0.25" id="cfgEstHours" value="1" /></div>' +
+        '</div>' +
+        '<div class="field"><label>Doc URL</label><input type="text" id="cfgDocUrl" /></div>';
+    } else if (action === 'qc_seo' || action === 'qc_web') {
+      var qcOwners = action === 'qc_seo' ? config.seoOwners : config.webOwners;
+      body.innerHTML =
+        '<div class="field"><label>Assign QC To</label><select id="cfgAssignee">' + ownerOptions(qcOwners) + '</select></div>' +
+        '<div class="field"><label>Est. Hours (QC)</label><input type="number" step="0.25" id="cfgEstHours" value="0.25" /></div>' +
+        '<div class="field"><label>Note</label><textarea id="cfgNote" rows="2"></textarea></div>';
+    } else if (action === 'rework') {
+      body.innerHTML =
+        '<div class="field"><label>Rework Note</label><textarea id="cfgNote" rows="3"></textarea></div>' +
+        '<div class="field"><label>Est. Hours (rework)</label><input type="number" step="0.25" id="cfgEstHours" value="0.5" /></div>';
+    } else if (action === 'approve') {
+      body.innerHTML = '<p style="font-size:0.86rem;color:#475569">This marks the task Approved and moves it to Completed.</p>';
+    } else if (action === 'close') {
+      body.innerHTML = '<p style="font-size:0.86rem;color:#475569">This closes the task immediately, bypassing any pending QC/review step.</p>';
+    }
+  }
+
+  window.submitEndConfig = function () {
+    var id = endTaskCtx.taskId, action = endTaskCtx.action;
+    var t = localTask(id); if (!t) return;
+    var g = function (elId) { var el = document.getElementById(elId); return el ? el.value : ''; };
+    var now = new Date().toISOString();
+    var dept = t.currentOwner;
+
+    var afterEvent = pushEvent(id, 'end', dept);
+    var chain;
+
+    if (action === 'assign_content' || action === 'assign_web') {
+      var toContent = action === 'assign_content';
+      var assignee = g('cfgAssignee'), date = g('cfgDate'), est = parseFloat(g('cfgEstHours')) || 0, docUrl = g('cfgDocUrl');
+      chain = afterEvent.then(function () {
+        var patch = {
+          currentOwner: toContent ? 'Content' : 'Web',
+          executionState: 'Not Started',
+        };
+        patch[toContent ? 'contentOwner' : 'webOwner'] = assignee;
+        patch[toContent ? 'contentStatus' : 'webStatus'] = 'Assigned';
+        return patchAssign(id, patch).then(function () {
+          var fieldPatch = {};
+          fieldPatch[toContent ? 'contentAssignedDate' : 'webAssignedDate'] = date;
+          fieldPatch[toContent ? 'estHoursContent' : 'estHoursWeb'] = est;
+          if (docUrl) fieldPatch.docUrl = docUrl;
+          return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fieldPatch),
+          });
+        });
+      }).then(function () {
+        Object.assign(t, {
+          currentOwner: toContent ? 'Content' : 'Web', executionState: 'Not Started',
+        });
+        t[toContent ? 'contentOwner' : 'webOwner'] = assignee;
+        t[toContent ? 'contentStatus' : 'webStatus'] = 'Assigned';
+      });
+    } else if (action === 'qc_seo' || action === 'qc_web') {
+      var toSeo = action === 'qc_seo';
+      var qcAssignee = g('cfgAssignee'), qcEst = parseFloat(g('cfgEstHours')) || 0.25, note = g('cfgNote');
+      var review = {
+        id: 'qc_' + Date.now(), submittedBy: actorName(), submittedByDept: dept,
+        submittedAt: now, assignedTo: qcAssignee, estHours: qcEst, note: note || undefined,
+      };
+      chain = afterEvent.then(function () {
+        var patch = { currentOwner: toSeo ? 'SEO' : 'Web', executionState: 'Not Started' };
+        if (toSeo) { patch.seoOwner = qcAssignee; patch.seoQcStatus = 'Pending QC'; if (dept === 'Content') patch.contentStatus = 'QC Submitted'; else if (dept === 'Web') patch.webStatus = 'QC Submitted'; }
+        else { patch.webOwner = qcAssignee; patch.webStatus = 'Pending QC'; }
+        return patchAssign(id, patch);
+      }).then(function () {
+        return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(review),
+        });
+      }).then(function () {
+        t.currentOwner = toSeo ? 'SEO' : 'Web';
+        t.executionState = 'Not Started';
+        if (toSeo) { t.seoOwner = qcAssignee; t.seoQcStatus = 'Pending QC'; if (dept === 'Content') t.contentStatus = 'QC Submitted'; else if (dept === 'Web') t.webStatus = 'QC Submitted'; }
+        else { t.webOwner = qcAssignee; t.webStatus = 'Pending QC'; }
+        t.qcReviews = (t.qcReviews || []).concat([review]);
+      });
+    } else if (action === 'approve') {
+      chain = afterEvent.then(function () {
+        var patch = { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended' };
+        if (t.contentStatus) patch.contentStatus = 'Approved';
+        if (t.webStatus) patch.webStatus = 'Approved';
+        return patchAssign(id, patch);
+      }).then(function () {
+        return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCompleted: true }),
+        });
+      }).then(function () {
+        var lastQc = (t.qcReviews || [])[t.qcReviews.length - 1];
+        if (lastQc) {
+          return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({}, lastQc, { outcome: 'Approved', completedAt: now })),
+          });
+        }
+      }).then(function () {
+        Object.assign(t, { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended', isCompleted: true });
+        if (t.contentStatus) t.contentStatus = 'Approved';
+        if (t.webStatus) t.webStatus = 'Approved';
+      });
+    } else if (action === 'rework') {
+      var reworkNote = g('cfgNote'), reworkEst = parseFloat(g('cfgEstHours')) || 0.5;
+      var reworkEntry = {
+        id: 'rw_' + Date.now(), date: todayStr(), estHours: reworkEst,
+        assignedDept: dept, assignedOwner: dept === 'Content' ? t.contentOwner : t.webOwner,
+        withinEstimate: true, hoursAlreadySpent: 0,
+      };
+      chain = afterEvent.then(function () {
+        var patch = { seoQcStatus: 'Rework', executionState: 'Rework' };
+        if (t.contentStatus && t.contentStatus !== 'Approved') patch.contentStatus = 'Rework';
+        if (t.webStatus && t.webStatus !== 'Approved') patch.webStatus = 'Rework';
+        return patchAssign(id, patch);
+      }).then(function () {
+        return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reworkEntry),
+        });
+      }).then(function () {
+        var lastQc = (t.qcReviews || [])[t.qcReviews.length - 1];
+        if (lastQc) {
+          return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({}, lastQc, { outcome: 'Rework', completedAt: now, note: reworkNote || lastQc.note })),
+          });
+        }
+      }).then(function () {
+        t.seoQcStatus = 'Rework'; t.executionState = 'Rework';
+        if (t.contentStatus && t.contentStatus !== 'Approved') t.contentStatus = 'Rework';
+        if (t.webStatus && t.webStatus !== 'Approved') t.webStatus = 'Rework';
+        t.reworkEntries = (t.reworkEntries || []).concat([reworkEntry]);
+      });
+    } else if (action === 'close') {
+      chain = afterEvent.then(function () {
+        var patch = { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed' };
+        if (t.contentStatus) patch.contentStatus = 'Completed';
+        patch.webStatus = 'Completed';
+        return patchAssign(id, patch);
+      }).then(function () {
+        return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isCompleted: true }),
+        });
+      }).then(function () {
+        Object.assign(t, { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed', isCompleted: true, webStatus: 'Completed' });
+        if (t.contentStatus) t.contentStatus = 'Completed';
+      });
+    }
+
+    withPending(id, chain)
+      .then(function () {
+        closeModal('endConfigModal');
+        applyFilters();
+        showToast('Task updated', 'success');
+      })
+      .catch(function (e) { showToast('Failed: ' + e.message, 'error'); });
+  };
+
+  /* ══════════════════════════ NEW TASK ══════════════════════════ */
+
+  window.openNewTaskModal = function () {
+    document.getElementById('ntTitle').value = '';
+    document.getElementById('ntStage').value = '';
+    document.getElementById('ntKw').value = '';
+    document.getElementById('ntTargetUrl').value = '';
+    document.getElementById('ntEstHours').value = '1';
+    document.getElementById('ntDueDate').value = '';
+    document.getElementById('ntRemarks').value = '';
+    openModal('newTaskModal');
+  };
+
+  window.submitNewTask = function () {
+    var title = document.getElementById('ntTitle').value.trim();
+    var client = document.getElementById('ntClient').value;
+    if (!title || !client) { showToast('Title and client are required', 'error'); return; }
+
+    var task = {
+      id: 'AB2-' + Date.now(),
+      title: title, client: client,
+      seoOwner: actorName(), currentOwner: 'SEO',
+      seoStage: document.getElementById('ntStage').value.trim(),
+      seoQcStatus: 'Pending',
+      focusedKw: document.getElementById('ntKw').value.trim(),
+      targetUrl: document.getElementById('ntTargetUrl').value.trim(),
+      estHours: parseFloat(document.getElementById('ntEstHours').value) || 0,
+      estHoursSEO: parseFloat(document.getElementById('ntEstHours').value) || 0,
+      dueDate: document.getElementById('ntDueDate').value,
+      remarks: document.getElementById('ntRemarks').value.trim(),
+      intakeDate: todayStr(),
+      executionState: 'Not Started',
+      isCompleted: false,
+      timeEvents: [],
+    };
+
+    fetch('/api/tasks/' + encodeURIComponent(task.id), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task),
+    })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function () {
+        allTasks.push(task);
+        closeModal('newTaskModal');
+        applyFilters();
+        showToast('Task created: ' + task.id, 'success');
+      })
+      .catch(function (e) { showToast('Failed to create task: ' + e.message, 'error'); });
+  };
+
+  /* ══════════════════════════ CSV IMPORT / EXPORT ══════════════════════════ */
+
+  window.handleCsvImport = function (input) {
+    var file = input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var lines = String(reader.result).split('\n').filter(function (l) { return l.trim(); });
+      if (lines.length < 2) { showToast('CSV has no data rows', 'error'); input.value = ''; return; }
+      var headers = lines[0].toLowerCase().split(',').map(function (h) { return h.trim().replace(/"/g, ''); });
+      var findIdx = function (cands) {
+        for (var c = 0; c < cands.length; c++) {
+          var pos = headers.findIndex(function (h) { return h.indexOf(cands[c]) !== -1; });
+          if (pos >= 0) return pos;
+        }
+        return -1;
+      };
+      var iTitle = findIdx(['title', 'task']), iClient = findIdx(['client']), iKw = findIdx(['keyword', 'kw']),
+          iUrl = findIdx(['target', 'url']), iDue = findIdx(['due']), iEst = findIdx(['est']);
+
+      var newTasks = [];
+      for (var r = 1; r < lines.length; r++) {
+        var cols = lines[r].split(',').map(function (c) { return c.trim().replace(/^"|"$/g, ''); });
+        var title = iTitle >= 0 ? cols[iTitle] : '';
+        if (!title) continue;
+        // Unique id per row (row index baked in) — this is the exact fix applied to
+        // the WorkHub importer after it collapsed every row into one shared id.
+        newTasks.push({
+          id: 'AB2-' + Date.now() + '-' + r,
+          title: title,
+          client: iClient >= 0 ? cols[iClient] : (config.clients[0] || ''),
+          seoOwner: actorName(), currentOwner: 'SEO',
+          seoQcStatus: 'Pending',
+          focusedKw: iKw >= 0 ? cols[iKw] : '',
+          targetUrl: iUrl >= 0 ? cols[iUrl] : '',
+          dueDate: iDue >= 0 ? cols[iDue] : '',
+          estHours: iEst >= 0 ? (parseFloat(cols[iEst]) || 0) : 0,
+          intakeDate: todayStr(),
+          executionState: 'Not Started',
+          isCompleted: false,
+          timeEvents: [],
+        });
+      }
+      if (newTasks.length === 0) { showToast('No valid rows found in CSV', 'error'); input.value = ''; return; }
+
+      fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newTasks) })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function () {
+          allTasks = allTasks.concat(newTasks);
+          applyFilters();
+          showToast('Imported ' + newTasks.length + ' task(s)', 'success');
+        })
+        .catch(function (e) { showToast('Import failed: ' + e.message, 'error'); })
+        .finally(function () { input.value = ''; });
+    };
+    reader.readAsText(file);
+  };
+
+  window.exportCsv = function () {
+    if (!filtered.length) { showToast('Nothing to export', 'error'); return; }
+    var headers = ['Task ID', 'Title', 'Client', 'Current Owner', 'SEO Owner', 'Content Owner', 'Web Owner', 'Status', 'QC Status', 'Due Date', 'Target URL'];
+    var rows = filtered.map(function (t) {
+      return [t.id, t.title, t.client, t.currentOwner, t.seoOwner, t.contentOwner, t.webOwner, t.executionState, t.seoQcStatus, t.dueDate, t.targetUrl];
+    });
+    var csv = [headers].concat(rows).map(function (r) {
+      return r.map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    }).join('\n');
+    var blob = new Blob([csv], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'action-board-2-' + todayStr() + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
+
+  /* ══════════════════════════ MODAL / TOAST HELPERS ══════════════════════════ */
+
+  function openModal(id) { document.getElementById(id).classList.add('visible'); }
+  window.closeModal = function (id) { document.getElementById(id).classList.remove('visible'); };
+
+  function showToast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast visible ' + (type || '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function () { el.className = 'toast'; }, 3500);
+  }
+
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+})();
+</script>
+</body>
+</html>

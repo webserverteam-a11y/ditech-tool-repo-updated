@@ -1436,6 +1436,12 @@ app.get('/client-reports', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'client-reports.html'));
 });
 
+// ── Action Board 2.0 panel (standalone rebuild, does not touch the
+//    original bundle-only Action Board or any of its patches) ────
+app.get('/alt-action-board', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'alt-action-board.html'));
+});
+
 // ── API 404 + global error handler ────────────────────
 // apiNotFound catches requests to unknown /api/* routes before the SPA
 // fallback swallows them. globalErrorHandler catches anything thrown from
