@@ -15,7 +15,7 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { encrypt, decrypt } from '../config/crypto.js';
 
-export // ── Mass-deletion thresholds ────────────────────────────────────────────────
+// ── Mass-deletion thresholds ────────────────────────────────────────────────
 // PUT /api/config/users and the clients half of PUT /api/config/admin_options
 // treat their payload as the authoritative complete list and delete anything
 // missing from it. These caps bound how much a single request may remove
@@ -24,7 +24,7 @@ export // ── Mass-deletion thresholds ────────────�
 const MAX_IMPLICIT_USER_DELETIONS   = 2;
 const MAX_IMPLICIT_CLIENT_DELETIONS = 3;
 
-const configRouter = Router();
+export const configRouter = Router();
 
 const ROLE_TO_OWNER_KEY = {
   seo:     'seoOwners',
@@ -242,7 +242,9 @@ configRouter.put('/:key', async (req, res) => {
             if (toDelete.length > MAX_IMPLICIT_CLIENT_DELETIONS
                 && req.query.confirmBulkDelete !== '1') {
               await conn.rollback().catch(() => {});
-              conn.release();
+              // NOTE: do NOT release here — the finally block below releases.
+              // Returning from inside the try still runs finally, so releasing
+              // here would double-release and throw.
               console.error(
                 `PUT /api/config/admin_options REFUSED: payload of ${incomingClients.length} ` +
                 `clients would delete ${toDelete.length} [${toDelete.join(', ')}]. ` +
