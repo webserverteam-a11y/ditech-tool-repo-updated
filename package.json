@@ -14,11 +14,12 @@
     "patch-raise-rework": "node scripts/patch-raise-rework-fix.js",
     "patch-client-reports-nav": "node scripts/patch-add-client-reports-nav.js",
     "patch-alt-action-board-nav": "node scripts/patch-add-alt-action-board-nav.js",
-    "postinstall": "node scripts/patch-bundle-fixes.js || true && node scripts/patch-concurrency-fix.js || true && node scripts/patch-a0-merge-fix.js || true && node scripts/patch-action-board-handoff-fix.js || true && node scripts/patch-timesheet-url-cols.js || true && node scripts/patch-timesheet-logged-url-cols.js || true && node scripts/patch-raise-rework-fix.js || true && node scripts/patch-poll-merge-fix.js || true && node scripts/patch-pending-saves-key-fix.js || true && node scripts/patch-dirty-track-save.js || true && node scripts/patch-visibility-flush.js || true && node scripts/patch-delete-fix.js || true && node scripts/patch-delete-fix-v2.js || true && node scripts/patch-add-reports-nav.js || true && node scripts/patch-add-indexing-nav.js || true && node scripts/patch-add-keyword-update-nav.js || true && node scripts/patch-add-unified-timesheet-nav.js || true && node scripts/patch-add-client-reports-nav.js || true && node scripts/patch-add-alt-action-board-nav.js || true && node scripts/patch-stale-bulk-flush-fix.js || true",
+    "postinstall": "node scripts/patch-bundle-fixes.js || true && node scripts/patch-concurrency-fix.js || true && node scripts/patch-a0-merge-fix.js || true && node scripts/patch-action-board-handoff-fix.js || true && node scripts/patch-timesheet-url-cols.js || true && node scripts/patch-timesheet-logged-url-cols.js || true && node scripts/patch-raise-rework-fix.js || true && node scripts/patch-poll-merge-fix.js || true && node scripts/patch-pending-saves-key-fix.js || true && node scripts/patch-dirty-track-save.js || true && node scripts/patch-visibility-flush.js || true && node scripts/patch-delete-fix.js || true && node scripts/patch-delete-fix-v2.js || true && node scripts/patch-add-reports-nav.js || true && node scripts/patch-add-indexing-nav.js || true && node scripts/patch-add-keyword-update-nav.js || true && node scripts/patch-add-unified-timesheet-nav.js || true && node scripts/patch-add-client-reports-nav.js || true && node scripts/patch-add-alt-action-board-nav.js || true && node scripts/patch-stale-bulk-flush-fix.js || true && node scripts/patch-config-default-wipe-fix.js || true",
     "patch-stale-flush": "node scripts/patch-stale-bulk-flush-fix.js",
     "cleanup-timers": "node scripts/cleanup-timer-data.js",
     "cleanup-timers:apply": "node scripts/cleanup-timer-data.js --apply",
-    "diagnose-timers": "node scripts/diagnose-open-timers.js"
+    "diagnose-timers": "node scripts/diagnose-open-timers.js",
+    "patch-config-wipe": "node scripts/patch-config-default-wipe-fix.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.3",

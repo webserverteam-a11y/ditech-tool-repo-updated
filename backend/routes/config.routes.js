@@ -15,7 +15,16 @@ import { Router } from 'express';
 import pool from '../config/db.js';
 import { encrypt, decrypt } from '../config/crypto.js';
 
-export const configRouter = Router();
+export // ── Mass-deletion thresholds ────────────────────────────────────────────────
+// PUT /api/config/users and the clients half of PUT /api/config/admin_options
+// treat their payload as the authoritative complete list and delete anything
+// missing from it. These caps bound how much a single request may remove
+// without an explicit override, so a stale or defaulted client cannot wipe
+// the tables. Deliberate bulk removal passes ?confirmBulkDelete=1.
+const MAX_IMPLICIT_USER_DELETIONS   = 2;
+const MAX_IMPLICIT_CLIENT_DELETIONS = 3;
+
+const configRouter = Router();
 
 const ROLE_TO_OWNER_KEY = {
   seo:     'seoOwners',
@@ -113,6 +122,35 @@ configRouter.put('/:key', async (req, res) => {
           error: 'No valid user IDs in payload, aborting to prevent data loss.',
         });
 
+      // ── Mass-deletion guard ────────────────────────────────────────────
+      // This endpoint treats the payload as the complete user list and deletes
+      // everything absent from it. A browser that loaded while the API was
+      // returning 5xx used to post the built-in demo accounts here, silently
+      // deleting every user added through the tool. The bundle no longer does
+      // that (patch-config-default-wipe-fix.js), but this endpoint must not
+      // depend on client behaviour to keep the users table intact.
+      //
+      // A genuine admin removing an account or two still works. Removing many
+      // at once requires ?confirmBulkDelete=1, which the UI never sends.
+      const [existingUserRows] = await pool.query('SELECT id, name FROM users');
+      const incomingIdSet = new Set(incomingIds);
+      const wouldDelete = existingUserRows.filter(u => !incomingIdSet.has(u.id));
+      const bulkOk = req.query.confirmBulkDelete === '1';
+
+      if (wouldDelete.length > MAX_IMPLICIT_USER_DELETIONS && !bulkOk) {
+        console.error(
+          `PUT /api/config/users REFUSED: payload of ${body.length} would delete ` +
+          `${wouldDelete.length} user(s) [${wouldDelete.map(u => u.name).join(', ')}]. ` +
+          'Likely a stale client posting defaults. Pass ?confirmBulkDelete=1 to override.'
+        );
+        return res.status(409).json({
+          error: 'Refused: this payload would delete '
+            + `${wouldDelete.length} users, which looks like accidental data loss.`,
+          wouldDelete: wouldDelete.map(u => u.name),
+          hint: 'If this is intentional, retry with ?confirmBulkDelete=1',
+        });
+      }
+
       let conn;
       try {
         conn = await pool.getConnection();
@@ -197,6 +235,27 @@ configRouter.put('/:key', async (req, res) => {
             const incomingSet = new Set(incomingClients);
 
             const toDelete = [...existingSet].filter(c => !incomingSet.has(c));
+
+            // Same mass-deletion guard as the users branch above — a stale
+            // client posting the built-in demo client list must not be able
+            // to delete every client added through the tool.
+            if (toDelete.length > MAX_IMPLICIT_CLIENT_DELETIONS
+                && req.query.confirmBulkDelete !== '1') {
+              await conn.rollback().catch(() => {});
+              conn.release();
+              console.error(
+                `PUT /api/config/admin_options REFUSED: payload of ${incomingClients.length} ` +
+                `clients would delete ${toDelete.length} [${toDelete.join(', ')}]. ` +
+                'Likely a stale client posting defaults. Pass ?confirmBulkDelete=1 to override.'
+              );
+              return res.status(409).json({
+                error: 'Refused: this payload would delete '
+                  + `${toDelete.length} clients, which looks like accidental data loss.`,
+                wouldDelete: toDelete,
+                hint: 'If this is intentional, retry with ?confirmBulkDelete=1',
+              });
+            }
+
             if (toDelete.length > 0) {
               const delPh = toDelete.map(() => '?').join(',');
               await conn.query(`DELETE FROM clients WHERE name IN (${delPh})`, toDelete);
