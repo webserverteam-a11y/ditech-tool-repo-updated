@@ -403,3 +403,57 @@ export {
   rangeWindow,
   matrixDaysForRange,
 };
+
+/**
+ * The one task a person is genuinely still working on, if any.
+ *
+ * WHY THIS EXISTS
+ * ───────────────
+ * loggedMsFromEvents(events, nowMs) credits (nowMs - open) for a segment that
+ * has no close yet. That is correct for the task someone is actually working
+ * on right now — but it is applied per task, independently, so N unclosed
+ * segments each credit the full elapsed time and today's total grows at N
+ * minutes per minute.
+ *
+ * Before the timer fixes (backend/utils/timerGuard.js), unclosed segments
+ * accumulated in bulk: a duplicated `start` silently orphaned the segment
+ * before it, leaving it open forever. One user ended up with ~19 such
+ * orphans and a today total climbing ~19x real time.
+ *
+ * timerGuard.js now prevents new orphans, but it cannot retroactively close
+ * the ones already in the database — so reporting has to be robust to them
+ * on its own. This applies the same invariant the guard enforces on writes:
+ * a person is working on at most ONE task at a time. Their most recently
+ * opened unclosed segment is the live one; every older unclosed segment is
+ * an abandoned orphan and is credited zero live time.
+ *
+ * Past days are unaffected — they never receive nowMs at all, so a dangling
+ * open in a closed window already contributes nothing.
+ *
+ * @param {Object<string, Array>} eventsByTask  taskId -> event list
+ * @param {string} stakeholder                  exact owner name to match
+ * @returns {string|null} task id holding the live segment, or null
+ */
+export function liveOpenTaskForOwner(eventsByTask, stakeholder) {
+  if (!stakeholder) return null;
+
+  let liveTaskId = null;
+  let liveOpenedAt = -Infinity;
+
+  for (const taskId of Object.keys(eventsByTask || {})) {
+    let open = null;
+    for (const e of eventsByTask[taskId] || []) {
+      if (!e.owner || e.owner !== stakeholder) continue;
+      const t = Date.parse(e.timestamp);
+      if (Number.isNaN(t)) continue;
+      if (e.type === 'start' || e.type === 'resume' || e.type === 'rework_start') open = t;
+      else if (e.type === 'pause' || e.type === 'end') open = null;
+    }
+    if (open !== null && open > liveOpenedAt) {
+      liveOpenedAt = open;
+      liveTaskId = taskId;
+    }
+  }
+
+  return liveTaskId;
+}

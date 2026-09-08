@@ -48,6 +48,7 @@ import {
   loggedMsFromEvents,
   reworkMsFromEvents,
   grossMsFromEvents,
+  liveOpenTaskForOwner,
   estHoursForOwner,
   productiveMs,
   overrunMs,
@@ -153,13 +154,21 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
 
     // ── Per-task computation (windows are inclusive date-strings, matching
     //    the original panel: filter events to the window first, then pair) ──
+    // A person works one task at a time, so only their most recently opened
+    // unclosed segment is live — every older unclosed segment is an orphan
+    // and must not keep accruing. Without this, N orphans each credit the
+    // full elapsed time and today's total grows at N minutes per minute.
+    // See liveOpenTaskForOwner() in timesheetCalc.js.
+    const liveTaskId = liveOpenTaskForOwner(eventsByTask, stakeholder);
+
     const computed = taskRows.map(row => {
       const task = rowToTask(row);
       const estMs = (Number(estHoursForOwner(task, stakeholder)) || 0) * HOUR_MS;
       const events = eventsByTask[task.id] || [];
+      const isLiveTask = task.id === liveTaskId;
 
       const rangeEvents = filterEventsForOwner(task, events, stakeholder, rangeFromStr, rangeToStr);
-      const rangeNowMs = rangeIncludesNow ? nowMs : undefined;
+      const rangeNowMs = (rangeIncludesNow && isLiveTask) ? nowMs : undefined;
       const loggedRangeMs = loggedMsFromEvents(rangeEvents, rangeNowMs);
       const actualRangeMs = grossMsFromEvents(rangeEvents, rangeNowMs);
       const reworkRangeMs = reworkMsFromEvents(filterEventsInWindow(events, rangeFromStr, rangeToStr), rangeNowMs);
@@ -167,7 +176,7 @@ unifiedTimesheetRouter.get('/', async (req, res) => {
       const perDay = {};
       let totalMatrixLoggedMs = 0;
       for (const d of matrixDays) {
-        const dayNowMs = d === todayStr ? nowMs : undefined;
+        const dayNowMs = (d === todayStr && isLiveTask) ? nowMs : undefined;
         const dayLoggedMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, d, d), dayNowMs);
         const cumulativeToDateMs = loggedMsFromEvents(filterEventsForOwner(task, events, stakeholder, null, d), dayNowMs);
         perDay[d] = {
@@ -402,11 +411,17 @@ unifiedTimesheetRouter.get('/team', async (req, res) => {
     const members = roster.map(name => {
       const memberTasks = tasks.filter(t => t.seoOwner === name || t.contentOwner === name || t.webOwner === name || t.assignedTo === name);
 
+      // Same one-task-at-a-time rule as the individual view above: only this
+      // member's most recently opened unclosed segment accrues live time.
+      // Orphaned opens left behind before the timer fixes would otherwise
+      // each add the full elapsed time to today's cell.
+      const memberLiveTaskId = liveOpenTaskForOwner(eventsByTask, name);
+
       const perDay = {};
       for (const d of matrixDays) {
-        const dayNowMs = d === todayStr ? nowMs : undefined;
         const actualMs = memberTasks.reduce((sum, task) => {
           const events = eventsByTask[task.id] || [];
+          const dayNowMs = (d === todayStr && task.id === memberLiveTaskId) ? nowMs : undefined;
           return sum + loggedMsFromEvents(filterEventsForOwner(task, events, name, d, d), dayNowMs);
         }, 0);
         // Weekends are never a work-day target, regardless of leave records
