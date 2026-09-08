@@ -19,11 +19,12 @@
 
 import { Router } from 'express';
 import pool from '../config/db.js';
-import { saveTaskToDb } from '../utils/saveTask.js';
+import { saveTaskToDb, isDuplicateTimeEvent } from '../utils/saveTask.js';
 import { rowToTask } from '../utils/taskMapping.js';
 import { normalizeTaskDates } from '../utils/dateNormalize.js';
 import { groupBy } from '../utils/taskMapping.js';
 import { runOverrunCheck } from '../services/timerCheck.service.js';
+import { enforceSingleActiveTimer, isOpeningEvent } from '../utils/timerGuard.js';
 
 export const tasksRouter = Router();
 
@@ -326,17 +327,65 @@ tasksRouter.post('/:id/events', async (req, res) => {
     if (tRows.length === 0)
       return res.status(404).json({ error: `Task "${taskId}" not found` });
 
+    const timestamp = ev.timestamp || new Date().toISOString();
+
+    // Near-duplicate guard — same rule as saveTaskToDb(). Both timer handlers
+    // record each action twice with clocks ~1ms apart, and the exact-timestamp
+    // UNIQUE index can not catch that. Skipping the twin here keeps this
+    // endpoint consistent with the full-task save path.
+    const [recent] = await pool.query(
+      'SELECT event_type, timestamp, owner FROM task_time_events WHERE task_id = ?',
+      [taskId]
+    );
+    const seen = recent
+      .map(e => ({ type: e.event_type || '', t: Date.parse(e.timestamp), owner: e.owner || '' }))
+      .filter(e => !Number.isNaN(e.t));
+
+    if (isDuplicateTimeEvent(seen, { ...ev, timestamp })) {
+      return res.status(200).json({
+        ok: true,
+        taskId,
+        deduplicated: true,
+        message: `Event "${ev.type}" for task "${taskId}" ignored as a duplicate of one recorded moments ago`,
+      });
+    }
+
+    // Single-active-timer guard — same rule as saveTaskToDb(). Pauses whatever
+    // else this person has running; drops the event outright if they already
+    // have this task open, since recording it would orphan the live segment.
+    let pausedTaskIds = [];
+    if (isOpeningEvent(ev.type) && ev.owner) {
+      const guard = await enforceSingleActiveTimer(pool, {
+        taskId,
+        owner:      ev.owner,
+        timestamp,
+        department: ev.department || '',
+      });
+      if (guard.redundant) {
+        return res.status(200).json({
+          ok: true,
+          taskId,
+          alreadyRunning: true,
+          message: `Task "${taskId}" is already running for ${ev.owner}; ignored a redundant "${ev.type}"`,
+        });
+      }
+      pausedTaskIds = guard.pausedTaskIds;
+    }
+
     await pool.query(
       `INSERT INTO task_time_events (task_id, event_type, timestamp, department, owner)
        VALUES (?, ?, ?, ?, ?)`,
-      [taskId, ev.type, ev.timestamp || new Date().toISOString(), ev.department || '', ev.owner || '']
+      [taskId, ev.type, timestamp, ev.department || '', ev.owner || '']
     );
 
     res.status(201).json({
       ok: true,
       taskId,
       event: { type: ev.type, timestamp: ev.timestamp, department: ev.department, owner: ev.owner },
-      message: `Event "${ev.type}" recorded for task "${taskId}"`,
+      pausedTaskIds,
+      message: pausedTaskIds.length
+        ? `Event "${ev.type}" recorded for task "${taskId}"; auto-paused ${pausedTaskIds.length} other running task(s)`
+        : `Event "${ev.type}" recorded for task "${taskId}"`,
     });
 
     // Fire-and-forget: check if this task has now exceeded the time threshold.

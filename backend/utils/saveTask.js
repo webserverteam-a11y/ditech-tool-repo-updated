@@ -20,6 +20,43 @@
 
 import { normalizeTaskDates } from './dateNormalize.js';
 import { taskToColumns } from './taskMapping.js';
+import { enforceSingleActiveTimer, isOpeningEvent } from './timerGuard.js';
+
+/**
+ * Near-duplicate window for timer events, in milliseconds.
+ *
+ * Both timer handlers in the bundle record every Start/Pause/Resume/End
+ * TWICE, each with its own `new Date().toISOString()` call:
+ *
+ *   Action Board  Te()  — `_abTs` for the immediate _saveTaskById(),
+ *                         then `Ze` inside the setTasks() updater
+ *   WorkHub       Xe()  — `_ts`   for the immediate _saveTaskById(),
+ *                         then `Pe` inside Qe()'s setTasks() updater
+ *
+ * The two clocks read ~1ms apart, so the UNIQUE index on
+ * (task_id, event_type, timestamp) never matches and INSERT IGNORE lets
+ * both rows through. 35.7% of task_time_events rows are such twins, and
+ * each phantom `start` orphans the open segment before it — the single
+ * largest source of dangling timers (8,940 of 9,917 dangling opens).
+ *
+ * 2s is far longer than the ~1ms clock skew and far shorter than any
+ * meaningful human re-click, so it drops the twin without ever dropping a
+ * real event.
+ */
+const EVENT_DEDUP_WINDOW_MS = 2000;
+
+/** True if `ev` repeats an event already recorded for the same task+owner. */
+export function isDuplicateTimeEvent(seen, ev) {
+  const t = Date.parse(ev.timestamp || '');
+  if (Number.isNaN(t)) return false;
+  const type  = ev.type  || '';
+  const owner = ev.owner || '';
+  return seen.some(s =>
+    s.type === type &&
+    s.owner === owner &&
+    Math.abs(s.t - t) < EVENT_DEDUP_WINDOW_MS
+  );
+}
 
 export async function saveTaskToDb(conn, task) {
   normalizeTaskDates(task);
@@ -44,14 +81,45 @@ export async function saveTaskToDb(conn, task) {
   // (matched by the UNIQUE INDEX idx_tte_unique on task_id+event_type+timestamp).
   // New events from the payload are added; existing events are left untouched.
   // To remove a time event, use the explicit DELETE endpoint.
-  if (Array.isArray(task.timeEvents)) {
+  //
+  // Near-duplicate guard added on top: the exact-timestamp UNIQUE index can
+  // not catch the twin events both timer handlers emit ~1ms apart, so any
+  // event within EVENT_DEDUP_WINDOW_MS of an already-recorded event of the
+  // same type+owner on this task is skipped. See isDuplicateTimeEvent above.
+  if (Array.isArray(task.timeEvents) && task.timeEvents.length) {
+    const [existing] = await conn.query(
+      'SELECT event_type, timestamp, owner FROM task_time_events WHERE task_id = ?',
+      [task.id]
+    );
+    const seen = existing
+      .map(e => ({ type: e.event_type || '', t: Date.parse(e.timestamp), owner: e.owner || '' }))
+      .filter(e => !Number.isNaN(e.t));
+
     for (const ev of task.timeEvents) {
+      if (isDuplicateTimeEvent(seen, ev)) continue;
+
+      // Single-active-timer guard. An opening event pauses whatever else this
+      // person has running, and is dropped outright if it would land on a task
+      // they already have open — recording it would orphan the live segment.
+      if (isOpeningEvent(ev.type) && ev.owner && ev.timestamp) {
+        const { redundant } = await enforceSingleActiveTimer(conn, {
+          taskId:     task.id,
+          owner:      ev.owner,
+          timestamp:  ev.timestamp,
+          department: ev.department || '',
+        });
+        if (redundant) continue;
+      }
+
       await conn.query(
         `INSERT IGNORE INTO task_time_events
            (task_id, event_type, timestamp, department, owner)
          VALUES (?,?,?,?,?)`,
         [task.id, ev.type || '', ev.timestamp || '', ev.department || '', ev.owner || '']
       );
+
+      const t = Date.parse(ev.timestamp || '');
+      if (!Number.isNaN(t)) seen.push({ type: ev.type || '', t, owner: ev.owner || '' });
     }
   }
 

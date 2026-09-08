@@ -198,6 +198,10 @@ async function initDb() {
     // Columns required by the email notification feature added for timer overrun alerts.
     ['users_add_email', `ALTER TABLE users ADD COLUMN email VARCHAR(255) DEFAULT NULL`],
     ['tasks_add_overrun_notified_at', `ALTER TABLE tasks ADD COLUMN overrun_notified_at TIMESTAMP DEFAULT NULL`],
+    // Support the single-active-timer guard (backend/utils/timerGuard.js): it looks
+    // up "which tasks does this person currently have running" on every Start/Resume.
+    // Must be in this list — see note above on server.js's own initDb().
+    ['tte_owner_index', `ALTER TABLE task_time_events ADD INDEX idx_tte_owner_ts (owner, task_id, \`timestamp\`)`],
   ];
   for (const [name, sql] of migrations) {
     try {

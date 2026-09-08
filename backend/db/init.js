@@ -162,6 +162,10 @@ const MIGRATIONS = [
   ['hk_add_source', `ALTER TABLE historical_keywords ADD COLUMN source VARCHAR(50) DEFAULT 'upload'`],
   // Track when a keyword row was last modified (for staleness detection / audit)
   ['hk_add_updated_at', `ALTER TABLE historical_keywords ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`],
+  // Support the single-active-timer guard: it looks up "which tasks does this
+  // person currently have running" on every Start/Resume, which scans by owner
+  // and needs the newest event per task. Without this it is a full table scan.
+  ['tte_owner_index', `ALTER TABLE task_time_events ADD INDEX idx_tte_owner_ts (owner, task_id, timestamp)`],
 ];
 
 export const EXPECTED_TABLES = TABLE_DDL.map(([name]) => name);
