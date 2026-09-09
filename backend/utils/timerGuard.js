@@ -134,3 +134,40 @@ export async function enforceSingleActiveTimer(conn, { taskId, owner, timestamp,
 
   return { redundant, pausedTaskIds: toPause.map(r => r.taskId) };
 }
+
+/**
+ * Resolve who a timer event should be attributed to.
+ *
+ * Admin-role accounts have `ownerName` forced to '' (see the Add-User form and
+ * the built-in admin seed), so every timer action an admin performs is recorded
+ * with owner ''. enforceSingleActiveTimer() cannot attribute those to a person,
+ * so it used to skip them entirely — which is how bulk admin actions left dozens
+ * of tasks running at once for whoever owned them.
+ *
+ * A blank-owner event still belongs to a real workstream: the task's owner for
+ * the department the event was recorded against. That is exactly how the Action
+ * Board attributes displayed time (it filters events by
+ * `e.department === t.currentOwner`), so resolving the same way keeps the guard
+ * and the UI consistent.
+ *
+ * @returns {Promise<string>} owner name, or '' if it genuinely cannot be resolved
+ */
+export async function resolveEventOwner(conn, { taskId, owner, department }) {
+  if (owner) return owner;
+  if (!taskId) return '';
+
+  const [rows] = await conn.query(
+    'SELECT seo_owner, content_owner, web_owner, assigned_to, current_owner FROM tasks WHERE id = ? LIMIT 1',
+    [taskId]
+  );
+  if (!rows.length) return '';
+
+  const t = rows[0];
+  const dept = department || t.current_owner || '';
+  const byDept = {
+    SEO:     t.seo_owner,
+    Content: t.content_owner,
+    Web:     t.web_owner,
+  };
+  return byDept[dept] || t.assigned_to || '';
+}

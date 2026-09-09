@@ -24,7 +24,7 @@ import { rowToTask } from '../utils/taskMapping.js';
 import { normalizeTaskDates } from '../utils/dateNormalize.js';
 import { groupBy } from '../utils/taskMapping.js';
 import { runOverrunCheck } from '../services/timerCheck.service.js';
-import { enforceSingleActiveTimer, isOpeningEvent } from '../utils/timerGuard.js';
+import { enforceSingleActiveTimer, isOpeningEvent, resolveEventOwner } from '../utils/timerGuard.js';
 
 export const tasksRouter = Router();
 
@@ -284,6 +284,30 @@ tasksRouter.patch('/:id/assign', async (req, res) => {
     return res.status(400).json({ error: 'No assignable fields provided' });
 
   try {
+    // This endpoint can set execution_state directly, with no timer event and
+    // no owner attached. The Action Board renders a RUNNING timer from
+    // execution_state === 'In Progress' plus any unclosed start event on the
+    // task, so flipping the state here on a task that still carries an old
+    // orphaned start makes a long-dormant task appear to start on its own.
+    //
+    // Apply the same one-task-at-a-time rule as the events endpoint: moving a
+    // task into a running state pauses whatever else that owner had running.
+    if (body.executionState === 'In Progress' || body.executionState === 'Rework') {
+      const guardOwner = await resolveEventOwner(pool, {
+        taskId,
+        owner:      body.owner || body.currentUser || '',
+        department: body.currentOwner,
+      });
+      if (guardOwner) {
+        await enforceSingleActiveTimer(pool, {
+          taskId,
+          owner:      guardOwner,
+          timestamp:  new Date().toISOString(),
+          department: body.currentOwner || '',
+        });
+      }
+    }
+
     const setClauses = ASSIGNABLE.map(([col]) => `${col} = ?`).join(', ');
     const values     = ASSIGNABLE.map(([, v]) => v);
     values.push(taskId);
@@ -354,10 +378,16 @@ tasksRouter.post('/:id/events', async (req, res) => {
     // else this person has running; drops the event outright if they already
     // have this task open, since recording it would orphan the live segment.
     let pausedTaskIds = [];
-    if (isOpeningEvent(ev.type) && ev.owner) {
+    if (isOpeningEvent(ev.type)) {
+      // Admin accounts record events with owner '' — resolve those to the task's
+      // department owner so bulk admin actions are guarded too, instead of
+      // silently leaving every touched task running.
+      const guardOwner = await resolveEventOwner(pool, {
+        taskId, owner: ev.owner, department: ev.department,
+      });
       const guard = await enforceSingleActiveTimer(pool, {
         taskId,
-        owner:      ev.owner,
+        owner:      guardOwner,
         timestamp,
         department: ev.department || '',
       });
