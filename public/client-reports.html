@@ -209,6 +209,10 @@
     .cr-notes-input { width: 100%; min-width: 160px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.78rem; font-family: inherit; }
     .cr-ctr-readout { display: block; text-align: center; font-weight: 800; color: #c2410c; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px; padding: 5px; }
     tr.cr-row-dirty { background: #fffbeb; }
+    .cr-cell-pending { border-color: #f59e0b !important; background: #fff7e6 !important; }
+    .cr-cell-conflict { border-color: #dc2626 !important; background: #fef2f2 !important; box-shadow: 0 0 0 2px rgba(220,38,38,0.15); }
+    .cr-pending-note { padding: 8px 16px; font-size: 0.76rem; color: #92400e; background: #fffbeb; border-bottom: 1px solid #fde68a; }
+    .cr-link-btn { background: none; border: none; padding: 0; color: #4f6ef7; font-weight: 700; cursor: pointer; font-size: inherit; text-decoration: underline; }
     .cr-dirty-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block; margin-left: 5px; }
 
     /* ── Filters row ──────────────────────────────────────────── */
@@ -366,8 +370,14 @@
     search: '',
     filters: { manager: 'All Managers', tier: 'All Tiers', industry: 'All Industries', growth: 'all' },
     sortBy: 'traffic', sortDir: 'desc',
-    bulkDraft: {},
-    bulkDirty: {},
+    // Unsaved edits, kept separately from DB data so a reload / another
+    // user's save can never overwrite what this person has typed:
+    //   { monthKey: { clientName: { field: { value, base, conflict } } } }
+    // `base` = DB value when editing started (sent to the server for
+    // conflict detection). Mirrored to localStorage so a refresh or crash
+    // does not lose typed-but-unsaved data either.
+    pending: {},
+    saving: false,
     detailClient: null,
     editingClientName: null, // non-null while Add/Edit modal targets an existing client
     loaded: false,
@@ -437,6 +447,12 @@
     if (str === null || str === undefined) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+  // Escapes a value, or shows an em dash when empty. (Passing the '&mdash;'
+  // entity through esc() is what rendered the literal "&mdash;" text.)
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function escOrDash(str) {
+    return (str === null || str === undefined || String(str).trim() === '') ? '&mdash;' : esc(str);
+  }
   function clientProfile(name) {
     for (var i = 0; i < STATE.clients.length; i++) if (STATE.clients[i].client === name) return STATE.clients[i];
     return { client: name, domain: '', industry: '', tier: 'Growth', accountManager: '', targetTraffic: 0, targetLeads: 0, startDate: '' };
@@ -488,13 +504,78 @@
     });
   }
 
+  // Reloads DB data and re-renders. Unsaved edits in STATE.pending are NOT
+  // touched — the grid shows pending values on top of the fresh DB values.
   function reloadAndRender() {
     return loadAll().then(function () {
-      initBulkDraft();
       renderCurrentTab();
     }).catch(function (e) {
       showToast('Failed to load data: ' + e.message, true);
     });
+  }
+
+  /* ── Pending (unsaved) edits ──────────────────────────────────── */
+  var METRIC_FIELDS = ['organicTraffic', 'organicClicks', 'impressions', 'leads', 'notes'];
+  var PENDING_KEY = 'crPendingEdits:v1';
+
+  function loadPending() {
+    try {
+      var raw = localStorage.getItem(PENDING_KEY);
+      var parsed = raw ? JSON.parse(raw) : {};
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  function persistPending() {
+    try {
+      if (pendingTotal() === 0) localStorage.removeItem(PENDING_KEY);
+      else localStorage.setItem(PENDING_KEY, JSON.stringify(STATE.pending));
+    } catch (e) { /* storage unavailable — edits still live in memory */ }
+  }
+  function hasDbRow(client, month) {
+    return !!(STATE.metrics[client] && STATE.metrics[client][month]);
+  }
+  function dbValue(client, month, field) {
+    var m = STATE.metrics[client] && STATE.metrics[client][month];
+    if (m) return m[field];
+    return field === 'notes' ? '' : 0;
+  }
+  function pendingRow(client, month) {
+    return (STATE.pending[month] && STATE.pending[month][client]) || null;
+  }
+  function pendingField(client, month, field) {
+    var row = pendingRow(client, month);
+    return row && row[field] ? row[field] : null;
+  }
+  function draftValue(client, month, field) {
+    var p = pendingField(client, month, field);
+    return p ? p.value : dbValue(client, month, field);
+  }
+  function sameVal(field, a, b) {
+    if (field === 'notes') return String(a == null ? '' : a) === String(b == null ? '' : b);
+    return (Number(a) || 0) === (Number(b) || 0);
+  }
+  function setPending(client, month, field, value) {
+    if (!STATE.pending[month]) STATE.pending[month] = {};
+    var row = STATE.pending[month][client] || (STATE.pending[month][client] = {});
+    var existing = row[field];
+    var base = existing ? existing.base : dbValue(client, month, field);
+    if (sameVal(field, value, base)) delete row[field];
+    else row[field] = { value: value, base: base, conflict: false }; // editing again = conflict reviewed
+    cleanupPending(client, month);
+    persistPending();
+  }
+  function cleanupPending(client, month) {
+    if (STATE.pending[month] && STATE.pending[month][client] && Object.keys(STATE.pending[month][client]).length === 0) delete STATE.pending[month][client];
+    if (STATE.pending[month] && Object.keys(STATE.pending[month]).length === 0) delete STATE.pending[month];
+  }
+  function pendingClients(month) { return Object.keys(STATE.pending[month] || {}); }
+  function pendingTotal() {
+    var n = 0;
+    Object.keys(STATE.pending).forEach(function (m) { n += Object.keys(STATE.pending[m] || {}).length; });
+    return n;
+  }
+  function otherMonthsPending() {
+    return Object.keys(STATE.pending).filter(function (m) { return m !== STATE.month && pendingClients(m).length > 0; }).sort();
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -737,8 +818,8 @@
         html += '<tr data-open-client="' + esc(p.client) + '">' +
           '<td><span class="cr-name-cell">' + esc(p.client) + '</span>' +
           '<span class="cr-tier-badge cr-tier-' + esc(p.tier) + '">' + esc(p.tier) + '</span>' +
-          '<div class="cr-sub-cell">' + esc(p.domain || '&mdash;') + '</div></td>' +
-          '<td>' + esc(p.accountManager || '&mdash;') + '</td>' +
+          '<div class="cr-sub-cell">' + escOrDash(p.domain) + '</div></td>' +
+          '<td>' + escOrDash(p.accountManager) + '</td>' +
           '<td class="num">' + formatNumber(c.traffic.current) + '<div class="cr-sub-cell" style="color:' + (c.traffic.diff >= 0 ? '#16a34a' : '#dc2626') + '">' + (c.traffic.diff >= 0 ? '+' : '') + formatNumber(c.traffic.diff) + '</div></td>' +
           '<td class="num">' + formatNumber(c.clicks.current) + '</td>' +
           '<td class="num">' + formatNumber(c.impressions.current) + '</td>' +
@@ -802,42 +883,27 @@
   /* ═══════════════════════════════════════════════════════════════
      BULK ENTRY TAB
      ═══════════════════════════════════════════════════════════════ */
-  function initBulkDraft() {
-    STATE.bulkDraft = {};
-    STATE.bulkDirty = {};
-    var prevKey = prevMonthKey(STATE.month);
-    STATE.clients.forEach(function (c) {
-      var existing = STATE.metrics[c.client] && STATE.metrics[c.client][STATE.month];
-      if (existing) {
-        STATE.bulkDraft[c.client] = clone(existing);
-      } else {
-        var prev = STATE.metrics[c.client] && STATE.metrics[c.client][prevKey];
-        STATE.bulkDraft[c.client] = {
-          client: c.client, month: STATE.month,
-          organicTraffic: prev ? prev.organicTraffic : 0,
-          organicClicks: prev ? prev.organicClicks : 0,
-          impressions: prev ? prev.impressions : 0,
-          ctr: prev ? calcCTR(prev.organicClicks, prev.impressions) : 0,
-          leads: prev ? prev.leads : 0,
-          notes: '',
-        };
-      }
-    });
-  }
-  function clone(o) { return JSON.parse(JSON.stringify(o)); }
-
   function renderBulkEntry() {
     var el = document.getElementById('cr-view-bulk');
-    var dirtyCount = Object.keys(STATE.bulkDirty).length;
-    var prevKey = prevMonthKey(STATE.month);
+    var month = STATE.month;
+    var dirtyCount = pendingClients(month).length;
+    var prevKey = prevMonthKey(month);
+    var others = otherMonthsPending();
 
     var html = '<div class="cr-card">';
     html += '<div class="cr-card-hd">' +
-      '<div><h3>Monthly Data Entry &mdash; ' + formatMonthName(STATE.month) + '</h3><p>CTR auto-calculates as you type clicks &amp; impressions. Baseline: ' + formatMonthName(prevKey) + '</p></div>' +
-      '<div style="display:flex;gap:8px">' +
-      '<button class="cr-btn cr-btn-light" id="cr-bulk-copy-baseline" type="button">Copy Last Month</button>' +
-      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save" type="button" ' + (dirtyCount === 0 ? 'disabled' : '') + '>Save All (' + dirtyCount + ' pending)</button>' +
+      '<div><h3>Monthly Data Entry &mdash; ' + formatMonthName(month) + '</h3><p>CTR auto-calculates as you type clicks &amp; impressions. Grey numbers are ' + formatMonthName(prevKey) + ' (baseline). Only the cells you change are saved.</p></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="cr-btn cr-btn-light" id="cr-bulk-copy-baseline" type="button" title="Fills only clients that have no ' + esc(formatMonthName(month)) + ' data yet">Copy Last Month (empty rows)</button>' +
+      '<button class="cr-btn cr-btn-light" id="cr-bulk-discard" type="button" ' + (dirtyCount === 0 ? 'disabled' : '') + '>Discard Changes</button>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save" type="button" ' + (dirtyCount === 0 || STATE.saving ? 'disabled' : '') + '>Save All (' + dirtyCount + ' pending)</button>' +
       '</div></div>';
+
+    if (others.length) {
+      html += '<div class="cr-pending-note">Unsaved edits are also waiting in: ' +
+        others.map(function (m) { return '<button type="button" class="cr-link-btn" data-goto-month="' + m + '">' + formatMonthName(m) + ' (' + pendingClients(m).length + ')</button>'; }).join(', ') +
+        '</div>';
+    }
 
     html += '<div class="cr-tbl-wrap"><table class="cr-table"><thead><tr>' +
       '<th>Client</th><th class="num">Organic Traffic</th><th class="num">Organic Clicks</th>' +
@@ -848,34 +914,45 @@
       html += '<tr><td colspan="8" class="cr-empty-note">No clients yet.</td></tr>';
     } else {
       STATE.clients.forEach(function (c) {
-        var draft = STATE.bulkDraft[c.client] || zeroMetric(c.client, STATE.month);
-        var prevMetric = metricFor(c.client, prevKey);
-        var trafficDiff = diffCalc(draft.organicTraffic, prevMetric.organicTraffic);
-        var isDirty = !!STATE.bulkDirty[c.client];
+        var name = c.client;
+        var row = pendingRow(name, month) || {};
+        var exists = hasDbRow(name, month);
+        var isDirty = Object.keys(row).length > 0;
+        var prevMetric = metricFor(name, prevKey);
+        var trafficDiff = diffCalc(draftValue(name, month, 'organicTraffic'), prevMetric.organicTraffic);
         var badgeCls = trafficDiff.diff > 0 ? 'pos' : trafficDiff.diff < 0 ? 'neg' : 'flat';
+        var ctr = calcCTR(draftValue(name, month, 'organicClicks'), draftValue(name, month, 'impressions'));
 
-        html += '<tr class="' + (isDirty ? 'cr-row-dirty' : '') + '" data-client="' + esc(c.client) + '">' +
-          '<td><span class="cr-name-cell">' + esc(c.client) + (isDirty ? '<span class="cr-dirty-dot"></span>' : '') + '</span>' +
-          '<div class="cr-sub-cell">Mgr: ' + esc(c.accountManager || '&mdash;') + '</div></td>' +
-          '<td><input class="cr-cell-input" type="number" min="0" data-field="organicTraffic" value="' + (draft.organicTraffic || '') + '"/>' +
-          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.organicTraffic) + '</span></td>' +
-          '<td><input class="cr-cell-input" type="number" min="0" data-field="organicClicks" value="' + (draft.organicClicks || '') + '"/>' +
-          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.organicClicks) + '</span></td>' +
-          '<td><input class="cr-cell-input" type="number" min="0" data-field="impressions" value="' + (draft.impressions || '') + '"/>' +
-          '<span class="cr-prev-hint">Prev: ' + formatNumber(prevMetric.impressions) + '</span></td>' +
-          '<td><span class="cr-ctr-readout" data-ctr-readout>' + (draft.ctr || 0).toFixed(2) + '%</span>' +
+        function numCell(field, prevHint) {
+          var p = row[field];
+          var val = (p || exists) ? String(draftValue(name, month, field)) : '';
+          var cls = 'cr-cell-input' + (p ? ' cr-cell-pending' : '') + (p && p.conflict ? ' cr-cell-conflict' : '');
+          var title = p && p.conflict ? ' title="Someone else saved ' + esc(formatNumber(p.base)) + ' here while you were editing. Save again to keep your value."' : '';
+          return '<td><input class="' + cls + '"' + title + ' type="number" min="0" data-field="' + field + '" value="' + esc(val) + '" placeholder="' + (exists ? '' : esc(prevMetric[field] || '')) + '"/>' +
+            '<span class="cr-prev-hint">' + prevHint + '</span></td>';
+        }
+        var notesP = row.notes;
+        var notesCls = 'cr-notes-input' + (notesP ? ' cr-cell-pending' : '') + (notesP && notesP.conflict ? ' cr-cell-conflict' : '');
+        var notesTitle = notesP && notesP.conflict ? ' title="Someone else saved: ' + esc(notesP.base) + '"' : '';
+
+        html += '<tr class="' + (isDirty ? 'cr-row-dirty' : '') + '" data-client="' + esc(name) + '">' +
+          '<td><span class="cr-name-cell">' + esc(name) + (isDirty ? '<span class="cr-dirty-dot"></span>' : '') + '</span>' +
+          '<div class="cr-sub-cell">Mgr: ' + escOrDash(c.accountManager) + (exists ? '' : ' &middot; <em>no data yet</em>') + '</div></td>' +
+          numCell('organicTraffic', 'Prev: ' + formatNumber(prevMetric.organicTraffic)) +
+          numCell('organicClicks', 'Prev: ' + formatNumber(prevMetric.organicClicks)) +
+          numCell('impressions', 'Prev: ' + formatNumber(prevMetric.impressions)) +
+          '<td><span class="cr-ctr-readout" data-ctr-readout>' + ctr.toFixed(2) + '%</span>' +
           '<span class="cr-prev-hint">Prev: ' + prevMetric.ctr.toFixed(2) + '%</span></td>' +
-          '<td><input class="cr-cell-input" type="number" min="0" data-field="leads" value="' + (draft.leads || '') + '"/>' +
-          '<span class="cr-prev-hint">Prev: ' + prevMetric.leads + ' / Tgt: ' + c.targetLeads + '</span></td>' +
+          numCell('leads', 'Prev: ' + prevMetric.leads + ' / Tgt: ' + c.targetLeads) +
           '<td class="ctr"><span class="cr-badge ' + badgeCls + '">' + formatPercent(trafficDiff.percentChange) + '</span></td>' +
-          '<td><input class="cr-notes-input" type="text" data-field="notes" value="' + esc(draft.notes || '') + '" placeholder="Work done this month..."/></td>' +
+          '<td><input class="' + notesCls + '"' + notesTitle + ' type="text" data-field="notes" value="' + esc(draftValue(name, month, 'notes') || '') + '" placeholder="Work done this month..."/></td>' +
           '</tr>';
       });
     }
     html += '</tbody></table></div>';
     html += '<div style="padding:10px 16px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center">' +
-      '<span style="font-size:0.76rem;color:#64748b">' + dirtyCount + ' client row(s) modified</span>' +
-      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save-bottom" type="button" ' + (dirtyCount === 0 ? 'disabled' : '') + '>Save All Updates</button>' +
+      '<span id="cr-bulk-counter" style="font-size:0.76rem;color:#64748b">' + dirtyCount + ' client row(s) modified</span>' +
+      '<button class="cr-btn cr-btn-primary" id="cr-bulk-save-bottom" type="button" ' + (dirtyCount === 0 || STATE.saving ? 'disabled' : '') + '>Save All Updates</button>' +
       '</div></div>';
 
     el.innerHTML = html;
@@ -883,8 +960,13 @@
     el.querySelectorAll('input[data-field]').forEach(function (input) {
       input.addEventListener('input', function () { handleBulkInputChange(input); });
     });
+    el.querySelectorAll('[data-goto-month]').forEach(function (btn) {
+      btn.addEventListener('click', function () { setMonth(btn.getAttribute('data-goto-month')); });
+    });
     var copyBtn = document.getElementById('cr-bulk-copy-baseline');
     if (copyBtn) copyBtn.addEventListener('click', copyLastMonthBaseline);
+    var discardBtn = document.getElementById('cr-bulk-discard');
+    if (discardBtn) discardBtn.addEventListener('click', discardBulkChanges);
     ['cr-bulk-save', 'cr-bulk-save-bottom'].forEach(function (id) {
       var btn = document.getElementById(id);
       if (btn) btn.addEventListener('click', saveBulkEntry);
@@ -895,82 +977,136 @@
     var row = input.closest('tr');
     var client = row.getAttribute('data-client');
     var field = input.getAttribute('data-field');
-    var draft = STATE.bulkDraft[client] || zeroMetric(client, STATE.month);
+    var month = STATE.month;
 
     if (field === 'notes') {
-      draft.notes = input.value;
+      setPending(client, month, field, input.value);
+    } else if (input.value.trim() === '' && !hasDbRow(client, month)) {
+      // Clearing a cell on a month that has no saved data = "nothing to save"
+      if (STATE.pending[month] && STATE.pending[month][client]) delete STATE.pending[month][client][field];
+      cleanupPending(client, month);
+      persistPending();
     } else {
-      var numVal = Math.max(0, parseInt(input.value, 10) || 0);
-      draft[field] = numVal;
-      if (field === 'organicClicks' || field === 'impressions') {
-        draft.ctr = calcCTR(draft.organicClicks, draft.impressions);
-        var ctrCell = row.querySelector('[data-ctr-readout]');
-        if (ctrCell) ctrCell.textContent = draft.ctr.toFixed(2) + '%';
+      setPending(client, month, field, Math.max(0, parseInt(input.value, 10) || 0));
+    }
+
+    var p = pendingField(client, month, field);
+    input.classList.toggle('cr-cell-pending', !!p);
+    input.classList.remove('cr-cell-conflict');
+    input.removeAttribute('title');
+
+    if (field === 'organicClicks' || field === 'impressions') {
+      var ctrCell = row.querySelector('[data-ctr-readout]');
+      if (ctrCell) ctrCell.textContent = calcCTR(draftValue(client, month, 'organicClicks'), draftValue(client, month, 'impressions')).toFixed(2) + '%';
+    }
+    if (field === 'organicTraffic') {
+      var prevMetric = metricFor(client, prevMonthKey(month));
+      var trafficDiff = diffCalc(draftValue(client, month, 'organicTraffic'), prevMetric.organicTraffic);
+      var badge = row.querySelector('.cr-badge');
+      if (badge) {
+        badge.className = 'cr-badge ' + (trafficDiff.diff > 0 ? 'pos' : trafficDiff.diff < 0 ? 'neg' : 'flat');
+        badge.textContent = formatPercent(trafficDiff.percentChange);
       }
     }
-    STATE.bulkDraft[client] = draft;
-    STATE.bulkDirty[client] = true;
 
-    // Live-update MoM badge + dirty indicators without a full re-render (keeps focus)
-    var prevMetric = metricFor(client, prevMonthKey(STATE.month));
-    var trafficDiff = diffCalc(draft.organicTraffic, prevMetric.organicTraffic);
-    var badge = row.querySelector('.cr-badge');
-    if (badge && field === 'organicTraffic') {
-      badge.className = 'cr-badge ' + (trafficDiff.diff > 0 ? 'pos' : trafficDiff.diff < 0 ? 'neg' : 'flat');
-      badge.textContent = formatPercent(trafficDiff.percentChange);
-    }
-    row.classList.add('cr-row-dirty');
+    var isDirty = !!pendingRow(client, month);
+    row.classList.toggle('cr-row-dirty', isDirty);
     var nameCell = row.querySelector('.cr-name-cell');
-    if (nameCell && !nameCell.querySelector('.cr-dirty-dot')) {
-      var dot = document.createElement('span'); dot.className = 'cr-dirty-dot'; nameCell.appendChild(dot);
+    var dot = nameCell && nameCell.querySelector('.cr-dirty-dot');
+    if (isDirty && nameCell && !dot) {
+      dot = document.createElement('span'); dot.className = 'cr-dirty-dot'; nameCell.appendChild(dot);
+    } else if (!isDirty && dot) {
+      dot.parentNode.removeChild(dot);
     }
     updateBulkSaveButtons();
   }
 
   function updateBulkSaveButtons() {
-    var count = Object.keys(STATE.bulkDirty).length;
+    var count = pendingClients(STATE.month).length;
     ['cr-bulk-save', 'cr-bulk-save-bottom'].forEach(function (id) {
       var btn = document.getElementById(id);
       if (!btn) return;
-      btn.disabled = count === 0;
-      btn.textContent = id === 'cr-bulk-save' ? 'Save All (' + count + ' pending)' : 'Save All Updates';
+      btn.disabled = count === 0 || STATE.saving;
+      btn.textContent = STATE.saving ? 'Saving…' : (id === 'cr-bulk-save' ? 'Save All (' + count + ' pending)' : 'Save All Updates');
     });
-    var counter = document.querySelector('#cr-view-bulk span[style*="color:#64748b"]');
+    var discardBtn = document.getElementById('cr-bulk-discard');
+    if (discardBtn) discardBtn.disabled = count === 0 || STATE.saving;
+    var counter = document.getElementById('cr-bulk-counter');
     if (counter) counter.textContent = count + ' client row(s) modified';
   }
 
+  // Only fills clients that have NO data saved for this month yet (and no
+  // unsaved edits) — it must never overwrite numbers someone already entered.
   function copyLastMonthBaseline() {
-    var prevKey = prevMonthKey(STATE.month);
-    var any = false;
+    var month = STATE.month;
+    var prevKey = prevMonthKey(month);
+    var filled = 0;
     STATE.clients.forEach(function (c) {
       var prev = STATE.metrics[c.client] && STATE.metrics[c.client][prevKey];
-      if (prev) {
-        STATE.bulkDraft[c.client] = {
-          client: c.client, month: STATE.month,
-          organicTraffic: prev.organicTraffic, organicClicks: prev.organicClicks,
-          impressions: prev.impressions, ctr: calcCTR(prev.organicClicks, prev.impressions),
-          leads: prev.leads, notes: prev.notes || '',
-        };
-        STATE.bulkDirty[c.client] = true;
-        any = true;
-      }
+      if (!prev || hasDbRow(c.client, month) || pendingRow(c.client, month)) return;
+      ['organicTraffic', 'organicClicks', 'impressions', 'leads'].forEach(function (f) {
+        setPending(c.client, month, f, prev[f] || 0);
+      });
+      if (pendingRow(c.client, month)) filled++;
     });
-    if (!any) { showToast('No baseline data found for ' + formatMonthName(prevKey), true); return; }
+    if (filled === 0) { showToast('Nothing to copy — every client with ' + formatMonthName(prevKey) + ' data already has ' + formatMonthName(month) + ' data or edits.', true); return; }
+    showToast('Copied ' + formatMonthName(prevKey) + ' numbers into ' + filled + ' empty row(s). Review, then Save.');
+    renderBulkEntry();
+  }
+
+  function discardBulkChanges() {
+    var count = pendingClients(STATE.month).length;
+    if (!count) return;
+    if (!window.confirm('Discard unsaved changes for ' + count + ' client(s) in ' + formatMonthName(STATE.month) + '?')) return;
+    delete STATE.pending[STATE.month];
+    persistPending();
     renderBulkEntry();
   }
 
   function saveBulkEntry() {
-    var clients = Object.keys(STATE.bulkDirty);
+    if (STATE.saving) return;
+    var month = STATE.month;
+    var clients = pendingClients(month);
     if (clients.length === 0) return;
+
+    var sent = {};
     var payload = clients.map(function (client) {
-      var d = STATE.bulkDraft[client];
-      return { client: client, month: STATE.month, organicTraffic: d.organicTraffic, organicClicks: d.organicClicks, impressions: d.impressions, leads: d.leads, notes: d.notes || '' };
+      var row = STATE.pending[month][client];
+      var item = { client: client, month: month, base: {} };
+      sent[client] = {};
+      Object.keys(row).forEach(function (f) {
+        item[f] = row[f].value;
+        item.base[f] = row[f].base;
+        sent[client][f] = row[f].value;
+      });
+      return item;
     });
+
+    STATE.saving = true;
+    updateBulkSaveButtons();
     apiSend('PUT', '/api/client-reports/metrics', payload).then(function (res) {
-      showToast(res.message || 'Saved successfully');
+      var conflicts = res.conflicts || [];
+      var conflictMap = {};
+      conflicts.forEach(function (c) { conflictMap[c.client + '\u0000' + c.field] = c; });
+      Object.keys(sent).forEach(function (client) {
+        Object.keys(sent[client]).forEach(function (f) {
+          var p = pendingField(client, month, f);
+          if (!p) return;
+          var c = conflictMap[client + '\u0000' + f];
+          if (c) { p.base = c.theirs; p.conflict = true; return; }
+          if (sameVal(f, p.value, sent[client][f])) delete STATE.pending[month][client][f];
+          else p.base = sent[client][f]; // typed again while saving — keep the newer edit
+        });
+        cleanupPending(client, month);
+      });
+      persistPending();
+      showToast(res.message || 'Saved successfully', conflicts.length > 0);
+      STATE.saving = false;
       return reloadAndRender();
     }).catch(function (e) {
-      showToast('Save failed: ' + e.message, true);
+      STATE.saving = false;
+      updateBulkSaveButtons();
+      showToast('Save failed — your edits are kept, try again: ' + e.message, true);
     });
   }
 
@@ -997,7 +1133,7 @@
 
     var html = '<div class="cr-modal-hd"><div>' +
       '<h3>' + esc(client) + ' <span class="cr-tier-badge cr-tier-' + esc(p.tier) + '">' + esc(p.tier) + '</span></h3>' +
-      '<p style="font-size:0.76rem;color:#94a3b8;margin-top:3px">' + esc(p.domain || 'no domain set') + ' &middot; ' + esc(p.industry || 'no industry set') + ' &middot; Mgr: ' + esc(p.accountManager || '&mdash;') + '</p>' +
+      '<p style="font-size:0.76rem;color:#94a3b8;margin-top:3px">' + esc(p.domain || 'no domain set') + ' &middot; ' + esc(p.industry || 'no industry set') + ' &middot; Mgr: ' + escOrDash(p.accountManager) + '</p>' +
       '</div><div style="display:flex;gap:8px;align-items:center">' +
       '<button class="cr-btn cr-btn-light" id="cr-detail-edit-profile" type="button">Edit Profile</button>' +
       '<button class="cr-modal-close" id="cr-detail-close" type="button">&times;</button></div></div>';
@@ -1041,7 +1177,7 @@
           '<td class="num">' + formatNumber(row.impressions) + '</td>' +
           '<td class="ctr">' + row.ctr.toFixed(2) + '%</td>' +
           '<td class="num">' + row.leads + '</td>' +
-          '<td style="font-size:0.72rem;color:#64748b;max-width:200px">' + esc(row.notes || '&mdash;') + '</td></tr>';
+          '<td style="font-size:0.72rem;color:#64748b;max-width:200px">' + escOrDash(row.notes) + '</td></tr>';
       });
     }
     html += '</tbody></table></div>';
@@ -1063,37 +1199,55 @@
       '<span class="diff" style="color:' + cls + '">' + (d.diff >= 0 ? '+' : '') + formatNumber(d.diff) + ' (' + formatPercent(d.percentChange) + ')</span></div>';
   }
 
-  function toggleDetailEditForm() {
+  // `keep` (optional) = { field: value } the user typed that hit a conflict —
+  // re-shown in red on top of the fresh DB values so nothing typed is lost.
+  function toggleDetailEditForm(keep) {
     var container = document.getElementById('cr-detail-edit-form');
-    if (container.innerHTML.trim()) { container.innerHTML = ''; return; }
+    if (container.innerHTML.trim() && !keep) { container.innerHTML = ''; return; }
     var client = STATE.detailClient;
-    var cur = metricFor(client, STATE.month);
+    var month = STATE.month;
+    var base = clone(metricFor(client, month)); // what the user sees when editing starts
+    keep = keep || {};
+    var shown = {};
+    METRIC_FIELDS.forEach(function (f) { shown[f] = Object.prototype.hasOwnProperty.call(keep, f) ? keep[f] : base[f]; });
 
+    var ids = { organicTraffic: 'df-traffic', organicClicks: 'df-clicks', impressions: 'df-impressions', leads: 'df-leads', notes: 'df-notes' };
     var html = '<form id="cr-detail-form" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px">' +
       '<div class="cr-form-grid">' +
-      formField('df-traffic', 'Organic Traffic', 'number', cur.organicTraffic) +
-      formField('df-clicks', 'Organic Clicks', 'number', cur.organicClicks) +
-      formField('df-impressions', 'Impressions', 'number', cur.impressions) +
-      formField('df-leads', 'Leads Received', 'number', cur.leads) +
+      formField('df-traffic', 'Organic Traffic', 'number', shown.organicTraffic) +
+      formField('df-clicks', 'Organic Clicks', 'number', shown.organicClicks) +
+      formField('df-impressions', 'Impressions', 'number', shown.impressions) +
+      formField('df-leads', 'Leads Received', 'number', shown.leads) +
       '</div>' +
-      '<div class="cr-form-row" style="margin-top:10px"><label>Notes</label><input id="df-notes" type="text" value="' + esc(cur.notes || '') + '"/></div>' +
+      '<div class="cr-form-row" style="margin-top:10px"><label>Notes</label><input id="df-notes" type="text" value="' + esc(shown.notes || '') + '"/></div>' +
       '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">' +
-      '<button type="submit" class="cr-btn cr-btn-primary">Save ' + esc(formatMonthName(STATE.month)) + '</button></div>' +
+      '<button type="submit" class="cr-btn cr-btn-primary">Save ' + esc(formatMonthName(month)) + '</button></div>' +
       '</form>';
     container.innerHTML = html;
+    Object.keys(keep).forEach(function (f) {
+      var inp = document.getElementById(ids[f]);
+      if (inp) { inp.classList.add('cr-cell-conflict'); inp.title = 'Someone else saved ' + base[f] + ' here. Save again to keep your value.'; }
+    });
 
     document.getElementById('cr-detail-form').addEventListener('submit', function (e) {
       e.preventDefault();
-      var body = {
-        organicTraffic: parseInt(document.getElementById('df-traffic').value, 10) || 0,
-        organicClicks: parseInt(document.getElementById('df-clicks').value, 10) || 0,
-        impressions: parseInt(document.getElementById('df-impressions').value, 10) || 0,
-        leads: parseInt(document.getElementById('df-leads').value, 10) || 0,
-        notes: document.getElementById('df-notes').value,
-      };
-      apiSend('PUT', '/api/client-reports/metrics/' + encodeURIComponent(client) + '/' + STATE.month, body).then(function (res) {
-        showToast(res.message || 'Saved');
-        return reloadAndRender().then(function () { STATE.detailClient = client; renderDetailModal(); });
+      var body = { base: {} };
+      var changed = 0;
+      METRIC_FIELDS.forEach(function (f) {
+        var raw = document.getElementById(ids[f]).value;
+        var val = f === 'notes' ? raw : Math.max(0, parseInt(raw, 10) || 0);
+        if (!sameVal(f, val, base[f])) { body[f] = val; body.base[f] = base[f]; changed++; }
+      });
+      if (!changed) { showToast('No changes to save'); return; }
+      apiSend('PUT', '/api/client-reports/metrics/' + encodeURIComponent(client) + '/' + month, body).then(function (res) {
+        var conflicts = res.conflicts || [];
+        showToast(res.message || 'Saved', conflicts.length > 0);
+        var again = {};
+        conflicts.forEach(function (c) { again[c.field] = c.yours; });
+        return reloadAndRender().then(function () {
+          STATE.detailClient = client; renderDetailModal();
+          if (conflicts.length) toggleDetailEditForm(again);
+        });
       }).catch(function (e2) { showToast('Save failed: ' + e2.message, true); });
     });
   }
@@ -1117,6 +1271,7 @@
   function renderClientModal() {
     var isEditing = !!STATE.editingClientName;
     var p = isEditing ? clientProfile(STATE.editingClientName) : { client: '', domain: '', industry: '', tier: 'Growth', accountManager: '', targetTraffic: 15000, targetLeads: 100, startDate: '' };
+    var baseProfile = clone(p); // values the user starts editing from — used for conflict detection
     var content = document.getElementById('cr-modal-client-content');
 
     var existingNames = STATE.clients.map(function (c) { return c.client; });
@@ -1158,19 +1313,50 @@
       e.preventDefault();
       var name = (isEditing ? p.client : document.getElementById('cm-name').value).trim();
       if (!name) return;
-      var body = {
+      var values = {
         domain: document.getElementById('cm-domain').value.trim(),
         industry: document.getElementById('cm-industry').value.trim(),
         tier: document.getElementById('cm-tier').value,
         accountManager: document.getElementById('cm-manager').value.trim(),
         targetTraffic: parseInt(document.getElementById('cm-target-traffic').value, 10) || 0,
         targetLeads: parseInt(document.getElementById('cm-target-leads').value, 10) || 0,
-        startDate: p.startDate || new Date().toISOString().split('T')[0],
       };
+      // "Add" for a name that already exists behaves like an edit of that
+      // client, so it must not blank out fields someone already filled in.
+      var existing = null;
+      STATE.clients.forEach(function (c) { if (c.client.toLowerCase() === name.toLowerCase()) existing = c; });
+      var body;
+      if (existing) {
+        name = existing.client;
+        var base = isEditing ? baseProfile : existing;
+        body = { base: {} };
+        Object.keys(values).forEach(function (f) {
+          var changedFromBase = String(values[f]) !== String(base[f] == null ? '' : base[f]);
+          var blankOnAdd = !isEditing && (values[f] === '' || values[f] === 0);
+          if (changedFromBase && !blankOnAdd) { body[f] = values[f]; body.base[f] = base[f]; }
+        });
+        if (Object.keys(body.base).length === 0) { showToast('No changes to save'); closeClientModal(); return; }
+      } else {
+        body = values;
+        body.startDate = new Date().toISOString().split('T')[0];
+      }
       apiSend('PUT', '/api/client-reports/profiles/' + encodeURIComponent(name), body).then(function (res) {
-        showToast(res.message || 'Client saved');
-        closeClientModal();
-        return reloadAndRender();
+        var conflicts = res.conflicts || [];
+        showToast(res.message || 'Client saved', conflicts.length > 0);
+        if (!conflicts.length) closeClientModal();
+        return reloadAndRender().then(function () {
+          if (conflicts.length) {
+            // Re-open on fresh data, keeping what this user typed.
+            STATE.editingClientName = name;
+            renderClientModal();
+            var idMap = { domain: 'cm-domain', industry: 'cm-industry', tier: 'cm-tier', accountManager: 'cm-manager', targetTraffic: 'cm-target-traffic', targetLeads: 'cm-target-leads' };
+            conflicts.forEach(function (c) {
+              var inp = document.getElementById(idMap[c.field]);
+              if (inp) { inp.value = c.yours; inp.classList.add('cr-cell-conflict'); inp.title = 'Someone else saved "' + c.theirs + '". Save again to keep your value.'; }
+            });
+          }
+          if (STATE.detailClient === name && document.getElementById('cr-modal-detail').classList.contains('open')) renderDetailModal();
+        });
       }).catch(function (e2) { showToast('Save failed: ' + e2.message, true); });
     });
   }
@@ -1186,19 +1372,27 @@
 
   function renderExportModal() {
     var content = document.getElementById('cr-modal-export-content');
+    var monthName = esc(formatMonthName(STATE.month));
     var html = '<div class="cr-modal-hd"><h3>Export / Import Client Data</h3><button class="cr-modal-close" id="cr-em-close" type="button">&times;</button></div>';
     html += '<div class="cr-modal-body">';
 
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px">' +
-      '<h4 style="font-size:0.84rem;margin-bottom:6px">Export ' + esc(formatMonthName(STATE.month)) + ' Report</h4>' +
-      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:10px">Downloads a CSV with traffic, clicks, impressions, CTR, leads and MoM %% for all ' + STATE.clients.length + ' clients.</p>' +
-      '<button class="cr-btn cr-btn-primary" id="cr-em-download" type="button">Download CSV</button></div>';
+      '<h4 style="font-size:0.84rem;margin-bottom:6px">Export</h4>' +
+      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:10px">' +
+      '<strong>' + monthName + ' sheet</strong>: one row per client (all ' + STATE.clients.length + '), with blank cells where nothing is recorded yet &mdash; fill the blanks in Excel / Sheets and import it back.<br>' +
+      '<strong>Full history</strong>: every month recorded for every client (backup).</p>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="cr-btn cr-btn-primary" id="cr-em-download" type="button">Download ' + monthName + ' CSV</button>' +
+      '<button class="cr-btn cr-btn-light" id="cr-em-download-all" type="button">Download Full History CSV</button>' +
+      '</div></div>';
 
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">' +
-      '<h4 style="font-size:0.84rem;margin-bottom:6px">Import Monthly Updates (CSV)</h4>' +
-      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:8px">Header row required: <code>Client,Month,Organic Traffic,Organic Clicks,Impressions,Leads Received,Notes</code></p>' +
+      '<h4 style="font-size:0.84rem;margin-bottom:6px">Import (CSV file or paste)</h4>' +
+      '<p style="font-size:0.76rem;color:#64748b;margin-bottom:8px">Header row required. Recognised columns (any order): <code>Client, Month, Organic Traffic, Organic Clicks, Impressions, Leads Received, Notes, Domain, Industry, Tier, Account Manager, Target Traffic, Target Leads</code>. ' +
+      'The exported file can be imported as-is. <strong>Blank cells keep the existing value</strong> (they never overwrite data with 0). Rows without a Month go into <strong>' + monthName + '</strong>. CTR is recalculated automatically.</p>' +
+      '<input type="file" id="cr-em-file" accept=".csv,.tsv,.txt,text/csv" style="font-size:0.76rem;margin-bottom:8px"/>' +
       '<textarea class="cr-csv-area" id="cr-em-textarea" rows="6" placeholder="Client,Month,Organic Traffic,Organic Clicks,Impressions,Leads Received,Notes"></textarea>' +
-      '<div id="cr-em-status" style="font-size:0.76rem;font-weight:700;margin-top:8px"></div>' +
+      '<div id="cr-em-status" style="font-size:0.76rem;font-weight:700;margin-top:8px;white-space:pre-line"></div>' +
       '<button class="cr-btn cr-btn-primary" id="cr-em-import" type="button" style="margin-top:8px">Parse &amp; Import CSV</button></div>';
 
     html += '</div><div class="cr-modal-ft"><button class="cr-btn cr-btn-light" id="cr-em-close-bottom" type="button">Close</button></div>';
@@ -1207,47 +1401,97 @@
     document.getElementById('cr-em-close').addEventListener('click', closeExportModal);
     document.getElementById('cr-em-close-bottom').addEventListener('click', closeExportModal);
     document.getElementById('cr-em-download').addEventListener('click', downloadCSV);
+    document.getElementById('cr-em-download-all').addEventListener('click', downloadHistoryCSV);
     document.getElementById('cr-em-import').addEventListener('click', importCSV);
+    document.getElementById('cr-em-file').addEventListener('change', function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        document.getElementById('cr-em-textarea').value = String(reader.result || '');
+        var statusEl = document.getElementById('cr-em-status');
+        statusEl.style.color = '#64748b';
+        statusEl.textContent = 'Loaded "' + file.name + '" — click "Parse & Import CSV" to import.';
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+  function triggerCsvDownload(lines, filename) {
+    // BOM so Excel opens UTF-8 names correctly.
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+  }
+
+  var EXPORT_HEADERS = ['Client', 'Domain', 'Industry', 'Tier', 'Account Manager', 'Month', 'Organic Traffic', 'MoM Traffic %', 'Organic Clicks', 'Impressions', 'CTR (%)', 'Leads Received', 'MoM Leads %', 'Target Traffic', 'Target Leads', 'Notes'];
+
+  function exportRow(c, month) {
+    var m = STATE.metrics[c.client] && STATE.metrics[c.client][month];
+    var comp = buildComparison(c.client, month);
+    var prevExists = hasDbRow(c.client, prevMonthKey(month));
+    // Metrics with no saved row are exported BLANK (not 0) so re-importing
+    // the sheet can never overwrite data someone entered in the meantime.
+    return [c.client, c.domain, c.industry, c.tier, c.accountManager, month,
+      m ? m.organicTraffic : '', (m && prevExists) ? comp.traffic.percentChange + '%' : '',
+      m ? m.organicClicks : '', m ? m.impressions : '', m ? m.ctr : '',
+      m ? m.leads : '', (m && prevExists) ? comp.leads.percentChange + '%' : '',
+      c.targetTraffic, c.targetLeads, m ? (m.notes || '') : ''].map(csvCell).join(',');
   }
 
   function downloadCSV() {
-    var headers = ['Client', 'Domain', 'Industry', 'Tier', 'Account Manager', 'Month', 'Organic Traffic', 'MoM Traffic %', 'Organic Clicks', 'Impressions', 'CTR (%)', 'Leads Received', 'MoM Leads %', 'Target Traffic', 'Target Leads', 'Notes'];
-    var rows = STATE.clients.map(function (c) {
-      var comp = buildComparison(c.client, STATE.month);
-      return [c.client, c.domain, c.industry, c.tier, c.accountManager, STATE.month,
-        comp.cur.organicTraffic, comp.traffic.percentChange + '%', comp.cur.organicClicks, comp.cur.impressions,
-        comp.cur.ctr, comp.cur.leads, comp.leads.percentChange + '%', c.targetTraffic, c.targetLeads, comp.cur.notes || '']
-        .map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(',');
+    var rows = STATE.clients.map(function (c) { return exportRow(c, STATE.month); });
+    triggerCsvDownload([EXPORT_HEADERS.join(',')].concat(rows), 'client-report-' + STATE.month + '.csv');
+  }
+
+  function downloadHistoryCSV() {
+    var rows = [];
+    STATE.clients.forEach(function (c) {
+      Object.keys(STATE.metrics[c.client] || {}).sort().forEach(function (month) { rows.push(exportRow(c, month)); });
     });
-    var csv = [headers.join(','), rows.join('\n')].join('\n');
-    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'client-report-' + STATE.month + '.csv');
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    if (!rows.length) { showToast('No metric history recorded yet.', true); return; }
+    triggerCsvDownload([EXPORT_HEADERS.join(',')].concat(rows), 'client-report-full-history.csv');
   }
 
   function importCSV() {
     var textarea = document.getElementById('cr-em-textarea');
     var statusEl = document.getElementById('cr-em-status');
+    var btn = document.getElementById('cr-em-import');
     var csv = textarea.value;
-    if (!csv.trim()) return;
-    apiSend('POST', '/api/client-reports/import', { csv: csv }).then(function (res) {
-      statusEl.style.color = '#16a34a';
-      statusEl.textContent = res.message || 'Imported successfully';
-      textarea.value = '';
+    if (!csv.trim()) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Paste CSV text or choose a file first.'; return; }
+    btn.disabled = true;
+    statusEl.style.color = '#64748b';
+    statusEl.textContent = 'Importing…';
+    apiSend('POST', '/api/client-reports/import', { csv: csv, defaultMonth: STATE.month }).then(function (res) {
+      var skipped = res.skipped || [];
+      statusEl.style.color = skipped.length ? '#b45309' : '#16a34a';
+      var text = res.message || 'Imported successfully';
+      if (skipped.length) {
+        text += '\nSkipped rows:\n' + skipped.slice(0, 15).map(function (s) {
+          return '  line ' + s.line + (s.client ? ' (' + s.client + ')' : '') + ': ' + s.reason;
+        }).join('\n') + (skipped.length > 15 ? '\n  …and ' + (skipped.length - 15) + ' more' : '');
+      }
+      statusEl.textContent = text;
+      if (!skipped.length) textarea.value = '';
+      var fileInput = document.getElementById('cr-em-file');
+      if (fileInput) fileInput.value = '';
       return reloadAndRender();
     }).catch(function (e) {
       statusEl.style.color = '#dc2626';
       statusEl.textContent = 'Import failed: ' + e.message;
-    });
+    }).then(function () { btn.disabled = false; });
   }
 
   /* ═══════════════════════════════════════════════════════════════
      TAB / MONTH SWITCHING + INIT
      ═══════════════════════════════════════════════════════════════ */
   function renderCurrentTab() {
-    document.getElementById('cr-summary-hint').textContent = STATE.clients.length + ' client(s) tracked';
+    document.getElementById('cr-summary-hint').textContent = STATE.clients.length + ' client(s) tracked' +
+      (pendingTotal() ? ' · ' + pendingTotal() + ' unsaved row(s) in Bulk Entry' : '');
     if (STATE.tab === 'dashboard') renderDashboard();
     else if (STATE.tab === 'clients') renderClientsTable();
     else if (STATE.tab === 'bulk') renderBulkEntry();
@@ -1263,19 +1507,42 @@
     renderCurrentTab();
   }
 
+  // Unsaved edits are stored per month, so switching months never drops them.
+  function setMonth(month) {
+    STATE.month = month;
+    var sel = document.getElementById('cr-month-select');
+    if (sel && sel.value !== month) {
+      if (!sel.querySelector('option[value="' + month + '"]')) {
+        var opt = document.createElement('option'); opt.value = month; opt.textContent = formatMonthName(month); sel.appendChild(opt);
+      }
+      sel.value = month;
+    }
+    renderCurrentTab();
+  }
+
   function initMonthSelect() {
     var sel = document.getElementById('cr-month-select');
     var months = monthsList(18);
     sel.innerHTML = months.map(function (m) { return '<option value="' + m + '">' + formatMonthName(m) + '</option>'; }).join('');
     sel.value = STATE.month;
-    sel.addEventListener('change', function () {
-      STATE.month = sel.value;
-      initBulkDraft();
-      renderCurrentTab();
-    });
+    sel.addEventListener('change', function () { setMonth(sel.value); });
+  }
+
+  // Pull other people's saves when it is safe to re-render (not while this
+  // user is typing or has a modal open). Pending edits are never touched.
+  function isUserBusy() {
+    if (STATE.saving) return true;
+    if (document.querySelector('.cr-modal-overlay.open')) return true;
+    var a = document.activeElement;
+    return !!(a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT') && a.closest('#cr-view-bulk, #cr-view-clients'));
+  }
+  function backgroundRefresh() {
+    if (document.hidden || isUserBusy()) return;
+    reloadAndRender();
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    STATE.pending = loadPending();
     initMonthSelect();
 
     document.querySelectorAll('.cr-tab-btn').forEach(function (btn) {
@@ -1295,9 +1562,18 @@
       });
     });
 
+    window.addEventListener('beforeunload', function (e) {
+      if (pendingTotal() > 0) { e.preventDefault(); e.returnValue = ''; }
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) backgroundRefresh(); });
+    setInterval(backgroundRefresh, 120000);
+
     document.getElementById('cr-view-dashboard').innerHTML = '<div class="cr-card"><div class="cr-state-box"><div>Loading client report data&hellip;</div></div></div>';
 
-    reloadAndRender();
+    reloadAndRender().then(function () {
+      var n = pendingTotal();
+      if (n) showToast('Restored unsaved edits for ' + n + ' client row(s) from this browser — see Bulk Entry and click Save.');
+    });
   });
 
 })();
