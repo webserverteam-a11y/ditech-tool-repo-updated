@@ -109,6 +109,10 @@ export function rowToTask(row) {
     if (DEC_COLS.has(col)) val = Number(val) || 0;
     task[key] = val;
   }
+  // Version stamp. Clients echo it back on save so the server can detect a
+  // write made from a stale copy (see saveTaskToDb). Not a writable column —
+  // taskToColumns() only reads TASK_COLUMN_MAP keys.
+  task.updatedAt = row.updated_at ? new Date(row.updated_at).toISOString() : '';
   task.timeEvents = [];
   task.qcReviews = [];
   task.reworkEntries = [];

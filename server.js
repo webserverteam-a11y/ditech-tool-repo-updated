@@ -19,6 +19,7 @@ import { noCache } from './backend/middleware/noCache.js';
 import { apiNotFound, globalErrorHandler } from './backend/middleware/errorHandler.js';
 import { buildApiRouter } from './backend/routes/index.js';
 import { runOverrunCheck } from './backend/services/timerCheck.service.js';
+import { activityLogger, pruneActivity, logSystemActivity } from './backend/services/activityLog.service.js';
 
 validateEnv();
 
@@ -229,6 +230,11 @@ app.use('/api', noCache);
 // Attach res.ok / res.fail helpers (harmless to existing routes — they just
 // don't call them. New routes will).
 app.use('/api', attachResponders);
+
+// Server-side activity log: one row per write request (POST/PUT/PATCH/DELETE),
+// with field-level diffs for task writes. Mounted before every /api route,
+// including the legacy inline ones below. See activityLog.service.js.
+app.use('/api', activityLogger);
 
 // New modular API router (empty in Step 1 — resources are added one at a time
 // in later migration steps). Mounted BEFORE the inline routes below so that a
@@ -1442,8 +1448,17 @@ app.get('/client-reports', (_req, res) => {
 
 // ── Action Board 2.0 panel (standalone rebuild, does not touch the
 //    original bundle-only Action Board or any of its patches) ────
+// no-cache: browsers must always revalidate, so a fix to this page reaches
+// everyone on their next load instead of a heuristically cached old copy.
 app.get('/alt-action-board', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.join(__dirname, 'public', 'alt-action-board.html'));
+});
+
+// ── Activity Log viewer (server-side activity log + deleted-task restore) ──
+app.get('/activity-log', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'activity-log.html'));
 });
 
 // ── API 404 + global error handler ────────────────────
@@ -1455,11 +1470,18 @@ app.use(apiNotFound);
 app.use(globalErrorHandler);
 
 // ── Static + SPA fallback ─────────────────────────────
-app.use(express.static(path.join(__dirname, 'dist')));
+// The bundle is patched in place by scripts/patch-*.js, so its filename does
+// not change when its contents do. Without an explicit header, browsers cache
+// it heuristically and an old machine can keep running pre-fix code for days.
+// `no-cache` = always revalidate (cheap 304 via ETag), never run a stale copy.
+app.use(express.static(path.join(__dirname, 'dist'), {
+  setHeaders: res => res.setHeader('Cache-Control', 'no-cache'),
+}));
 
 app.get('*', (_req, res) => {
   const indexPath = path.join(__dirname, 'dist', 'index.html');
   if (fs.existsSync(indexPath)) {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(indexPath);
   } else {
     res.status(200).json({ status: 'API server running', db_admin: '/db-access' });
@@ -1502,6 +1524,13 @@ app.listen(PORT, HOST, () => {
           );
         }, OVERRUN_INTERVAL_MS);
         console.log('[timerCheck] Overrun check scheduled every 15 minutes.');
+
+        // Activity log retention: prune now, then hourly. A restart is itself
+        // logged — useful context when something odd happened around it.
+        logSystemActivity('system_start', { pid: process.pid });
+        pruneActivity(pool);
+        setInterval(() => pruneActivity(pool), 60 * 60 * 1000);
+        console.log('[activityLog] Retention cleanup scheduled hourly.');
 
         return;
       } catch (e) {

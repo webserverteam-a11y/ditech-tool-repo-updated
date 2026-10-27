@@ -24,6 +24,7 @@ import { keywordUpdateRouter } from './keyword-update.routes.js';
 import { unifiedTimesheetRouter } from './unified-timesheet.routes.js';
 import { clientReportsRouter } from './client-reports.routes.js';
 import { notesRouter } from './notes.routes.js';
+import { activityRouter } from './activity.routes.js';
 
 export function buildApiRouter() {
   const router = Router();
@@ -50,6 +51,7 @@ export function buildApiRouter() {
   router.use('/unified-timesheet',     unifiedTimesheetRouter); // GET grouped timesheet report
   router.use('/client-reports',        clientReportsRouter);  // Client Reports panel (profiles + monthly metrics)
   router.use('/notes',                 notesRouter);          // Sticky Notes panel (private per-user notes)
+  router.use('/activity',              activityRouter);       // Server-side activity log + deleted-task restore
 
   return router;
 }

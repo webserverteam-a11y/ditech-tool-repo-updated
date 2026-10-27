@@ -25,6 +25,128 @@ import { normalizeTaskDates } from '../utils/dateNormalize.js';
 import { groupBy } from '../utils/taskMapping.js';
 import { runOverrunCheck } from '../services/timerCheck.service.js';
 import { enforceSingleActiveTimer, isOpeningEvent, resolveEventOwner } from '../utils/timerGuard.js';
+import { TASK_COLUMN_MAP } from '../utils/taskMapping.js';
+import { recordActivity, archiveDeletedTask, clientMeta } from '../services/activityLog.service.js';
+
+// ── Activity-log helpers ───────────────────────────────────────────────────
+
+const SAVE_ACTIONS = {
+  create:        'task_create',
+  merge:         'task_update',
+  full:          'task_update_full',
+  refused_stale: 'task_refused_stale',
+};
+
+/** Record one saveTaskToDb() result in this request's activity log. */
+function logTaskSave(res, task, r) {
+  const changed = (r.changes && r.changes.length) || r.newEvents.length || r.autoPaused.length;
+  recordActivity(res, {
+    action:  r.mode === 'create' || r.stale || changed ? SAVE_ACTIONS[r.mode] : 'task_save_nochange',
+    taskId:  task.id,
+    changes: r.changes,
+    details: {
+      title: task.title,
+      newEvents:  r.newEvents.length ? r.newEvents : undefined,
+      autoPaused: r.autoPaused.length ? r.autoPaused : undefined,
+      sentBase:   !!task._base,
+      clientCopyUpdatedAt: task.updatedAt || undefined,
+    },
+  });
+}
+
+/** Loose equality for DB vs JSON values ("1.00" == 1, 1 == true, null == ''). */
+function sameValue(a, b) {
+  const blankA = a === null || a === undefined || a === '';
+  const blankB = b === null || b === undefined || b === '';
+  if (blankA || blankB) return blankA === blankB;
+  const na = Number(a), nb = Number(b);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na === nb;
+  return String(a) === String(b);
+}
+
+/**
+ * [{field, from, to}] for the given [[column, newValue]] pairs vs the current
+ * row. Column names come from the routes' own whitelists, never from input.
+ */
+async function diffColumns(taskId, pairs, db = pool) {
+  const [rows] = await db.query(
+    `SELECT ${pairs.map(([c]) => c).join(', ')} FROM tasks WHERE id = ? LIMIT 1`,
+    [taskId]
+  );
+  if (!rows.length) return [];
+  return pairs
+    .filter(([c, v]) => !sameValue(rows[0][c], v))
+    .map(([c, v]) => ({ field: TASK_COLUMN_MAP[c] || c, from: rows[0][c], to: v }));
+}
+
+const isoOrEmpty = d => (d ? new Date(d).toISOString() : '');
+
+/**
+ * Version check for the field-level PATCH endpoints.
+ *
+ * Field-level writes can not clobber unrelated fields, but they can still act
+ * on a decision made from an out-of-date screen: user B closes or reassigns a
+ * task that user A handed off ten seconds ago, without ever seeing A's change.
+ * A client that sends `expectedUpdatedAt` (the task version it was looking at)
+ * gets 409 instead if the row has changed since; it then refreshes and the
+ * user decides again. Omitting it keeps the old unconditional behaviour.
+ *
+ * Runs `apply(conn)` in a transaction holding the row lock, so the check and
+ * the write can not interleave with another writer. Retried on deadlock, as
+ * in saveOneTask() — the timer guard inside `apply` may lock other task rows.
+ *
+ * @returns {Promise<{status: 'ok'|'conflict'|'missing', updatedAt?: string, currentUpdatedAt?: string}>}
+ */
+async function withVersionCheck(taskId, expectedUpdatedAt, apply, retries = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await versionCheckOnce(taskId, expectedUpdatedAt, apply);
+    } catch (e) {
+      const retryable = e.code === 'ER_LOCK_DEADLOCK' || e.code === 'ER_LOCK_WAIT_TIMEOUT';
+      if (!retryable || attempt >= retries) throw e;
+      await new Promise(r => setTimeout(r, 50 * attempt));
+    }
+  }
+}
+
+async function versionCheckOnce(taskId, expectedUpdatedAt, apply) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      'SELECT updated_at FROM tasks WHERE id = ? LIMIT 1 FOR UPDATE', [taskId]
+    );
+    if (!rows.length) { await conn.rollback(); return { status: 'missing' }; }
+
+    if (expectedUpdatedAt && rows[0].updated_at &&
+        Date.parse(expectedUpdatedAt) < new Date(rows[0].updated_at).getTime()) {
+      await conn.rollback();
+      return { status: 'conflict', currentUpdatedAt: isoOrEmpty(rows[0].updated_at) };
+    }
+
+    await apply(conn);
+    const [after] = await conn.query('SELECT updated_at FROM tasks WHERE id = ? LIMIT 1', [taskId]);
+    await conn.commit();
+    return { status: 'ok', updatedAt: isoOrEmpty(after[0] && after[0].updated_at) };
+  } catch (e) {
+    await conn.rollback().catch(() => {});
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+/** Shared 409 / activity-log handling for a refused PATCH. */
+function refuseConflict(res, taskId, expectedUpdatedAt, result, attempted) {
+  recordActivity(res, {
+    action: 'task_conflict_refused', taskId,
+    details: { expectedUpdatedAt, currentUpdatedAt: result.currentUpdatedAt, attempted },
+  });
+  return res.status(409).json({
+    error: 'This task was changed by someone else since you loaded it — refresh and try again',
+    conflict: true, taskId, currentUpdatedAt: result.currentUpdatedAt,
+  });
+}
 
 export const tasksRouter = Router();
 
@@ -141,10 +263,10 @@ async function saveOneTask(task, retries = 3) {
     try {
       conn = await pool.getConnection();
       await conn.beginTransaction();
-      await saveTaskToDb(conn, task);
+      const result = await saveTaskToDb(conn, task);
       await conn.commit();
       conn.release();
-      return;
+      return result;
     } catch (e) {
       if (conn) { await conn.rollback().catch(() => {}); conn.release(); conn = null; }
       const retryable = e.code === 'ER_LOCK_DEADLOCK' || e.code === 'ER_LOCK_WAIT_TIMEOUT';
@@ -171,7 +293,18 @@ tasksRouter.put('/', async (req, res) => {
 
   try {
     // Save each task in its own short transaction (sequentially to avoid deadlocks).
-    for (const t of tasks) await saveOneTask(t);
+    const staleIds = [];
+    for (const t of tasks) {
+      const r = await saveOneTask(t);
+      logTaskSave(res, t, r);
+      if (r.stale) staleIds.push(t.id);
+    }
+    recordActivity(res, {
+      action: 'task_bulk_save',
+      details: { count: tasks.length, refused: staleIds.length },
+    });
+    if (staleIds.length)
+      console.warn(`PUT /api/tasks: refused ${staleIds.length} stale task overwrite(s):`, staleIds.join(', '));
 
     const ph = ids.map(() => '?').join(',');
     const [vRows] = await pool.query(`SELECT COUNT(*) AS c FROM tasks WHERE id IN (${ph})`, ids);
@@ -179,6 +312,7 @@ tasksRouter.put('/', async (req, res) => {
 
     res.json({
       ok: true, count: tasks.length,
+      staleIds,
       dbVerified: verified,
       message: verified
         ? `${tasks.length} task(s) saved and verified in DB`
@@ -201,8 +335,17 @@ tasksRouter.put('/:id', async (req, res) => {
     conn = await pool.getConnection();
     await conn.beginTransaction();
     task.id = req.params.id;
-    await saveTaskToDb(conn, task);
+    const saved = await saveTaskToDb(conn, task);
     await conn.commit();
+    logTaskSave(res, task, saved);
+
+    if (saved.stale) {
+      console.warn(`PUT /api/tasks/${task.id}: refused stale overwrite (client copy ${task.updatedAt || 'unversioned'})`);
+      return res.status(409).json({
+        error: 'Task was changed by someone else since you loaded it — refresh and try again',
+        stale: true, taskId: task.id,
+      });
+    }
 
     const [vRows] = await pool.query(
       'SELECT id, title, client, execution_state, updated_at FROM tasks WHERE id = ? LIMIT 1',
@@ -237,6 +380,8 @@ tasksRouter.delete('/:id', async (req, res) => {
   try {
     conn = await pool.getConnection();
     await conn.beginTransaction();
+    // Full copy first, in the same transaction — no archive, no delete.
+    const archived = await archiveDeletedTask(conn, taskId, clientMeta(req));
     await conn.query('DELETE FROM task_time_events   WHERE task_id = ?', [taskId]);
     await conn.query('DELETE FROM task_qc_reviews    WHERE task_id = ?', [taskId]);
     await conn.query('DELETE FROM task_rework_entries WHERE task_id = ?', [taskId]);
@@ -245,6 +390,14 @@ tasksRouter.delete('/:id', async (req, res) => {
 
     if (result.affectedRows === 0)
       return res.status(404).json({ error: `Task "${taskId}" not found` });
+
+    recordActivity(res, {
+      action: 'task_delete', taskId,
+      details: archived ? {
+        title: archived.title, client: archived.client,
+        seoOwner: archived.seo_owner, executionState: archived.execution_state,
+      } : undefined,
+    });
 
     res.json({ ok: true, message: `Task "${taskId}" deleted successfully` });
   } catch (e) {
@@ -261,8 +414,10 @@ tasksRouter.delete('/:id', async (req, res) => {
 // tables, so it is safe when multiple users assign simultaneously.
 //
 // Body: { seoOwner, contentOwner, webOwner, assignedTo, currentOwner,
-//         seoStage, executionState, seoQcStatus, contentStatus, webStatus }
+//         seoStage, executionState, seoQcStatus, contentStatus, webStatus,
+//         expectedUpdatedAt? }  — see withVersionCheck()
 // Any field omitted from the body is left unchanged in the DB.
+// Response includes the task's new `updatedAt`.
 tasksRouter.patch('/:id/assign', async (req, res) => {
   const taskId = req.params.id;
   const body   = req.body || {};
@@ -292,39 +447,50 @@ tasksRouter.patch('/:id/assign', async (req, res) => {
     //
     // Apply the same one-task-at-a-time rule as the events endpoint: moving a
     // task into a running state pauses whatever else that owner had running.
-    if (body.executionState === 'In Progress' || body.executionState === 'Rework') {
-      const guardOwner = await resolveEventOwner(pool, {
-        taskId,
-        owner:      body.owner || body.currentUser || '',
-        department: body.currentOwner,
-      });
-      if (guardOwner) {
-        await enforceSingleActiveTimer(pool, {
+    let autoPaused = [];
+    let changes = [];
+    const result = await withVersionCheck(taskId, body.expectedUpdatedAt, async conn => {
+      if (body.executionState === 'In Progress' || body.executionState === 'Rework') {
+        const guardOwner = await resolveEventOwner(conn, {
           taskId,
-          owner:      guardOwner,
-          timestamp:  new Date().toISOString(),
-          department: body.currentOwner || '',
+          owner:      body.owner || body.currentUser || '',
+          department: body.currentOwner,
         });
+        if (guardOwner) {
+          const guard = await enforceSingleActiveTimer(conn, {
+            taskId,
+            owner:      guardOwner,
+            timestamp:  new Date().toISOString(),
+            department: body.currentOwner || '',
+          });
+          autoPaused = guard.pausedTaskIds;
+        }
       }
-    }
 
-    const setClauses = ASSIGNABLE.map(([col]) => `${col} = ?`).join(', ');
-    const values     = ASSIGNABLE.map(([, v]) => v);
-    values.push(taskId);
+      changes = await diffColumns(taskId, ASSIGNABLE, conn);
+      const setClauses = ASSIGNABLE.map(([col]) => `${col} = ?`).join(', ');
+      await conn.query(
+        `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
+        [...ASSIGNABLE.map(([, v]) => v), taskId]
+      );
+    });
 
-    const [result] = await pool.query(
-      `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
-      values
-    );
-
-    if (result.affectedRows === 0)
+    if (result.status === 'missing')
       return res.status(404).json({ error: `Task "${taskId}" not found` });
+    if (result.status === 'conflict')
+      return refuseConflict(res, taskId, body.expectedUpdatedAt, result, Object.fromEntries(ASSIGNABLE));
+
+    recordActivity(res, {
+      action: 'task_assign', taskId, changes,
+      details: autoPaused.length ? { autoPaused } : undefined,
+    });
 
     const updated = Object.fromEntries(ASSIGNABLE);
     res.json({
       ok: true,
       taskId,
       updated,
+      updatedAt: result.updatedAt,
       message: `Task "${taskId}" assignment updated successfully`,
     });
   } catch (e) {
@@ -352,6 +518,10 @@ tasksRouter.post('/:id/events', async (req, res) => {
       return res.status(404).json({ error: `Task "${taskId}" not found` });
 
     const timestamp = ev.timestamp || new Date().toISOString();
+    const logEvent = (outcome, extra) => recordActivity(res, {
+      action: `timer_${ev.type}`, taskId,
+      details: { outcome, owner: ev.owner || '', department: ev.department || '', timestamp, ...extra },
+    });
 
     // Near-duplicate guard — same rule as saveTaskToDb(). Both timer handlers
     // record each action twice with clocks ~1ms apart, and the exact-timestamp
@@ -366,6 +536,7 @@ tasksRouter.post('/:id/events', async (req, res) => {
       .filter(e => !Number.isNaN(e.t));
 
     if (isDuplicateTimeEvent(seen, { ...ev, timestamp })) {
+      logEvent('ignored_duplicate');
       return res.status(200).json({
         ok: true,
         taskId,
@@ -392,6 +563,7 @@ tasksRouter.post('/:id/events', async (req, res) => {
         department: ev.department || '',
       });
       if (guard.redundant) {
+        logEvent('ignored_already_running', guard.pausedTaskIds.length ? { autoPaused: guard.pausedTaskIds } : undefined);
         return res.status(200).json({
           ok: true,
           taskId,
@@ -407,6 +579,7 @@ tasksRouter.post('/:id/events', async (req, res) => {
        VALUES (?, ?, ?, ?, ?)`,
       [taskId, ev.type, timestamp, ev.department || '', ev.owner || '']
     );
+    logEvent('recorded', pausedTaskIds.length ? { autoPaused: pausedTaskIds } : undefined);
 
     res.status(201).json({
       ok: true,
@@ -469,6 +642,10 @@ tasksRouter.post('/:id/qc-reviews', async (req, res) => {
       ]
     );
 
+    recordActivity(res, {
+      action: 'qc_review_save', taskId,
+      details: { reviewId, submittedBy: qc.submittedBy, assignedTo: qc.assignedTo, outcome: qc.outcome },
+    });
     res.status(201).json({
       ok: true, taskId, reviewId,
       message: `QC review "${reviewId}" saved for task "${taskId}"`,
@@ -492,6 +669,7 @@ tasksRouter.delete('/:id/qc-reviews/:reviewId', async (req, res) => {
     if (result.affectedRows === 0)
       return res.status(404).json({ error: `QC review "${reviewId}" not found on task "${taskId}"` });
 
+    recordActivity(res, { action: 'qc_review_delete', taskId, details: { reviewId } });
     res.json({ ok: true, message: `QC review "${reviewId}" removed` });
   } catch (e) {
     console.error('DELETE /api/tasks/:id/qc-reviews/:reviewId error:', e.message);
@@ -540,6 +718,10 @@ tasksRouter.post('/:id/rework', async (req, res) => {
       ]
     );
 
+    recordActivity(res, {
+      action: 'rework_save', taskId,
+      details: { reworkId, assignedDept: rw.assignedDept, assignedOwner: rw.assignedOwner },
+    });
     res.status(201).json({
       ok: true, taskId, reworkId,
       message: `Rework entry "${reworkId}" saved for task "${taskId}"`,
@@ -563,6 +745,7 @@ tasksRouter.delete('/:id/rework/:reworkId', async (req, res) => {
     if (result.affectedRows === 0)
       return res.status(404).json({ error: `Rework entry "${reworkId}" not found on task "${taskId}"` });
 
+    recordActivity(res, { action: 'rework_delete', taskId, details: { reworkId } });
     res.json({ ok: true, message: `Rework entry "${reworkId}" removed` });
   } catch (e) {
     console.error('DELETE /api/tasks/:id/rework/:reworkId error:', e.message);
@@ -577,6 +760,8 @@ tasksRouter.delete('/:id/rework/:reworkId', async (req, res) => {
 //
 // Body: any camelCase subset of task fields, e.g.
 //   { remarks: "new note", dueDate: "2026-05-01", isCompleted: true }
+// plus optional expectedUpdatedAt — see withVersionCheck(). Response includes
+// the task's new `updatedAt`.
 tasksRouter.patch('/:id/fields', async (req, res) => {
   const taskId = req.params.id;
   const body   = req.body || {};
@@ -635,21 +820,28 @@ tasksRouter.patch('/:id/fields', async (req, res) => {
     return res.status(400).json({ error: 'No valid fields provided' });
 
   try {
-    const setClauses = updates.map(([col]) => `${col} = ?`).join(', ');
-    const values     = [...updates.map(([, v]) => v), taskId];
+    let changes = [];
+    const result = await withVersionCheck(taskId, body.expectedUpdatedAt, async conn => {
+      changes = await diffColumns(taskId, updates, conn);
+      const setClauses = updates.map(([col]) => `${col} = ?`).join(', ');
+      await conn.query(
+        `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
+        [...updates.map(([, v]) => v), taskId]
+      );
+    });
 
-    const [result] = await pool.query(
-      `UPDATE tasks SET ${setClauses}, updated_at = NOW() WHERE id = ?`,
-      values
-    );
-
-    if (result.affectedRows === 0)
+    if (result.status === 'missing')
       return res.status(404).json({ error: `Task "${taskId}" not found` });
+    if (result.status === 'conflict')
+      return refuseConflict(res, taskId, body.expectedUpdatedAt, result, Object.fromEntries(updates));
+
+    recordActivity(res, { action: 'task_fields', taskId, changes });
 
     res.json({
       ok: true,
       taskId,
       updated: Object.fromEntries(updates),
+      updatedAt: result.updatedAt,
       message: `Task "${taskId}" updated successfully`,
     });
   } catch (e) {

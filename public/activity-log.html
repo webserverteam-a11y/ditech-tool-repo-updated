@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity Log — DiTech CDM</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 13px; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f1f5f9;
+      color: #1e293b;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #1e2d5a; color: #fff; padding: 0 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px; position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    .header-brand { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.3px; }
+    .header-sub { font-size: 0.85rem; opacity: 0.65; font-weight: 400; margin-left: 6px; }
+    .tabs { display: flex; gap: 6px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px;
+      border-radius: 6px; border: none; cursor: pointer; font-size: 0.84rem; font-weight: 600;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-outline { background: transparent; border: 1.5px solid rgba(255,255,255,0.35); color: #fff; }
+    .btn-outline.active { background: #fff; color: #1e2d5a; }
+    .btn-primary { background: #4f6ef7; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3b5be0; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #15803d; }
+    .btn-link { background: none; color: #4f6ef7; padding: 0; font-weight: 600; }
+
+    /* ── Controls ── */
+    .controls {
+      background: #fff; border-bottom: 1px solid #e2e8f0; padding: 14px 28px;
+      display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap;
+    }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; }
+    .field input, .field select {
+      height: 32px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 6px;
+      font-size: 0.9rem; background: #fff; color: #1e293b; min-width: 150px;
+    }
+    .hint { font-size: 0.8rem; color: #64748b; padding: 10px 28px 0; }
+
+    /* ── Table ── */
+    .wrap { padding: 14px 28px 40px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.4px;
+      color: #64748b; background: #f8fafc; padding: 9px 10px; border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap; position: sticky; top: 0;
+    }
+    td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; font-size: 0.88rem; }
+    tr:hover td { background: #f8fafc; }
+    .mono { font-family: monospace; font-size: 0.82rem; }
+    .muted { color: #94a3b8; font-size: 0.8rem; }
+    .nowrap { white-space: nowrap; }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.78rem;
+      font-weight: 600; background: #e2e8f0; color: #334155; white-space: nowrap;
+    }
+    .pill.bad { background: #fee2e2; color: #b91c1c; }
+    .pill.del { background: #fde68a; color: #92400e; }
+    .pill.ok  { background: #dcfce7; color: #166534; }
+    .pill.sys { background: #e0e7ff; color: #3730a3; }
+    .chg { margin: 1px 0; }
+    .chg b { font-weight: 600; }
+    .from { color: #b91c1c; text-decoration: line-through; }
+    .to { color: #166534; }
+    .old-code { color: #b91c1c; font-weight: 600; }
+    details summary { cursor: pointer; color: #4f6ef7; font-size: 0.8rem; }
+    details pre { white-space: pre-wrap; word-break: break-all; font-size: 0.78rem; background: #f8fafc; padding: 6px; border-radius: 4px; margin-top: 4px; max-width: 520px; }
+    .empty { padding: 40px; text-align: center; color: #94a3b8; }
+    .more { padding: 12px; text-align: center; }
+    .toast {
+      position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: #fff;
+      padding: 10px 16px; border-radius: 6px; font-size: 0.9rem; display: none; z-index: 200;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-brand">Activity Log <span class="header-sub">what the server saw — every change, by whom, from where</span></div>
+    <div class="tabs">
+      <button class="btn btn-outline active" id="tabLog" onclick="showView('log')">Activity</button>
+      <button class="btn btn-outline" id="tabDel" onclick="showView('deleted')">Deleted tasks</button>
+    </div>
+  </div>
+
+  <!-- ── Activity view ── -->
+  <div id="viewLog">
+    <div class="controls">
+      <div class="field"><label>Task (id or title)</label><input id="fTask" placeholder="e.g. Red Brass" /></div>
+      <div class="field"><label>User</label><input id="fUser" placeholder="e.g. Aman" /></div>
+      <div class="field"><label>Action</label>
+        <select id="fAction">
+          <option value="">All</option>
+          <option value="task_update">Task updates</option>
+          <option value="task_refused_stale">Refused stale writes</option>
+          <option value="task_delete">Deletes</option>
+          <option value="task_create">Creates</option>
+          <option value="task_assign">Assign</option>
+          <option value="task_fields">Field edits</option>
+          <option value="timer_">Timer events</option>
+          <option value="task_restore">Restores</option>
+          <option value="system_">System</option>
+        </select>
+      </div>
+      <div class="field"><label>Tab id</label><input id="fTab" placeholder="click a tab id below" /></div>
+      <div class="field"><label>Last</label>
+        <select id="fHours">
+          <option value="1">1 hour</option>
+          <option value="6">6 hours</option>
+          <option value="24" selected>24 hours</option>
+          <option value="72">3 days</option>
+          <option value="168">7 days</option>
+        </select>
+      </div>
+      <div class="field"><label>&nbsp;</label>
+        <label class="muted" style="text-transform:none;display:flex;gap:6px;align-items:center;height:32px">
+          <input type="checkbox" id="fNoop" style="min-width:auto;height:auto" /> show no-change saves
+        </label>
+      </div>
+      <button class="btn btn-primary" onclick="loadLog()">Search</button>
+    </div>
+    <div class="hint">"Who" is reported by the browser (the server has no login check yet). Tab id + IP tell machines apart.
+      <span class="old-code">Red "loaded"</span> = that tab was running code from before the latest server start.</div>
+    <div class="wrap">
+      <div class="card">
+        <table>
+          <thead><tr>
+            <th>Time</th><th>Who / where</th><th>Action</th><th>Task</th><th>Changes</th><th>Result</th>
+          </tr></thead>
+          <tbody id="logBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+        <div class="more" id="logMore" style="display:none"><button class="btn btn-link" onclick="loadLog(true)">Load older…</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Deleted tasks view ── -->
+  <div id="viewDeleted" style="display:none">
+    <div class="controls">
+      <div class="field"><label>Task (id or title)</label><input id="dQ" placeholder="e.g. Red Brass" /></div>
+      <button class="btn btn-primary" onclick="loadDeleted()">Search</button>
+    </div>
+    <div class="hint">Every deleted task is kept here (with its timer history, QC and rework) for 30 days and can be restored.</div>
+    <div class="wrap">
+      <div class="card">
+        <table>
+          <thead><tr><th>Deleted at</th><th>Task</th><th>Client</th><th>Deleted by</th><th>Status</th><th></th></tr></thead>
+          <tbody id="delBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var rows = [];
+  var serverStartedAt = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(t) {
+    if (!t) return '';
+    var d = new Date(t);
+    if (isNaN(d)) return esc(t);
+    return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }) + ' ' +
+      d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) +
+      '.' + String(d.getMilliseconds()).padStart(3, '0');
+  }
+  function val(v) { return v === null || v === undefined || v === '' ? '∅' : String(v); }
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg; el.style.display = 'block';
+    setTimeout(function () { el.style.display = 'none'; }, 3000);
+  }
+  function chk(r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; }); }
+
+  window.showView = function (v) {
+    document.getElementById('viewLog').style.display = v === 'log' ? '' : 'none';
+    document.getElementById('viewDeleted').style.display = v === 'deleted' ? '' : 'none';
+    document.getElementById('tabLog').classList.toggle('active', v === 'log');
+    document.getElementById('tabDel').classList.toggle('active', v === 'deleted');
+    if (v === 'deleted') loadDeleted();
+  };
+
+  window.filterTab = function (id) { document.getElementById('fTab').value = id; loadLog(); };
+  window.filterTask = function (id) { document.getElementById('fTask').value = id; loadLog(); };
+
+  function actionPill(a, status) {
+    var cls = '';
+    if (/refused|stale/.test(a) || status >= 400) cls = 'bad';
+    else if (/delete/.test(a)) cls = 'del';
+    else if (/restore|create/.test(a)) cls = 'ok';
+    else if (/^system/.test(a)) cls = 'sys';
+    return '<span class="pill ' + cls + '">' + esc(a) + '</span>';
+  }
+
+  function renderChanges(r) {
+    var out = '';
+    (r.changes || []).forEach(function (c) {
+      out += '<div class="chg"><b>' + esc(c.field) + '</b>: <span class="from">' + esc(val(c.from)) +
+        '</span> → <span class="to">' + esc(val(c.to)) + '</span></div>';
+    });
+    if (r.action === 'task_refused_stale' && out) out = '<div class="muted">would have changed (blocked):</div>' + out;
+    var d = r.details;
+    if (d && typeof d === 'object') {
+      if (d.newEvents) out += '<div class="muted">timer: ' + esc(d.newEvents.map(function (e) { return e.type + ' (' + (e.owner || '?') + ')'; }).join(', ')) + '</div>';
+      if (d.autoPaused) out += '<div class="muted">auto-paused: ' + esc(d.autoPaused.join(', ')) + '</div>';
+      if (d.outcome) out += '<div class="muted">' + esc(d.outcome) + (d.owner ? ' · ' + esc(d.owner) : '') + '</div>';
+    }
+    if (d) out += '<details><summary>details</summary><pre>' + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
+    return out || '<span class="muted">—</span>';
+  }
+
+  function render() {
+    var showNoop = document.getElementById('fNoop').checked;
+    var list = rows.filter(function (r) { return showNoop || r.action !== 'task_save_nochange'; });
+    var body = document.getElementById('logBody');
+    if (!list.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No activity found for these filters.</td></tr>'; return; }
+    body.innerHTML = list.map(function (r) {
+      var oldCode = serverStartedAt && r.appLoadedAt && new Date(r.appLoadedAt) < serverStartedAt;
+      var who = '<div><b>' + esc(r.user || (r.method === 'SYSTEM' ? 'system' : 'unknown')) + '</b></div>';
+      if (r.tabId) who += '<div class="muted">tab <button class="btn-link btn mono" onclick="filterTab(\'' + esc(r.tabId) + '\')">' + esc(r.tabId.slice(0, 8)) + '</button></div>';
+      if (r.ip) who += '<div class="muted mono">' + esc(r.ip) + '</div>';
+      if (r.appLoadedAt) who += '<div class="muted ' + (oldCode ? 'old-code' : '') + '">loaded ' + esc(fmt(r.appLoadedAt)) + '</div>';
+      else if (r.method !== 'SYSTEM') who += '<div class="muted old-code">no tab info (old code / other page)</div>';
+      var task = r.taskId
+        ? '<button class="btn btn-link" onclick="filterTask(\'' + esc(r.taskId) + '\')">' + esc(r.taskTitle || (r.details && r.details.title) || r.taskId) + '</button><div class="muted mono">' + esc(r.taskId) + '</div>'
+        : '<span class="muted">' + esc(r.path || '') + '</span>';
+      return '<tr>' +
+        '<td class="nowrap mono">' + esc(fmt(r.at)) + '</td>' +
+        '<td class="nowrap">' + who + '</td>' +
+        '<td>' + actionPill(r.action, r.status) + '<div class="muted mono">' + esc(r.method) + '</div></td>' +
+        '<td>' + task + '</td>' +
+        '<td>' + renderChanges(r) + '</td>' +
+        '<td class="nowrap">' + (r.status ? '<span class="pill ' + (r.status >= 400 ? 'bad' : 'ok') + '">' + r.status + '</span>' : '') +
+          (r.durationMs ? '<div class="muted">' + r.durationMs + ' ms</div>' : '') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  window.loadLog = function (older) {
+    var p = new URLSearchParams();
+    var v;
+    if ((v = document.getElementById('fTask').value.trim())) p.set('task', v);
+    if ((v = document.getElementById('fUser').value.trim())) p.set('user', v);
+    if ((v = document.getElementById('fAction').value)) p.set('action', v);
+    if ((v = document.getElementById('fTab').value.trim())) p.set('tab', v);
+    p.set('hours', document.getElementById('fHours').value);
+    p.set('limit', '500');
+    if (older && rows.length) p.set('beforeId', rows[rows.length - 1].id);
+
+    fetch('/api/activity?' + p.toString(), { cache: 'no-store' }).then(chk).then(function (data) {
+      rows = older ? rows.concat(data) : data;
+      document.getElementById('logMore').style.display = data.length === 500 ? '' : 'none';
+      render();
+    }).catch(function (e) {
+      document.getElementById('logBody').innerHTML = '<tr><td colspan="6" class="empty">Failed to load: ' + esc(e.message) + '</td></tr>';
+    });
+  };
+
+  window.loadDeleted = function () {
+    var q = document.getElementById('dQ').value.trim();
+    fetch('/api/activity/deleted' + (q ? '?q=' + encodeURIComponent(q) : ''), { cache: 'no-store' }).then(chk).then(function (data) {
+      var body = document.getElementById('delBody');
+      if (!data.length) { body.innerHTML = '<tr><td colspan="6" class="empty">No deleted tasks in the archive.</td></tr>'; return; }
+      body.innerHTML = data.map(function (d) {
+        return '<tr>' +
+          '<td class="nowrap mono">' + esc(fmt(d.deletedAt)) + '</td>' +
+          '<td><b>' + esc(d.title) + '</b><div class="muted mono">' + esc(d.taskId) + '</div></td>' +
+          '<td>' + esc(d.client) + '</td>' +
+          '<td>' + esc(d.deletedBy || 'unknown') + (d.ip ? '<div class="muted mono">' + esc(d.ip) + '</div>' : '') + '</td>' +
+          '<td>' + (d.restoredAt ? '<span class="pill ok">restored ' + esc(fmt(d.restoredAt)) + '</span>' : '<span class="pill del">deleted</span>') + '</td>' +
+          '<td>' + (d.restoredAt ? '' : '<button class="btn btn-success" onclick="restoreTask(' + d.id + ', this)">Restore</button>') + '</td>' +
+          '</tr>';
+      }).join('');
+    }).catch(function (e) {
+      document.getElementById('delBody').innerHTML = '<tr><td colspan="6" class="empty">Failed to load: ' + esc(e.message) + '</td></tr>';
+    });
+  };
+
+  window.restoreTask = function (id, btn) {
+    if (!confirm('Restore this task with its timer history, QC reviews and rework entries?')) return;
+    btn.disabled = true;
+    fetch('/api/activity/deleted/' + id + '/restore', { method: 'POST' }).then(chk).then(function (j) {
+      toast(j.message || 'Restored'); loadDeleted();
+    }).catch(function (e) { toast('Restore failed: ' + e.message); btn.disabled = false; });
+  };
+
+  document.getElementById('fNoop').addEventListener('change', render);
+  ['fTask', 'fUser', 'fTab'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') loadLog(); });
+  });
+  document.getElementById('dQ').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadDeleted(); });
+
+  // Latest server start, to flag tabs still running code loaded before it.
+  fetch('/api/activity?action=system_start&hours=720&limit=1', { cache: 'no-store' }).then(chk).then(function (d) {
+    if (d.length) serverStartedAt = new Date(d[0].at);
+  }).catch(function () {}).then(function () { loadLog(); });
+})();
+</script>
+</body>
+</html>

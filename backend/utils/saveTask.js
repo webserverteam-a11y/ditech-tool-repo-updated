@@ -19,7 +19,7 @@
  */
 
 import { normalizeTaskDates } from './dateNormalize.js';
-import { taskToColumns } from './taskMapping.js';
+import { taskToColumns, TASK_COLUMN_MAP, INT_COLS, DEC_COLS } from './taskMapping.js';
 import { enforceSingleActiveTimer, isOpeningEvent } from './timerGuard.js';
 
 /**
@@ -58,20 +58,123 @@ export function isDuplicateTimeEvent(seen, ev) {
   );
 }
 
-export async function saveTaskToDb(conn, task) {
-  normalizeTaskDates(task);
-  const { cols, vals } = taskToColumns(task);
-  const placeholders = cols.map(() => '?').join(',');
-  const updates = cols
-    .filter(c => c !== 'id')
-    .map(c => `${c} = VALUES(${c})`)
-    .join(', ');
+/** How long after creation an unversioned full-row write is still accepted. */
+const NEW_TASK_GRACE_MS = 5 * 60 * 1000;
 
-  await conn.query(
-    `INSERT INTO tasks (${cols.join(',')}) VALUES (${placeholders})
-     ON DUPLICATE KEY UPDATE ${updates}`,
-    vals
+/** May a payload without `_base` overwrite the whole existing `row`? */
+function isFullWriteAllowed(task, row) {
+  if (task.updatedAt) {
+    if (!row.updated_at) return true;
+    return Date.parse(task.updatedAt) >= new Date(row.updated_at).getTime();
+  }
+  if (!row.created_at) return false;
+  return Date.now() - new Date(row.created_at).getTime() < NEW_TASK_GRACE_MS;
+}
+
+/** Comparable form of a task field value, matching taskToColumns() coercion. */
+function normField(col, v) {
+  if (col === 'is_completed') return v ? 1 : 0;
+  if (INT_COLS.has(col) || DEC_COLS.has(col)) return Number(v) || 0;
+  return v === null || v === undefined ? '' : String(v);
+}
+
+/**
+ * Stale-write protection for the tasks row.
+ *
+ * The old behaviour was a full-row upsert: whatever copy of the task a browser
+ * held was written over every column. A tab whose copy was even a second old
+ * silently reverted other people's Start / End / handoff / owner changes —
+ * tasks "ending by themselves" and vanishing from dashboards.
+ *
+ * Now, for an existing task:
+ *   • `_base` present (current bundle) — the field values the client last saw
+ *     from the server. Only columns the client actually changed (payload !=
+ *     base) are written; everything else keeps the DB's current value. This is
+ *     a three-way merge, so concurrent edits to different fields both survive.
+ *   • no `_base`, `updatedAt` present — full overwrite only if the client's
+ *     copy is current; a stale copy is NOT written and the caller reports 409.
+ *   • neither — full overwrite only if the row was created in the last
+ *     NEW_TASK_GRACE_MS (follow-up saves of a task this client just created).
+ *     Any older row is refused: an unversioned full-row write is exactly how
+ *     an old tab / old machine / old bundle rolled back the whole table.
+ *   • row does not exist — insert (new tasks, CSV imports).
+ *
+ * Child tables are append/upsert-only and are always processed.
+ *
+ * @returns {Promise<{stale, changedCols, mode, changes, newEvents, autoPaused}>}
+ *   changedCols — columns written in merge mode; null for full write / insert
+ *   mode        — 'merge' | 'full' | 'create' | 'refused_stale'
+ *   changes     — [{field, from, to}] actually changed in the DB; for
+ *                 'refused_stale', what the write WOULD have changed
+ *   newEvents   — timer events inserted by this save
+ *   autoPaused  — other task ids paused by the single-active-timer guard
+ *   (used by the activity log — see backend/services/activityLog.service.js)
+ */
+export async function saveTaskToDb(conn, task) {
+  const base = task._base && typeof task._base === 'object' ? { ...task._base } : null;
+  normalizeTaskDates(task);
+  if (base) normalizeTaskDates(base);
+  const { cols, vals } = taskToColumns(task);
+
+  const [cur] = await conn.query(
+    'SELECT * FROM tasks WHERE id = ? LIMIT 1 FOR UPDATE',
+    [task.id]
   );
+  const exists = cur.length > 0;
+  const row    = exists ? cur[0] : null;
+
+  // Field-level diff of payload vs current DB row, restricted to `onlyCols`.
+  const diffVsRow = (onlyCols) => cols.reduce((out, col, i) => {
+    if (col === 'id' || (onlyCols && !onlyCols.includes(col))) return out;
+    if (normField(col, vals[i]) === normField(col, row[col])) return out;
+    out.push({ field: TASK_COLUMN_MAP[col], from: row[col], to: vals[i] });
+    return out;
+  }, []);
+
+  let stale = false;
+  let changedCols = null;
+  let mode = exists ? 'full' : 'create';
+  let changes = null;
+  const newEvents = [];
+  const autoPaused = [];
+
+  if (exists && base) {
+    changedCols = [];
+    const setVals = [];
+    cols.forEach((col, i) => {
+      if (col === 'id') return;
+      const key = TASK_COLUMN_MAP[col];
+      if (!(key in base)) return; // no baseline for this field — leave DB value alone
+      if (normField(col, vals[i]) === normField(col, base[key])) return;
+      changedCols.push(col);
+      setVals.push(vals[i]);
+    });
+    mode = 'merge';
+    changes = diffVsRow(changedCols);
+    if (changedCols.length) {
+      await conn.query(
+        `UPDATE tasks SET ${changedCols.map(c => `${c} = ?`).join(', ')} WHERE id = ?`,
+        [...setVals, task.id]
+      );
+    }
+  } else if (exists && !isFullWriteAllowed(task, row)) {
+    stale = true;
+    mode = 'refused_stale';
+    changes = diffVsRow(null);
+  } else {
+    if (exists) changes = diffVsRow(null);
+    const placeholders = cols.map(() => '?').join(',');
+    const updates = cols
+      .filter(c => c !== 'id')
+      .map(c => `${c} = VALUES(${c})`)
+      .join(', ');
+
+    await conn.query(
+      `INSERT INTO tasks (${cols.join(',')}) VALUES (${placeholders})
+       ON DUPLICATE KEY UPDATE ${updates}`,
+      vals
+    );
+  }
 
   // ── task_time_events — APPEND-ONLY, never delete ───────────────────────────
   // Race condition fixed: the old DELETE + re-INSERT pattern let User B's stale
@@ -102,21 +205,25 @@ export async function saveTaskToDb(conn, task) {
       // person has running, and is dropped outright if it would land on a task
       // they already have open — recording it would orphan the live segment.
       if (isOpeningEvent(ev.type) && ev.owner && ev.timestamp) {
-        const { redundant } = await enforceSingleActiveTimer(conn, {
+        const { redundant, pausedTaskIds } = await enforceSingleActiveTimer(conn, {
           taskId:     task.id,
           owner:      ev.owner,
           timestamp:  ev.timestamp,
           department: ev.department || '',
         });
+        autoPaused.push(...pausedTaskIds);
         if (redundant) continue;
       }
 
-      await conn.query(
+      const [ins] = await conn.query(
         `INSERT IGNORE INTO task_time_events
            (task_id, event_type, timestamp, department, owner)
          VALUES (?,?,?,?,?)`,
         [task.id, ev.type || '', ev.timestamp || '', ev.department || '', ev.owner || '']
       );
+      if (ins.affectedRows) {
+        newEvents.push({ type: ev.type || '', owner: ev.owner || '', timestamp: ev.timestamp || '' });
+      }
 
       const t = Date.parse(ev.timestamp || '');
       if (!Number.isNaN(t)) seen.push({ type: ev.type || '', t, owner: ev.owner || '' });
@@ -182,4 +289,6 @@ export async function saveTaskToDb(conn, task) {
     }
     // Prune step INTENTIONALLY REMOVED — see header comment above.
   }
+
+  return { stale, changedCols, mode, changes, newEvents, autoPaused };
 }

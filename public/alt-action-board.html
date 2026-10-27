@@ -366,6 +366,65 @@
 
   var HOUR = 3600000;
 
+  /* ══════════ request tagging ══════════ */
+
+  /* Every /api request says which user and which browser tab sent it, for the
+     server-side activity log (backend/services/activityLog.service.js). */
+  var TAB_ID = (function () {
+    var id = '';
+    try { id = sessionStorage.getItem('seo_tab_id') || ''; } catch (e) {}
+    if (!id) {
+      id = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+      try { sessionStorage.setItem('seo_tab_id', id); } catch (e) {}
+    }
+    return id;
+  })();
+  var LOADED_AT = new Date().toISOString();
+  var nativeFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    opts = Object.assign({}, opts || {});
+    var h = new Headers(opts.headers || {});
+    h.set('X-Tab-Id', TAB_ID);
+    h.set('X-App-Loaded', LOADED_AT);
+    h.set('X-App-Bundle', 'alt-action-board');
+    if (currentUser) h.set('X-User', encodeURIComponent(currentUser.ownerName || currentUser.name || ''));
+    opts.headers = h;
+    return nativeFetch(url, opts);
+  };
+
+  /* ══════════ audit log ══════════ */
+
+  /* Same audit_logs format and action names as the original Action Board, so
+     the audit report shows work from both boards alike. Best-effort: a failed
+     audit write never blocks or fails the action itself. */
+  function audit(entries) {
+    var list = (Array.isArray(entries) ? entries : [entries]).map(function (e) {
+      return Object.assign({
+        timestamp: new Date().toISOString(), userName: actor(),
+        userRole: (currentUser && currentUser.role) || '', source: 'action_board_2'
+      }, e);
+    });
+    if (!list.length) return;
+    fetch('/api/audit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(list) })
+      .catch(function () {});
+  }
+  function auditTask(action, t, extra) {
+    audit(Object.assign({ action: action, taskId: t.id, taskTitle: t.title || '', client: t.client || '' }, extra || {}));
+  }
+
+  /* A 409 means someone else changed the task after this screen loaded it, and
+     the action was NOT applied. Reload so the user sees the current state and
+     decides again, instead of acting on an out-of-date view. */
+  function fail(e, modalId) {
+    if (e && e.status === 409) {
+      if (modalId) closeModal(modalId);
+      toast('Someone else just changed this task — the board has been refreshed. Please check it and try again.', 'error');
+      loadTasks(false);
+      return;
+    }
+    toast('Failed: ' + (e && e.message), 'error');
+  }
+
   /* ══════════ boot ══════════ */
   window.addEventListener('DOMContentLoaded', function () {
     try { var s = localStorage.getItem(USER_KEY); if (s) currentUser = JSON.parse(s); } catch (e) {}
@@ -1012,13 +1071,19 @@
       body: JSON.stringify({ type: type, timestamp: new Date().toISOString(), department: dept, owner: actor() })
     }).then(chk);
   }
-  function patchAssign(id, f) {
-    return fetch('/api/tasks/' + encodeURIComponent(id) + '/assign', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }).then(chk);
-  }
-  function patchFields(id, f) {
-    return fetch('/api/tasks/' + encodeURIComponent(id) + '/fields', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }).then(chk);
+  /* `guarded` sends the task version this screen is showing (t.updatedAt); the
+     server refuses with 409 if the task changed since — see fail(). Every
+     successful patch stores the task's new version, so this user's own
+     follow-up steps (pause → end, assign → fields) are never refused. */
+  function patchAssign(id, f, guarded) { return patchTask(id, 'assign', f, guarded); }
+  function patchFields(id, f, guarded) { return patchTask(id, 'fields', f, guarded); }
+  function patchTask(id, kind, f, guarded) {
+    var t = localTask(id);
+    var body = guarded && t && t.updatedAt ? Object.assign({}, f, { expectedUpdatedAt: t.updatedAt }) : f;
+    return fetch('/api/tasks/' + encodeURIComponent(id) + '/' + kind, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(chk)
+      .then(function (res) { if (t && res && res.updatedAt) t.updatedAt = res.updatedAt; return res; });
   }
   function postQc(id, q) {
     return fetch('/api/tasks/' + encodeURIComponent(id) + '/qc-reviews', {
@@ -1028,7 +1093,14 @@
     return fetch('/api/tasks/' + encodeURIComponent(id) + '/rework', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) }).then(chk);
   }
-  function chk(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+  function chk(r) {
+    if (r.ok) return r.json();
+    return r.json().catch(function () { return {}; }).then(function (b) {
+      var e = new Error(b.error || ('HTTP ' + r.status));
+      e.status = r.status;
+      throw e;
+    });
+  }
   function guard(id, p) { pendingSaves[id] = true; return p.finally(function () { delete pendingSaves[id]; }); }
 
   function statusField(dept) {
@@ -1119,6 +1191,11 @@
     var t = localTask(endCtx.id);
     endCtx.action = action;
 
+    /* Close skips QC and finishes the task in one click — the action behind the
+       tasks that were closed by mistake on 27 Oct 2026. Make it deliberate. */
+    if (action === 'close' &&
+        !confirm('Close "' + (t.title || t.id) + '" without QC?\n\nThis marks the task as completely finished.')) return;
+
     /* approve / rework / close need no extra input — apply straight away. */
     if (action === 'approve' || action === 'close' || action === 'rework') { applyEndAction(); return; }
 
@@ -1172,16 +1249,17 @@
     var note = val('ecNote');
     var doc = val('ecDoc');
 
-    var chain = postEvent(id, 'end', dept);
+    /* Each branch starts with its guarded state change, then records the timer
+       `end`. If the task changed under us (409), nothing at all is written. */
+    var endTimer = function () { return postEvent(id, 'end', dept); };
+    var chain;
 
     if (action === 'assign_content' || action === 'assign_web') {
       var toCon = action === 'assign_content';
-      chain = chain.then(function () {
-        var p = { currentOwner: toCon ? 'Content' : 'Web', executionState: 'Not Started' };
-        p[toCon ? 'contentOwner' : 'webOwner'] = assignee;
-        p[toCon ? 'contentStatus' : 'webStatus'] = 'Assigned';
-        return patchAssign(id, p);
-      }).then(function () {
+      var ap = { currentOwner: toCon ? 'Content' : 'Web', executionState: 'Not Started' };
+      ap[toCon ? 'contentOwner' : 'webOwner'] = assignee;
+      ap[toCon ? 'contentStatus' : 'webStatus'] = 'Assigned';
+      chain = patchAssign(id, ap, true).then(endTimer).then(function () {
         var f = {};
         f[toCon ? 'contentAssignedDate' : 'webAssignedDate'] = date;
         f[toCon ? 'estHoursContent' : 'estHoursWeb'] = est;
@@ -1200,15 +1278,13 @@
       var toSeo = action === 'qc_seo';
       var review = { id: 'qc_' + Date.now(), submittedBy: actor(), submittedByDept: dept, submittedAt: now,
         assignedTo: assignee, estHours: qcEst, note: note || '' };
-      chain = chain.then(function () {
-        var p = { currentOwner: toSeo ? 'SEO' : 'Web', executionState: 'Not Started' };
-        if (toSeo) {
-          p.seoOwner = assignee; p.seoQcStatus = 'Pending QC';
-          if (dept === 'Content') p.contentStatus = 'QC Submitted';
-          else if (dept === 'Web') p.webStatus = 'QC Submitted';
-        } else { p.webOwner = assignee; p.webStatus = 'Pending QC'; }
-        return patchAssign(id, p);
-      }).then(function () {
+      var qp = { currentOwner: toSeo ? 'SEO' : 'Web', executionState: 'Not Started' };
+      if (toSeo) {
+        qp.seoOwner = assignee; qp.seoQcStatus = 'Pending QC';
+        if (dept === 'Content') qp.contentStatus = 'QC Submitted';
+        else if (dept === 'Web') qp.webStatus = 'QC Submitted';
+      } else { qp.webOwner = assignee; qp.webStatus = 'Pending QC'; }
+      chain = patchAssign(id, qp, true).then(endTimer).then(function () {
         var f = { qcSubmittedAt: now };
         if (toSeo) f.intakeDate = now.split('T')[0];
         if (doc) f.docUrl = doc;
@@ -1226,12 +1302,11 @@
           t.qcReviews = (t.qcReviews || []).concat([review]);
         });
     } else if (action === 'approve') {
-      chain = chain.then(function () {
-        var p = { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended' };
-        if (t.contentStatus) p.contentStatus = 'Approved';
-        if (t.webStatus) p.webStatus = 'Approved';
-        return patchAssign(id, p);
-      }).then(function () { return patchFields(id, { isCompleted: true }); })
+      var vp = { seoQcStatus: 'Approved', currentOwner: 'Completed', executionState: 'Ended' };
+      if (t.contentStatus) vp.contentStatus = 'Approved';
+      if (t.webStatus) vp.webStatus = 'Approved';
+      chain = patchAssign(id, vp, true).then(endTimer)
+        .then(function () { return patchFields(id, { isCompleted: true }); })
         .then(function () {
           var lastQc = (t.qcReviews || [])[(t.qcReviews || []).length - 1];
           if (lastQc) return postQc(id, Object.assign({}, lastQc, { outcome: 'Approved', completedAt: now }));
@@ -1241,12 +1316,10 @@
           if (t.webStatus) t.webStatus = 'Approved';
         });
     } else if (action === 'rework') {
-      chain = chain.then(function () {
-        var p = { seoQcStatus: 'Rework', executionState: 'Rework' };
-        if (t.contentStatus && t.contentStatus !== 'Approved') p.contentStatus = 'Rework';
-        if (t.webStatus && t.webStatus !== 'Approved') p.webStatus = 'Rework';
-        return patchAssign(id, p);
-      }).then(function () {
+      var rp = { seoQcStatus: 'Rework', executionState: 'Rework' };
+      if (t.contentStatus && t.contentStatus !== 'Approved') rp.contentStatus = 'Rework';
+      if (t.webStatus && t.webStatus !== 'Approved') rp.webStatus = 'Rework';
+      chain = patchAssign(id, rp, true).then(endTimer).then(function () {
         var lastQc = (t.qcReviews || [])[(t.qcReviews || []).length - 1];
         if (lastQc) return postQc(id, Object.assign({}, lastQc, { outcome: 'Rework', completedAt: now }));
       }).then(function () {
@@ -1255,24 +1328,30 @@
         if (t.webStatus && t.webStatus !== 'Approved') t.webStatus = 'Rework';
       });
     } else if (action === 'close') {
-      chain = chain.then(function () {
-        var p = { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed', webStatus: 'Completed' };
-        if (t.contentStatus) p.contentStatus = 'Completed';
-        return patchAssign(id, p);
-      }).then(function () { return patchFields(id, { isCompleted: true }); })
+      var cp = { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed', webStatus: 'Completed' };
+      if (t.contentStatus) cp.contentStatus = 'Completed';
+      chain = patchAssign(id, cp, true).then(endTimer)
+        .then(function () { return patchFields(id, { isCompleted: true }); })
         .then(function () {
           Object.assign(t, { currentOwner: 'Completed', executionState: 'Ended', seoQcStatus: 'Completed',
             isCompleted: true, webStatus: 'Completed' });
           if (t.contentStatus) t.contentStatus = 'Completed';
         });
     }
+    if (!chain) return;
+
+    /* Action names match the original board's audit entries. */
+    var AUDIT_NAMES = { assign_content: 'Assigned to Content', assign_web: 'Assigned to Web',
+      qc_seo: 'QC Submitted to SEO', qc_web: 'QC Submitted to Web', approve: 'Task Approved',
+      rework: 'Sent to Rework', close: 'Task Closed' };
 
     guard(id, chain).then(function () {
       closeModal('endModal');
       t.timeEvents = (t.timeEvents || []).concat([{ type: 'end', timestamp: now, department: dept, owner: actor() }]);
+      auditTask(AUDIT_NAMES[action] || action, t, assignee ? { note: 'Assigned to: ' + assignee } : undefined);
       applyFilters();
       toast('Task updated', 'success');
-    }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+    }).catch(function (e) { fail(e, 'endModal'); });
   };
 
   /* ══════════ Raise Rework ══════════ */
@@ -1327,19 +1406,20 @@
       withinEstimate: !!(remain !== null && est > 0 && est <= remain), hoursAlreadySpent: spent,
       startTimestamp: '', endTimestamp: '', durationMs: 0 };
 
-    guard(id, postRework(id, entry).then(function () {
-      var p = { currentOwner: dept, executionState: 'Rework', seoQcStatus: 'Rework' };
-      p[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
-      p[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
-      return patchAssign(id, p);
-    })).then(function () {
-      t.reworkEntries = (t.reworkEntries || []).concat([entry]);
-      t.currentOwner = dept; t.executionState = 'Rework'; t.seoQcStatus = 'Rework';
-      t[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
-      t[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
-      closeModal('reworkModal'); applyFilters();
-      toast('Rework raised → ' + dept, 'success');
-    }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+    /* Guarded state change first: if the task changed under us, nothing is written. */
+    var p = { currentOwner: dept, executionState: 'Rework', seoQcStatus: 'Rework' };
+    p[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
+    p[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
+    guard(id, patchAssign(id, p, true).then(function () { return postRework(id, entry); }))
+      .then(function () {
+        t.reworkEntries = (t.reworkEntries || []).concat([entry]);
+        t.currentOwner = dept; t.executionState = 'Rework'; t.seoQcStatus = 'Rework';
+        t[dept === 'Content' ? 'contentOwner' : 'webOwner'] = owner;
+        t[dept === 'Content' ? 'contentStatus' : 'webStatus'] = 'Rework';
+        auditTask('Rework Raised', t, { note: 'Assigned to: ' + owner + ' (' + dept + ')' });
+        closeModal('reworkModal'); applyFilters();
+        toast('Rework raised → ' + dept, 'success');
+      }).catch(function (e) { fail(e, 'reworkModal'); });
   };
 
   /* ══════════ New / Edit task ══════════ */
@@ -1416,12 +1496,20 @@
 
     if (editingId) {
       var t = localTask(editingId);
-      guard(editingId, patchFields(editingId, fields).then(function () {
+      /* One audit row per changed field, as the original board's "edited_task". */
+      var edits = Object.keys(fields).filter(function (k) {
+        return String(t[k] == null ? '' : t[k]) !== String(fields[k] == null ? '' : fields[k]);
+      }).map(function (k) {
+        return { action: 'edited_task', taskId: t.id, taskTitle: fields.title, client: fields.client || '',
+          field: k, oldValue: String(t[k] == null ? '' : t[k]), newValue: String(fields[k] == null ? '' : fields[k]) };
+      });
+      guard(editingId, patchFields(editingId, fields, true).then(function () {
         return patchAssign(editingId, { seoOwner: fields.seoOwner, seoStage: fields.seoStage });
       })).then(function () {
         Object.assign(t, fields);
+        audit(edits);
         closeModal('taskModal'); applyFilters(); toast('Task updated', 'success');
-      }).catch(function (e) { toast('Failed: ' + e.message, 'error'); });
+      }).catch(function (e) { fail(e, 'taskModal'); });
       return;
     }
 
@@ -1437,17 +1525,25 @@
 
     fetch('/api/tasks/' + encodeURIComponent(task.id), {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) })
-      .then(chk).then(function () {
+      .then(chk).then(function (res) {
+        /* Server's version stamp, so this tab's first guarded action on the
+           new task is checked like any other. */
+        if (res && res.dbRecord && res.dbRecord.updatedAt) task.updatedAt = res.dbRecord.updatedAt;
         allTasks.push(task);
+        auditTask('created_task', task, { note: 'Est SEO: ' + (task.estHoursSEO || 0) + 'h, Content: ' +
+          (task.estHoursContent || 0) + 'h, Web: ' + (task.estHoursWeb || 0) + 'h' });
         closeModal('taskModal'); applyFilters(); toast('Task created: ' + task.id, 'success');
       }).catch(function (e) { toast('Failed to create task: ' + e.message, 'error'); });
   };
 
   window.deleteTask = function (id) {
-    if (!confirm('Delete task ' + id + '? This cannot be undone.')) return;
+    var t = localTask(id);
+    var label = t && t.title ? '"' + t.title + '" (' + id + ')' : id;
+    if (!confirm('Delete task ' + label + '?\n\nIt can be restored by an admin from the Activity Log for 30 days.')) return;
     fetch('/api/tasks/' + encodeURIComponent(id), { method: 'DELETE' }).then(chk)
       .then(function () {
-        allTasks = allTasks.filter(function (t) { return t.id !== id; });
+        if (t) auditTask('deleted_task', t);
+        allTasks = allTasks.filter(function (x) { return x.id !== id; });
         applyFilters(); toast('Task deleted', 'success');
       }).catch(function (e) { toast('Delete failed: ' + e.message, 'error'); });
   };
@@ -1529,6 +1625,10 @@
       fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(out) })
         .then(chk).then(function () {
           allTasks = allTasks.concat(out);
+          audit(out.map(function (t) {
+            return { action: 'created_task', taskId: t.id, taskTitle: t.title, client: t.client || '',
+              note: 'CSV import (' + out.length + ' rows) — Est SEO: ' + (t.estHoursSEO || 0) + 'h' };
+          }));
           applyFilters(); toast('Imported ' + out.length + ' task(s)', 'success');
         }).catch(function (e) { toast('Import failed: ' + e.message, 'error'); })
         .finally(function () { input.value = ''; });

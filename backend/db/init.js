@@ -146,6 +146,33 @@ const TABLE_DDL = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_notes_user (user_name))`],
+  // ── Server-side activity log — every write request, as the server saw it ──
+  // Unlike audit_logs (written by the browser, so silent when a buggy/stale
+  // tab misbehaves), this is recorded by the server for every mutating API
+  // call. Pruned by backend/services/activityLog.service.js (default 7 days).
+  ['activity_log', `CREATE TABLE IF NOT EXISTS activity_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    created_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
+    method VARCHAR(10) DEFAULT '', path VARCHAR(500) DEFAULT '',
+    status SMALLINT DEFAULT 0, duration_ms INT DEFAULT 0,
+    user_name VARCHAR(255) DEFAULT '', tab_id VARCHAR(64) DEFAULT '',
+    app_loaded_at VARCHAR(50) DEFAULT '', app_bundle VARCHAR(255) DEFAULT '',
+    ip VARCHAR(64) DEFAULT '', user_agent VARCHAR(500) DEFAULT '',
+    action VARCHAR(100) DEFAULT '', task_id VARCHAR(255) DEFAULT '',
+    changes MEDIUMTEXT, details MEDIUMTEXT,
+    INDEX idx_al_created (created_at), INDEX idx_al_task (task_id),
+    INDEX idx_al_user (user_name))`],
+  // Full copy of every deleted task (row + timer events + QC + rework) so a
+  // wrong delete can be restored. Pruned after 30 days by default.
+  ['deleted_tasks', `CREATE TABLE IF NOT EXISTS deleted_tasks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id VARCHAR(255) NOT NULL, title VARCHAR(500) DEFAULT '',
+    client VARCHAR(255) DEFAULT '',
+    deleted_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP(3),
+    deleted_by VARCHAR(255) DEFAULT '', tab_id VARCHAR(64) DEFAULT '',
+    ip VARCHAR(64) DEFAULT '', snapshot LONGTEXT NOT NULL,
+    restored_at TIMESTAMP NULL DEFAULT NULL,
+    INDEX idx_dt_task (task_id), INDEX idx_dt_deleted (deleted_at))`],
 ];
 
 const MIGRATIONS = [
